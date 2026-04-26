@@ -1,82 +1,106 @@
-'use client';
-
-import React from 'react';
-import {
-  ShieldCheck,
-  Lock,
-  Zap,
-  BarChart3,
-  Users,
-  GitBranch,
-  Database,
-  Bell,
-} from 'lucide-react';
-
-const features = [
-  {
-    icon: ShieldCheck,
-    title: 'Fine-Grained Permissions',
-    description: 'Control access down to the action level. Define who can create, read, update, delete, approve, or export resources.',
-  },
-  {
-    icon: Lock,
-    title: 'Enterprise Security',
-    description: 'Industry-standard authentication, secure session management, and encryption for sensitive operations.',
-  },
-  {
-    icon: Zap,
-    title: 'Automated Workflows',
-    description: 'Rules-based approval routing that adapts to your business logic. No coding required.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Comprehensive Auditing',
-    description: 'Complete audit trails for every action, including who did what, when, and from where.',
-  },
-  {
-    icon: Users,
-    title: 'Role Management',
-    description: 'Create custom roles with specific permission sets. System and custom roles coexist seamlessly.',
-  },
-  {
-    icon: GitBranch,
-    title: 'Workflow Templates',
-    description: 'Pre-built workflow templates for common scenarios, fully customizable to your needs.',
-  },
-  {
-    icon: Database,
-    title: 'Real-Time Data',
-    description: 'Instant updates across the system. Changes propagate immediately to all authorized users.',
-  },
-  {
-    icon: Bell,
-    title: 'Smart Notifications',
-    description: 'Intelligent alerts notify users of pending approvals and actions requiring their attention.',
-  },
-];
+import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  BarChart3, 
+  Database, 
+  Gem, 
+  Palette, 
+  Users, 
+  Boxes, 
+  Building2, 
+  ShoppingCart, 
+  CreditCard, 
+  FileText 
+} from "lucide-react";
 
 export function FeaturesSection() {
+  const modules = [
+    {
+      icon: BarChart3,
+      title: "Dashboard & Analytics",
+      description: "Today's sales, low stock alerts, overdue payments, worker activity — all on one screen.",
+    },
+    {
+      icon: Database,
+      title: "Raw Material Management",
+      description: "Track purchases by supplier, material type, quantity and cost. Supplier ledger with outstanding balance.",
+    },
+    {
+      icon: Gem,
+      title: "Supplementary Materials",
+      description: "Manage stones, diamonds, fittings, coatings. Track issuance per assignment and consumption per design.",
+    },
+    {
+      icon: Palette,
+      title: "Product Design Catalogue",
+      description: "Maintain your full design library with SKU, diamond count, piece rate, sale price per dozen, and reference images.",
+    },
+    {
+      icon: Users,
+      title: "Worker Management",
+      description: "Register workers, issue lots, collect finished goods, calculate earnings, settle payments with advance support.",
+    },
+    {
+      icon: Boxes,
+      title: "Inventory Management",
+      description: "Two-stage stock: unpackaged pieces → packaged dozens. Low stock alerts, packaging batch records.",
+    },
+    {
+      icon: Building2,
+      title: "Party Management",
+      description: "Manage dealers and suppliers in one place. Credit limits, credit periods, full ledger, overdue alerts.",
+    },
+    {
+      icon: ShoppingCart,
+      title: "Orders & Dispatch",
+      description: "Create orders, validate stock, generate invoices, record dispatch. Partial dispatch supported.",
+    },
+    {
+      icon: CreditCard,
+      title: "Payment & Ledger",
+      description: "Cash, UPI, bank transfer. Aging report: 0–30, 31–60, 61–90, 90+ days. Daily cash flow summary.",
+    },
+    {
+      icon: FileText,
+      title: "Reports & Analytics",
+      description: "Sales, stock, worker, outstanding, purchase, profit reports. Export to PDF and Excel.",
+    }
+  ];
+
   return (
-    <section id="features" className="py-24 bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center space-y-4 mb-16">
-          <h2 className="font-serif text-4xl sm:text-5xl font-bold text-gray-900">Platform Capabilities</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Powerful features built for enterprise reliability and ease of use
+    <section id="modules" className="py-24 bg-white">
+      <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#0F1C2E] font-jakarta mb-4">
+            Everything Your Business Needs
+          </h2>
+          <p className="text-lg text-[#4B5C72]">
+            10 integrated modules, purpose-built for jewellery manufacturing
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, idx) => {
-            const Icon = feature.icon;
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {modules.map((module, index) => {
+            const ModuleIcon = module.icon;
             return (
-              <div key={idx} className="rounded-xl border border-gray-200 bg-white hover:border-teal-300 hover:shadow-lg transition-all duration-300 p-6 space-y-4 group">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-teal-100 to-cyan-100 text-teal-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Icon className="w-6 h-6" />
-                </div>
-                <h3 className="font-semibold text-gray-900">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
-              </div>
+              <Card 
+                key={index} 
+                className="border-[#E2E8F0] shadow-sm hover:shadow-md hover:border-[#1B2D4F]/30 transition-all duration-300 group"
+              >
+                <CardHeader className="pb-3">
+                  <div className="w-12 h-12 rounded-lg bg-[#F8F9FC] border border-[#E2E8F0] flex items-center justify-center mb-4 group-hover:bg-[#1B2D4F] transition-colors">
+                    <ModuleIcon className="w-6 h-6 text-[#1B2D4F] group-hover:text-[#D4A843] transition-colors" />
+                  </div>
+                  <CardTitle className="text-xl font-bold text-[#0F1C2E]">
+                    {module.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[#4B5C72] text-sm leading-relaxed">
+                    {module.description}
+                  </p>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

@@ -1,280 +1,465 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
-import { DEMO_CREDENTIALS } from '@/lib/data';
-import {
-  Eye, EyeOff, Gem, Shield, Users, User, BarChart3,
-  ChevronRight, AlertCircle, Sparkles, Copy, Check
-} from 'lucide-react';
-
-const ROLE_META = {
-  flowoid_admin: { label: 'Flowoid Admin', color: '#7C3AED', bg: 'from-purple-600 to-violet-700', icon: Shield },
-  owner:         { label: 'Business Owner', color: '#0D7377', bg: 'from-teal-600 to-emerald-700', icon: User },
-  manager:       { label: 'Manager / Staff', color: '#0F2A4A', bg: 'from-blue-700 to-navy-800', icon: Users },
-  viewer:        { label: 'Viewer / Auditor', color: '#D97706', bg: 'from-amber-500 to-orange-600', icon: BarChart3 },
-};
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Diamond, 
+  Sparkles, 
+  Eye, 
+  EyeOff, 
+  ArrowRight, 
+  Loader2, 
+  CheckCircle2,
+  Briefcase,
+  Users,
+  BarChart3,
+  ChevronRight,
+  Check,
+  Info
+} from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, role, isLoading } = useAuth();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  
+  // Form state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace(role === 'flowoid_admin' ? '/admin' : '/dashboard');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // UI states
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [shake, setShake] = useState(false);
+  const [success, setSuccess] = useState(false);
+  
+  const handleSignIn = () => {
+    if (!email || !password) {
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
     }
-  }, [isAuthenticated, isLoading, role, router]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
-
-    await new Promise(r => setTimeout(r, 600)); // small delay for UX
-
-    const result = login(email.trim(), password);
-    setIsSubmitting(false);
-
-    if (result.success && result.redirectTo) {
-      router.push(result.redirectTo);
-    } else {
-      setError(result.error || 'Login failed. Please try again.');
-    }
+    
+    setIsLoading(true);
+    
+    // Simulate login
+    setTimeout(() => {
+      setIsLoading(false);
+      setSuccess(true);
+      
+      // Redirect after success animation
+      setTimeout(() => {
+        // Role-based redirection
+        if (email.includes("admin@flowoid.com")) {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
+      }, 800);
+    }, 1000);
+  };
+  
+  const handleDemoClick = (cardId: string, demoEmail: string, demoPass: string) => {
+    setActiveCardId(cardId);
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    
+    // Remove active state after animation
+    setTimeout(() => {
+      setActiveCardId(null);
+    }, 1500);
   };
 
-  const fillCredential = (cred: typeof DEMO_CREDENTIALS[0]) => {
-    setEmail(cred.email);
-    setPassword(cred.password);
-    setError('');
-  };
-
-  const copyToClipboard = (text: string, idx: number) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 1500);
-  };
+  const featurePills = [
+    "Worker Management",
+    "Inventory Tracking",
+    "Party Ledger",
+    "Order Dispatch",
+    "Reports & Analytics",
+    "RBAC & Multi-Tenant"
+  ];
 
   return (
-    <div className="min-h-screen flex bg-[#F4F6F9]">
-      {/* ── Left Panel — Branding ── */}
-      <div className="hidden lg:flex lg:w-[55%] bg-gradient-to-br from-[#0F2A4A] via-[#0D3A6A] to-[#0D7377] relative overflow-hidden flex-col">
-        {/* Decorative orbs */}
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute bottom-[-5%] left-[-5%] w-[400px] h-[400px] rounded-full bg-[#F5A623]/10 blur-3xl" />
-        <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] rounded-full bg-[#0D7377]/30 blur-2xl" />
-
-        {/* Grid pattern overlay */}
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
-          }}
-        />
-
-        <div className="relative z-10 flex flex-col h-full p-14">
-          {/* Logo */}
-          <div className="flex items-center gap-3 mb-auto">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
-              <Gem className="w-6 h-6 text-[#F5A623]" />
+    <div className="flex w-full h-screen overflow-hidden font-jakarta bg-[#F8F9FC]">
+      
+      {/* LEFT PANEL - Branded Side */}
+      <div className="hidden md:flex flex-col w-[45%] h-full relative p-12 overflow-hidden justify-between"
+           style={{ background: "radial-gradient(circle at top left, #0D3D56 0%, #1B2D4F 100%)" }}>
+        
+        {/* Dot grid overlay */}
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none" 
+             style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+             
+        {/* Abstract Floating Mini Dashboard (Option A) */}
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="absolute top-16 right-[-80px] lg:right-[-20px] xl:right-10 w-72 bg-[#0F2235] rounded-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.3)] rotate-2 z-10 hidden lg:block"
+        >
+          {/* Floating notification */}
+          <motion.div 
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: [0, -5, 0], opacity: 1 }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            className="absolute -top-6 -left-6 bg-white rounded-lg p-2.5 shadow-lg flex items-center gap-2 border border-[#E2E8F0]"
+          >
+            <div className="bg-[#22C55E]/15 rounded-full p-1">
+              <Check className="w-3 h-3 text-[#22C55E]" />
             </div>
-            <div>
-              <p className="text-white font-bold text-xl leading-none">Flowoid Stock</p>
-              <p className="text-white/50 text-xs mt-0.5">by Flowoid Technologies</p>
+            <span className="text-[#0F1C2E] text-[10px] font-bold">Order Dispatched</span>
+          </motion.div>
+
+          <div className="p-4">
+            <h4 className="text-white/80 text-xs font-semibold mb-3">Today's Overview</h4>
+            
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="bg-white/5 rounded-md p-2.5 border border-white/5">
+                <div className="text-white/50 text-[9px] mb-1">Revenue</div>
+                <div className="text-white font-bold text-sm">₹48,960</div>
+              </div>
+              <div className="bg-white/5 rounded-md p-2.5 border border-white/5">
+                <div className="text-white/50 text-[9px] mb-1">Orders</div>
+                <div className="text-white font-bold text-sm">12</div>
+              </div>
+              <div className="bg-white/5 rounded-md p-2.5 border border-white/5">
+                <div className="text-white/50 text-[9px] mb-1">Active Workers</div>
+                <div className="text-white font-bold text-sm">8</div>
+              </div>
+              <div className="bg-[#D4A843]/10 rounded-md p-2.5 border border-[#D4A843]/20">
+                <div className="text-white/60 text-[9px] mb-1">Pending</div>
+                <div className="text-[#D4A843] font-bold text-sm">₹1.2L</div>
+              </div>
+            </div>
+            
+            <div className="flex items-end gap-1.5 h-10 w-full opacity-60">
+              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[30%]"></div>
+              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[50%]"></div>
+              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[40%]"></div>
+              <div className="w-full bg-[#D4A843] rounded-t-[2px] h-[80%] shadow-[0_0_10px_rgba(212,168,67,0.4)]"></div>
+              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[60%]"></div>
+              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[70%]"></div>
             </div>
           </div>
+        </motion.div>
 
-          {/* Hero text */}
-          <div className="mb-auto mt-20">
-            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 mb-6">
-              <Sparkles className="w-4 h-4 text-[#F5A623]" />
-              <span className="text-white/80 text-xs font-medium">Multi-Tenant SaaS Platform</span>
+        {/* Top: Logo block */}
+        <div className="relative z-20">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-12 h-12 rounded-xl bg-[#1B2D4F] flex items-center justify-center shadow-lg border border-white/10">
+              <Diamond className="w-6 h-6 text-[#D4A843] fill-[#D4A843]/20" />
             </div>
-            <h1 className="text-5xl font-bold text-white leading-tight mb-6">
-              Jewellery Business,<br />
-              <span className="text-[#F5A623]">Managed with Precision</span>
-            </h1>
-            <p className="text-white/60 text-lg leading-relaxed max-w-md">
-              From raw material to dispatch — track every piece, every worker,
-              every order, every rupee. Built for imitation jewellery manufacturers across India.
-            </p>
+            <div className="flex flex-col">
+              <span className="text-white font-bold text-[18px] leading-tight">Flowoid Stock</span>
+              <span className="text-[#94A3B8] text-[12px] font-medium tracking-wide">by Flowoid Technologies</span>
+            </div>
           </div>
-
-          {/* Feature chips */}
-          <div className="flex flex-wrap gap-3 mt-auto">
-            {['Worker Management', 'Inventory Tracking', 'Party Ledger', 'Order Dispatch', 'Reports & Analytics', 'RBAC & Multi-Tenant'].map(f => (
-              <span
-                key={f}
-                className="bg-white/10 border border-white/15 rounded-full px-4 py-1.5 text-white/70 text-xs font-medium backdrop-blur"
-              >
-                {f}
-              </span>
+        </div>
+        
+        {/* Middle: Hero copy */}
+        <div className="relative z-20 flex-1 flex flex-col justify-center">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#D4A843]/40 bg-[#D4A843]/10 w-fit mb-8">
+            <Sparkles className="w-3.5 h-3.5 text-[#D4A843]" />
+            <span className="text-[#D4A843] text-xs font-semibold uppercase tracking-wider">Multi-Tenant SaaS Platform</span>
+          </div>
+          
+          <h1 className="text-[40px] font-extrabold leading-[1.1] mb-6">
+            <span className="block text-white">Jewellery Business,</span>
+            <span className="block text-[#D4A843]">Managed with Precision</span>
+          </h1>
+          
+          <p className="text-[#94A3B8] text-[15px] leading-[1.7] max-w-[340px]">
+            From raw material to dispatch — track every piece, every worker, every order, every rupee. Built for imitation jewellery manufacturers across India.
+          </p>
+        </div>
+        
+        {/* Bottom: Feature pills & copyright */}
+        <div className="relative z-20 mt-auto">
+          <div className="flex flex-wrap gap-2 mb-10 max-w-[420px]">
+            {featurePills.map((pill, i) => (
+              <div key={i} className="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
+                <span className="text-white text-[12px] font-medium">{pill}</span>
+              </div>
             ))}
           </div>
-
-          <p className="text-white/30 text-xs mt-8">
-            © 2024 Flowoid Technologies. Platform v1.0 — Demo Environment
-          </p>
+          
+          <div className="text-[#4B5C72] text-[11px] font-medium">
+            © 2025 Flowoid Technologies. Platform v1.0
+          </div>
         </div>
       </div>
-
-      {/* ── Right Panel — Login Form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12">
-        {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-xl bg-[#0F2A4A] flex items-center justify-center">
-            <Gem className="w-5 h-5 text-[#F5A623]" />
+      
+      {/* RIGHT PANEL - Login Form */}
+      <div className="w-full md:w-[55%] h-full flex flex-col bg-[#F8F9FC] relative overflow-y-auto">
+        
+        {/* ========================================================= */}
+        {/* REMOVE THIS SECTION FOR PRODUCTION */}
+        {/* DEMO CREDENTIALS (Testing Only) */}
+        {/* ========================================================= */}
+        <div className="w-full p-6 md:p-8 bg-white border-b border-[#E2E8F0] shadow-sm mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Info className="w-4 h-4 text-[#D4A843]" />
+            <h3 className="text-[#0F1C2E] text-[13px] font-bold uppercase tracking-wider">Demo Credentials (Testing Only)</h3>
           </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Card 1 - Flowoid Admin */}
+            <DemoCard 
+              id="admin"
+              icon={<div className="w-8 h-8 rounded-[6px] bg-[#7C3AED] flex items-center justify-center text-white font-bold text-sm leading-none">F</div>}
+              title="Flowoid Admin"
+              subtitle="admin@flowoid.com"
+              badgeText="Admin"
+              badgeColor="bg-[#7C3AED]/10 text-[#7C3AED]"
+              isActive={activeCardId === "admin"}
+              onClick={() => handleDemoClick("admin", "admin@flowoid.com", "flowoid@2024")}
+            />
+            
+            {/* Card 2 - Business Owner */}
+            <DemoCard 
+              id="owner"
+              icon={<div className="w-8 h-8 rounded-[6px] bg-[#1B2D4F] flex items-center justify-center"><Briefcase className="w-4 h-4 text-[#D4A843]" /></div>}
+              title="Business Owner"
+              subtitle="owner@ayanshi.com"
+              badgeText="Owner"
+              badgeColor="bg-[#1B2D4F]/10 text-[#1B2D4F]"
+              isActive={activeCardId === "owner"}
+              onClick={() => handleDemoClick("owner", "owner@ayanshi.com", "ayanshi@2024")}
+            />
+            
+            {/* Card 3 - Manager */}
+            <DemoCard 
+              id="manager"
+              icon={<div className="w-8 h-8 rounded-[6px] bg-[#0D3D56] flex items-center justify-center"><Users className="w-4 h-4 text-white" /></div>}
+              title="Manager / Staff"
+              subtitle="manager@ayanshi.com"
+              badgeText="Manager"
+              badgeColor="bg-[#0D3D56]/10 text-[#0D3D56]"
+              isActive={activeCardId === "manager"}
+              onClick={() => handleDemoClick("manager", "manager@ayanshi.com", "manager@2024")}
+            />
+            
+            {/* Card 4 - Viewer */}
+            <DemoCard 
+              id="viewer"
+              icon={<div className="w-8 h-8 rounded-[6px] bg-[#D4A843]/15 flex items-center justify-center"><BarChart3 className="w-4 h-4 text-[#D4A843]" /></div>}
+              title="Viewer / Auditor"
+              subtitle="viewer@ayanshi.com"
+              badgeText="Viewer"
+              badgeColor="bg-[#D4A843]/15 text-[#D4A843]"
+              isActive={activeCardId === "viewer"}
+              onClick={() => handleDemoClick("viewer", "viewer@ayanshi.com", "viewer@2024")}
+            />
+          </div>
+        </div>
+        {/* ========================================================= */}
+        {/* END DEMO CREDENTIALS */}
+        {/* ========================================================= */}
+
+
+        {/* Centered Form Container */}
+        <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 pb-12 w-full max-w-[460px] mx-auto min-h-[500px]">
+          
+          {/* Mobile Logo (hidden on desktop) */}
+          <div className="md:hidden flex items-center gap-2 mb-10 justify-center">
+            <div className="w-10 h-10 rounded-lg bg-[#1B2D4F] flex items-center justify-center">
+              <Diamond className="w-5 h-5 text-[#D4A843] fill-[#D4A843]/20" />
+            </div>
+            <span className="text-[#0F1C2E] font-bold text-lg">Flowoid Stock</span>
+          </div>
+          
+          {/* Top greeting */}
           <div>
-            <p className="text-[#0F2A4A] font-bold text-lg leading-none">Flowoid Stock</p>
-            <p className="text-gray-400 text-xs mt-0.5">by Flowoid Technologies</p>
+            <h2 className="text-[#0F1C2E] font-extrabold text-[32px] tracking-tight">Welcome back</h2>
+            <p className="text-[#4B5C72] text-[15px] mt-2">Sign in to your Flowoid workspace</p>
           </div>
-        </div>
-
-        <div className="w-full max-w-md">
-          {/* Header */}
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-[#0F2A4A] mb-2">Welcome back</h2>
-            <p className="text-gray-500">Sign in to your workspace</p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => { setEmail(e.target.value); setError(''); }}
-                placeholder="your@email.com"
-                required
-                autoComplete="email"
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0D7377] transition-colors text-sm"
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setError(''); }}
-                  placeholder="••••••••••"
-                  required
-                  autoComplete="current-password"
-                  className="w-full px-4 py-3 pr-12 rounded-xl border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0D7377] transition-colors text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 bg-[#0F2A4A] hover:bg-[#0D3A6A] disabled:opacity-60 text-white font-semibold py-3.5 rounded-xl transition-all duration-200 text-sm mt-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in…
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-[#F4F6F9] px-4 text-xs text-gray-400 font-medium uppercase tracking-wider">
-                Demo Credentials
-              </span>
-            </div>
-          </div>
-
-          {/* Demo Credentials */}
-          <div className="space-y-2">
-            {DEMO_CREDENTIALS.map((cred, idx) => {
-              const meta = ROLE_META[cred.role as keyof typeof ROLE_META];
-              const Icon = meta?.icon || User;
-              return (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 bg-white border-2 border-gray-100 hover:border-[#0D7377]/30 rounded-xl px-4 py-3 cursor-pointer group transition-all"
-                  onClick={() => fillCredential(cred)}
-                >
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: meta?.color + '20', color: meta?.color }}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-700">{cred.label}</p>
-                    <p className="text-xs text-gray-400 truncate">{cred.email} · {cred.password}</p>
-                  </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); copyToClipboard(cred.email, idx); }}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-all"
-                    title="Copy email"
-                  >
-                    {copiedIdx === idx ? (
-                      <Check className="w-3.5 h-3.5 text-green-500" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#0D7377] transition-colors flex-shrink-0" />
+          
+          {/* Form fields */}
+          <motion.div 
+            className="mt-10"
+            animate={shake ? { x: [-10, 10, -10, 10, 0] } : {}}
+            transition={{ duration: 0.4 }}
+          >
+            <div className="space-y-5">
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label className="block text-[#0F1C2E] text-[14px] font-semibold">Email Address</label>
+                <div className="relative">
+                  <input 
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full h-[48px] px-4 rounded-[10px] border-[1.5px] border-[#E2E8F0] bg-white text-[14px] text-[#0F1C2E] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#1B2D4F] focus:ring-[3px] focus:ring-[#1B2D4F]/10 transition-all"
+                  />
                 </div>
-              );
-            })}
-          </div>
-
-          <p className="text-center text-xs text-gray-400 mt-6">
-            Click any credential to auto-fill the form, then press Sign In
-          </p>
+              </div>
+              
+              {/* Password */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[#0F1C2E] text-[14px] font-semibold">Password</label>
+                  <Link href="#" className="text-[#D4A843] text-[13px] font-semibold hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••"
+                    className="w-full h-[48px] pl-4 pr-12 rounded-[10px] border-[1.5px] border-[#E2E8F0] bg-white text-[14px] text-[#0F1C2E] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#1B2D4F] focus:ring-[3px] focus:ring-[#1B2D4F]/10 transition-all"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#94A3B8] hover:text-[#4B5C72] transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Sign In Button */}
+            <div className="mt-8">
+              <motion.div
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.99 }}
+              >
+                <button
+                  onClick={handleSignIn}
+                  disabled={isLoading || success}
+                  className="w-full h-[52px] bg-[#1B2D4F] hover:bg-[#243D6B] text-white rounded-[10px] font-bold text-[15px] tracking-[0.3px] flex items-center justify-center transition-colors shadow-sm disabled:opacity-90 relative overflow-hidden"
+                >
+                  <AnimatePresence mode="wait">
+                    {success ? (
+                      <motion.div
+                        key="success"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center gap-2"
+                      >
+                        <CheckCircle2 className="w-5 h-5 text-[#22C55E]" />
+                        <span>Signed In</span>
+                      </motion.div>
+                    ) : isLoading ? (
+                      <motion.div
+                        key="loading"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="default"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-center gap-2"
+                      >
+                        <span>Sign In</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+              </motion.div>
+            </div>
+          </motion.div>
+          
         </div>
       </div>
+      
     </div>
+  );
+}
+
+// Helper component for Demo Cards
+function DemoCard({ 
+  id, 
+  icon, 
+  title, 
+  subtitle, 
+  badgeText, 
+  badgeColor, 
+  isActive, 
+  onClick 
+}: { 
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  badgeText: string;
+  badgeColor: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={onClick}
+      className={`relative w-full bg-[#F8F9FC] border rounded-[8px] p-2.5 flex items-center gap-3 cursor-pointer transition-all duration-200 overflow-hidden ${
+        isActive ? "border-[#D4A843] shadow-[0_0_0_1px_#D4A843]" : "border-[#E2E8F0] hover:border-[#1B2D4F]"
+      }`}
+    >
+      {/* Left accent bar on hover/active */}
+      <div className={`absolute left-0 top-0 bottom-0 w-[3px] bg-[#D4A843] transition-transform duration-200 origin-left ${
+        isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+      }`} />
+      
+      {/* Icon */}
+      <div className="shrink-0">
+        {icon}
+      </div>
+      
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <h4 className="text-[#0F1C2E] text-[13px] font-semibold truncate">{title}</h4>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] shrink-0 ${badgeColor}`}>
+            {badgeText}
+          </span>
+        </div>
+        <p className="text-[#94A3B8] text-[11px] truncate">{subtitle}</p>
+      </div>
+      
+      {/* Right chevron / Success mark */}
+      <div className="shrink-0 text-[#94A3B8] w-4 flex justify-center">
+        <AnimatePresence mode="wait">
+          {isActive ? (
+            <motion.div
+              key="check"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+            >
+              <Check className="w-3.5 h-3.5 text-[#22C55E]" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="chevron"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      {/* Hover parent styling helper */}
+      <style jsx>{`
+        div:hover > div:first-child {
+          transform: scaleX(1);
+        }
+      `}</style>
+    </motion.div>
   );
 }
