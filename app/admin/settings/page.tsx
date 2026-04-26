@@ -23,13 +23,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">System Settings</h1>
         <p className="text-gray-600 mt-1">Configure system-wide preferences and security settings</p>
       </div>
 
-      <div className="space-y-6">
+      <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-6">
         {/* General Settings */}
         <Card className="rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
@@ -41,6 +41,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
               <input
                 type="text"
+                required
                 value={settings.companyName}
                 onChange={e => setSettings({ ...settings, companyName: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -50,6 +51,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">System Email</label>
               <input
                 type="email"
+                required
                 value={settings.systemEmail}
                 onChange={e => setSettings({ ...settings, systemEmail: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -95,6 +97,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
               <input
                 type="number"
+                required
+                min="1"
                 value={settings.sessionTimeout}
                 onChange={e => setSettings({ ...settings, sessionTimeout: parseInt(e.target.value) })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -127,6 +131,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Log Retention (days)</label>
               <input
                 type="number"
+                required
+                min="1"
                 value={settings.logRetentionDays}
                 onChange={e => setSettings({ ...settings, logRetentionDays: parseInt(e.target.value) })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -139,7 +145,7 @@ export default function SettingsPage() {
         <Card className="rounded-lg border border-red-200 bg-red-50 p-6">
           <h2 className="text-lg font-semibold text-red-900 mb-4">Danger Zone</h2>
           <p className="text-red-800 text-sm mb-4">These actions cannot be undone</p>
-          <button className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2">
+          <button type="button" className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2">
             <LogOut className="w-4 h-4" />
             Clear All Sessions
           </button>
@@ -153,14 +159,14 @@ export default function SettingsPage() {
             )}
           </div>
           <button
-            onClick={handleSave}
+            type="submit"
             className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
           >
             <Save className="w-5 h-5" />
             Save Settings
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

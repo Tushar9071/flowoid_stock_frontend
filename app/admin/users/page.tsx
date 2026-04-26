@@ -12,9 +12,9 @@ export default function UsersPage() {
   const filtered = filter === 'all' ? mockUsers : mockUsers.filter(u => u.status === filter);
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600 mt-2 max-w-2xl">
@@ -38,18 +38,18 @@ export default function UsersPage() {
               <h2 className="text-xl font-bold text-gray-900">Invite New User</h2>
               <p className="text-sm text-gray-600 mt-1">Send secure invitation to a new team member</p>
             </div>
-            <div className="p-6 space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); setShowInviteModal(false); }} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                <input type="email" placeholder="user@company.com" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" />
+                <input type="email" required placeholder="user@company.com" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                <input type="text" placeholder="John Doe" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" />
+                <input type="text" required placeholder="John Doe" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assign Role</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none">
+                <select required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none">
                   <option>Owner</option>
                   <option>Manager</option>
                   <option>Viewer</option>
@@ -57,33 +57,34 @@ export default function UsersPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                <input type="text" placeholder="Operations" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" />
+                <input type="text" required placeholder="Operations" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" />
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                 <p><strong>How it works:</strong> The user receives an invitation email with a secure link. They set up their credentials and you approve their access.</p>
               </div>
               <div className="flex gap-3 pt-4">
                 <button
+                  type="button"
                   onClick={() => setShowInviteModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => setShowInviteModal(false)}
+                  type="submit"
                   className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors"
                 >
                   Send Invitation
                 </button>
               </div>
-            </div>
+            </form>
           </Card>
         </div>
       )}
 
       {/* Users List */}
       <Card className="rounded-lg border border-gray-200 bg-white">
-        <div className="p-6 border-b border-gray-200 flex items-center gap-4">
+        <div className="p-6 border-b border-gray-200 flex flex-wrap items-center gap-4">
           {['all', 'active', 'inactive', 'pending'].map(status => (
             <button
               key={status}

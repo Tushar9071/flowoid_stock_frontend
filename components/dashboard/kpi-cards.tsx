@@ -1,5 +1,4 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/constants';
 import { TrendingUp, AlertCircle, Package, Users } from 'lucide-react';
 
@@ -21,51 +20,51 @@ export function KPICards({
       title: 'Total Sales (This Month)',
       value: formatCurrency(totalSales),
       icon: TrendingUp,
-      color: 'bg-blue-100 text-blue-600',
+      color: 'bg-[#e0f2fe] text-[#0284c7]',
       trend: '+12.5%',
     },
     {
       title: 'Active Orders',
       value: activeOrders.toString(),
       icon: Package,
-      color: 'bg-amber-100 text-amber-600',
+      color: 'bg-[#fffbeb] text-[#d97706]',
       trend: '+3 today',
     },
     {
       title: 'Pending Payments',
       value: formatCurrency(pendingPayments),
       icon: AlertCircle,
-      color: 'bg-red-100 text-red-600',
+      color: 'bg-[#fff0f0] text-[#cc2200]',
       trend: '5 invoices',
     },
     {
       title: 'Low Stock Items',
       value: lowStockItems.toString(),
       icon: Package,
-      color: 'bg-orange-100 text-orange-600',
+      color: 'bg-[#f3f4f6] text-[#6b7280]',
       trend: 'Needs restock',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
       {kpis.map((kpi, index) => {
         const Icon = kpi.icon;
         return (
-          <Card key={index} className="border-0 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+          <div key={index} className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">
                 {kpi.title}
-              </CardTitle>
+              </p>
               <div className={`p-2 rounded-lg ${kpi.color}`}>
                 <Icon className="w-4 h-4" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-text">{kpi.value}</div>
-              <p className="text-xs text-muted-foreground mt-2">{kpi.trend}</p>
-            </CardContent>
-          </Card>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-[#0F2A4A] leading-none mb-2">{kpi.value}</p>
+              <p className="text-sm font-semibold text-[#1a7a4a]">{kpi.trend}</p>
+            </div>
+          </div>
         );
       })}
     </div>

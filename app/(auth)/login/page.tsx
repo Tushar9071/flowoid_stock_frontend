@@ -19,15 +19,18 @@ import {
   Info
 } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   
   // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   
   // UI states
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export default function LoginPage() {
   const [success, setSuccess] = useState(false);
   
   const handleSignIn = () => {
+    setErrorMsg("");
     if (!email || !password) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
@@ -43,21 +47,29 @@ export default function LoginPage() {
     
     setIsLoading(true);
     
-    // Simulate login
+    // Process login
     setTimeout(() => {
-      setIsLoading(false);
-      setSuccess(true);
+      const result = login(email, password);
       
-      // Redirect after success animation
-      setTimeout(() => {
-        // Role-based redirection
-        if (email.includes("admin@flowoid.com")) {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
-      }, 800);
-    }, 1000);
+      if (result.success) {
+        setIsLoading(false);
+        setSuccess(true);
+        
+        // Redirect after success animation
+        setTimeout(() => {
+          if (result.redirectTo) {
+            router.push(result.redirectTo);
+          } else {
+            router.push("/dashboard");
+          }
+        }, 800);
+      } else {
+        setIsLoading(false);
+        setErrorMsg(result.error || "Authentication failed");
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+      }
+    }, 800);
   };
   
   const handleDemoClick = (cardId: string, demoEmail: string, demoPass: string) => {
@@ -275,12 +287,18 @@ export default function LoginPage() {
             <p className="text-[#4B5C72] text-[15px] mt-2">Sign in to your Flowoid workspace</p>
           </div>
           
-          {/* Form fields */}
-          <motion.div 
+          <motion.form 
+            onSubmit={(e) => { e.preventDefault(); handleSignIn(); }}
             className="mt-10"
             animate={shake ? { x: [-10, 10, -10, 10, 0] } : {}}
             transition={{ duration: 0.4 }}
           >
+            {errorMsg && (
+              <div className="mb-5 p-3.5 bg-red-50/80 border border-red-200/60 rounded-[10px] flex items-center gap-2">
+                <Info className="w-4 h-4 text-red-500 shrink-0" />
+                <p className="text-red-600 text-[13px] font-medium leading-tight">{errorMsg}</p>
+              </div>
+            )}
             <div className="space-y-5">
               {/* Email */}
               <div className="space-y-1.5">
@@ -288,6 +306,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <input 
                     type="email"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com"
@@ -307,6 +326,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <input 
                     type={showPassword ? "text" : "password"}
+                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••"
@@ -330,7 +350,7 @@ export default function LoginPage() {
                 whileTap={{ scale: 0.99 }}
               >
                 <button
-                  onClick={handleSignIn}
+                  type="submit"
                   disabled={isLoading || success}
                   className="w-full h-[52px] bg-[#1B2D4F] hover:bg-[#243D6B] text-white rounded-[10px] font-bold text-[15px] tracking-[0.3px] flex items-center justify-center transition-colors shadow-sm disabled:opacity-90 relative overflow-hidden"
                 >
@@ -370,7 +390,7 @@ export default function LoginPage() {
                 </button>
               </motion.div>
             </div>
-          </motion.div>
+          </motion.form>
           
         </div>
       </div>

@@ -9,15 +9,15 @@ export default function RolesPage() {
   const [selectedRole, setSelectedRole] = useState(mockRoles[0]);
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Roles Management</h1>
-          <p className="text-gray-600 mt-1">Create and manage system roles with custom permissions</p>
+          <h1 className="text-2xl font-bold text-gray-900">Roles Management</h1>
+          <p className="text-gray-600 mt-1 text-sm">Create and manage system roles with custom permissions</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
-          <Plus className="w-5 h-5" />
+        <button className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all whitespace-nowrap self-start sm:self-auto">
+          <Plus className="w-4 h-4" />
           Add New Role
         </button>
       </div>

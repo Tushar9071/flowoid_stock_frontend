@@ -1,123 +1,187 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  mockInventoryItems,
-} from '@/lib/data';
+import { AlertTriangle, Plus, Search, ChevronDown, Package, Layers } from 'lucide-react';
+import { mockInventoryItems } from '@/lib/data';
 import { formatDate } from '@/lib/constants';
-import { Plus, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+
+type Tab = 'unpackaged' | 'packaged' | 'packaging-form';
 
 export default function InventoryPage() {
   const { role } = useAuth();
+  const [tab, setTab] = useState<Tab>('unpackaged');
+  const [search, setSearch] = useState('');
+
+  const filtered = mockInventoryItems.filter(
+    i =>
+      i.designCode.toLowerCase().includes(search.toLowerCase()) ||
+      i.designName.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'unpackaged', label: 'Unpackaged Stock', icon: <Package className="w-4 h-4" /> },
+    { id: 'packaged', label: 'Packaged Stock', icon: <Layers className="w-4 h-4" /> },
+    { id: 'packaging-form', label: 'Packaging Form', icon: <Plus className="w-4 h-4" /> },
+  ];
+
+  const canEdit = role === 'owner';
 
   return (
-    <DashboardLayout title="Inventory Management">
-      <Tabs defaultValue="unpackaged" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="unpackaged">Unpackaged Stock</TabsTrigger>
-          <TabsTrigger value="packaged">Packaged Stock</TabsTrigger>
-          <TabsTrigger value="packaging-form">Packaging Form</TabsTrigger>
-        </TabsList>
+    <DashboardLayout
+      title="Inventory Management"
+      subtitle="Track unpackaged stock, packaged dozens, and packaging activity"
+      action={
+        canEdit ? (
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+            <Plus className="w-4 h-4" />
+            Add Stock
+          </button>
+        ) : undefined
+      }
+    >
+      {/* Custom Tab Bar */}
+      <div className="flex gap-1 p-1 bg-[#e5e7eb] rounded-xl mb-6 w-fit">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              tab === t.id
+                ? 'bg-[#0F2A4A] text-white shadow-sm'
+                : 'text-[#6b7280] hover:text-[#0F2A4A] hover:bg-white/60'
+            }`}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Unpackaged Stock */}
-        <TabsContent value="unpackaged" className="space-y-4">
-          <div className="flex justify-end gap-2 mb-4">
-            {role === 'owner' && (
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add Stock
-              </Button>
-            )}
+      {/* Unpackaged Stock */}
+      {tab === 'unpackaged' && (
+        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+          {/* Table toolbar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-4 border-b border-[#e5e7eb]">
+            <p className="text-sm font-semibold text-[#0F2A4A]">{filtered.length} items</p>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search design..."
+                  className="w-full sm:w-56 h-9 pl-9 pr-3 rounded-lg border border-[#e5e7eb] text-sm bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[#0F2A4A] outline-none transition-all"
+                />
+              </div>
+              <button className="h-9 px-3 rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#374151] flex items-center gap-1.5 hover:bg-[#f9fafb] transition-colors">
+                Filter <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Design Code</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Design Name</th>
-                  <th className="text-right p-3 font-semibold text-muted-foreground">Pieces</th>
-                  <th className="text-right p-3 font-semibold text-muted-foreground">Threshold</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Status</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Last Updated</th>
+                <tr className="bg-[#f5f6fa] border-b border-[#e5e7eb]">
+                  {['Design Code', 'Design Name', 'Pieces', 'Threshold', 'Status', 'Last Updated'].map(h => (
+                    <th
+                      key={h}
+                      className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] whitespace-nowrap ${
+                        h === 'Pieces' || h === 'Threshold' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody>
-                {mockInventoryItems.map(item => {
+              <tbody className="divide-y divide-[#f3f4f6]">
+                {filtered.map((item, idx) => {
                   const isLow = item.unpackagedPieces < item.lowStockThreshold;
                   return (
-                    <tr key={item.id} className="border-b hover:bg-muted/50">
-                      <td className="p-3 font-medium text-primary">{item.designCode}</td>
-                      <td className="p-3">{item.designName}</td>
-                      <td className="p-3 text-right font-semibold">{item.unpackagedPieces}</td>
-                      <td className="p-3 text-right text-muted-foreground">{item.lowStockThreshold}</td>
-                      <td className="p-3">
+                    <tr
+                      key={item.id}
+                      className={`transition-colors hover:bg-[#f0f4ff] ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}
+                    >
+                      <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{item.designCode}</td>
+                      <td className="px-5 py-3.5 text-sm text-[#374151]">{item.designName}</td>
+                      <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{item.unpackagedPieces}</td>
+                      <td className="px-5 py-3.5 text-sm text-right text-[#6b7280]">{item.lowStockThreshold}</td>
+                      <td className="px-5 py-3.5">
                         {isLow ? (
-                          <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">
-                            <AlertTriangle className="w-3 h-3" />
-                            Low Stock
-                          </div>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#fff0f0] text-[#cc2200]">
+                            <AlertTriangle className="w-3 h-3" /> Low Stock
+                          </span>
                         ) : (
-                          <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#e6f9f0] text-[#1a7a4a]">
                             ✓ In Stock
-                          </div>
+                          </span>
                         )}
                       </td>
-                      <td className="p-3 text-muted-foreground text-xs">{formatDate(item.lastUpdated)}</td>
+                      <td className="px-5 py-3.5 text-sm text-[#6b7280]">{formatDate(item.lastUpdated)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        </TabsContent>
 
-        {/* Packaged Stock */}
-        <TabsContent value="packaged" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockInventoryItems.map(item => (
-              <Card key={item.id}>
-                <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">{item.designCode}</p>
-                  <p className="font-semibold text-text mt-1">{item.designName}</p>
-                  <div className="flex justify-between mt-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Packaged</p>
-                      <p className="text-xl font-bold text-primary">{item.packagedDozens}</p>
-                      <p className="text-xs text-muted">dozen</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">= {item.packagedDozens * 12} pieces</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Pagination placeholder */}
+          <div className="flex items-center justify-between px-6 py-3 border-t border-[#e5e7eb] bg-[#fafafa]">
+            <p className="text-xs text-[#6b7280]">Showing {filtered.length} of {mockInventoryItems.length} records</p>
+            <div className="flex gap-1">
+              {[1].map(p => (
+                <button key={p} className="w-8 h-8 rounded-lg bg-[#0F2A4A] text-white text-xs font-semibold">{p}</button>
+              ))}
+            </div>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* Packaging Form */}
-        <TabsContent value="packaging-form" className="space-y-4">
-          <div className="flex justify-end gap-2 mb-4">
-            {role === 'owner' && (
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Packaging
-              </Button>
-            )}
+      {/* Packaged Stock */}
+      {tab === 'packaged' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {mockInventoryItems.map(item => (
+            <div key={item.id} className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs text-[#6b7280] uppercase tracking-wide">{item.designCode}</p>
+                  <p className="font-semibold text-[#0F2A4A] mt-0.5">{item.designName}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-[#f0f2f5]">
+                  <Layers className="w-4 h-4 text-[#0F2A4A]" />
+                </div>
+              </div>
+              <div className="flex items-end justify-between border-t border-[#f3f4f6] pt-3 mt-3">
+                <div>
+                  <p className="text-[11px] text-[#6b7280] uppercase tracking-wide mb-0.5">Packaged</p>
+                  <p className="text-3xl font-bold text-[#0F2A4A]">{item.packagedDozens}<span className="text-base font-medium text-[#6b7280] ml-1">doz</span></p>
+                </div>
+                <p className="text-sm text-[#6b7280]">= {item.packagedDozens * 12} pcs</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Packaging Form */}
+      {tab === 'packaging-form' && (
+        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm p-12 text-center">
+          <div className="w-16 h-16 bg-[#f0f2f5] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-7 h-7 text-[#6b7280]" />
           </div>
-          <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">
-              <p>No packaging forms created yet.</p>
-              <p className="text-sm mt-2">Create a form to record packaging activity.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <p className="text-[#0F2A4A] font-semibold text-lg mb-1">No Packaging Forms</p>
+          <p className="text-sm text-[#6b7280] mb-6">Create a form to record packaging activity.</p>
+          {canEdit && (
+            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold">
+              <Plus className="w-4 h-4" /> Create Packaging
+            </button>
+          )}
+        </div>
+      )}
     </DashboardLayout>
   );
 }

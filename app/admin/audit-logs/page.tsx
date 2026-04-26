@@ -11,14 +11,14 @@ export default function AuditLogsPage() {
   const filtered = filter === 'all' ? mockAuditLogs : mockAuditLogs.filter(l => l.status === filter);
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Audit Logs</h1>
-        <p className="text-gray-600 mt-1">Complete activity history with detailed change tracking</p>
+        <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
+        <p className="text-gray-600 mt-1 text-sm">Complete activity history with detailed change tracking</p>
       </div>
 
       <Card className="rounded-lg border border-gray-200 bg-white">
-        <div className="p-6 border-b border-gray-200 flex items-center gap-4">
+        <div className="p-4 border-b border-gray-200 flex flex-wrap items-center gap-3">
           <Filter className="w-5 h-5 text-gray-600" />
           {['all', 'success', 'failure'].map(status => (
             <button

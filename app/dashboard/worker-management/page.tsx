@@ -2,92 +2,123 @@
 
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { StatusBadge } from '@/components/shared/status-badge';
+import { Plus, Search, ChevronDown, Trash2, Users, ClipboardList, Package, Wallet } from 'lucide-react';
 import {
-  mockWorkers,
-  mockAssignments,
-  mockFinishedGoods,
-  mockWorkerPayments,
+  mockWorkers, mockAssignments, mockFinishedGoods, mockWorkerPayments,
 } from '@/lib/data';
 import { formatCurrency, formatDate } from '@/lib/constants';
-import { Search, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+
+type Tab = 'workers' | 'assignments' | 'finished-goods' | 'payments';
 
 export default function WorkerManagementPage() {
   const { role } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
-  const canDelete = role === 'owner';
+  const [tab, setTab] = useState<Tab>('workers');
+  const [search, setSearch] = useState('');
+  const canEdit = role === 'owner';
 
-  const filteredWorkers = mockWorkers.filter(w =>
-    w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    w.code.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredWorkers = mockWorkers.filter(
+    w =>
+      w.name.toLowerCase().includes(search.toLowerCase()) ||
+      w.code.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'workers', label: 'Worker List', icon: <Users className="w-4 h-4" /> },
+    { id: 'assignments', label: 'Assignments', icon: <ClipboardList className="w-4 h-4" /> },
+    { id: 'finished-goods', label: 'Finished Goods', icon: <Package className="w-4 h-4" /> },
+    { id: 'payments', label: 'Payment Settlement', icon: <Wallet className="w-4 h-4" /> },
+  ];
+
+  const TH = ({ children, right }: { children: string; right?: boolean }) => (
+    <th className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] whitespace-nowrap ${right ? 'text-right' : 'text-left'}`}>
+      {children}
+    </th>
   );
 
   return (
-    <DashboardLayout title="Worker Management">
-      <Tabs defaultValue="workers" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
-          <TabsTrigger value="workers">Worker List</TabsTrigger>
-          <TabsTrigger value="assignments">Active Assignments</TabsTrigger>
-          <TabsTrigger value="finished-goods">Finished Goods</TabsTrigger>
-          <TabsTrigger value="payments">Payment Settlement</TabsTrigger>
-        </TabsList>
+    <DashboardLayout
+      title="Worker Management"
+      subtitle="Track workers, job assignments, finished goods and payment settlements"
+      action={
+        canEdit ? (
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+            <Plus className="w-4 h-4" />
+            Add Worker
+          </button>
+        ) : undefined
+      }
+    >
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 bg-[#e5e7eb] rounded-xl mb-6 w-full sm:w-fit overflow-x-auto">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+              tab === t.id
+                ? 'bg-[#0F2A4A] text-white shadow-sm'
+                : 'text-[#6b7280] hover:text-[#0F2A4A] hover:bg-white/60'
+            }`}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Worker List Tab */}
-        <TabsContent value="workers" className="space-y-6">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search workers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+      {/* Workers Tab */}
+      {tab === 'workers' && (
+        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-4 border-b border-[#e5e7eb]">
+            <p className="text-sm font-semibold text-[#0F2A4A]">{filteredWorkers.length} workers</p>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search worker..."
+                  className="w-full sm:w-52 h-9 pl-9 pr-3 rounded-lg border border-[#e5e7eb] text-sm bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[#0F2A4A] outline-none transition-all"
+                />
+              </div>
+              <button className="h-9 px-3 rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#374151] flex items-center gap-1.5 hover:bg-[#f9fafb]">
+                Status <ChevronDown className="w-3.5 h-3.5" />
+              </button>
             </div>
-            {role === 'owner' && (
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add Worker
-              </Button>
-            )}
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Code</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Name</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Phone</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Total Earnings</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Total Paid</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Balance</th>
-                  <th className="text-left p-3 font-semibold text-muted-foreground">Status</th>
-                  {canDelete && <th className="text-left p-3 font-semibold text-muted-foreground">Action</th>}
+                <tr className="bg-[#f5f6fa] border-b border-[#e5e7eb]">
+                  <TH>Code</TH><TH>Name</TH><TH>Phone</TH>
+                  <TH right>Total Earned</TH><TH right>Total Paid</TH><TH right>Balance</TH>
+                  <TH>Status</TH>
+                  {canEdit && <TH>Action</TH>}
                 </tr>
               </thead>
-              <tbody>
-                {filteredWorkers.map(worker => (
-                  <tr key={worker.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                    <td className="p-3 font-medium text-primary">{worker.code}</td>
-                    <td className="p-3">{worker.name}</td>
-                    <td className="p-3 text-muted-foreground">{worker.phone}</td>
-                    <td className="p-3 font-semibold text-text">{formatCurrency(worker.totalEarnings)}</td>
-                    <td className="p-3 text-green-600">{formatCurrency(worker.totalPaid)}</td>
-                    <td className="p-3 font-semibold text-orange-600">
-                      {formatCurrency(worker.totalEarnings - worker.totalPaid)}
+              <tbody className="divide-y divide-[#f3f4f6]">
+                {filteredWorkers.map((w, idx) => (
+                  <tr key={w.id} className={`hover:bg-[#f0f4ff] transition-colors ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{w.code}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium text-[#374151]">{w.name}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#6b7280]">{w.phone}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{formatCurrency(w.totalEarnings)}</td>
+                    <td className="px-5 py-3.5 text-sm text-right text-[#1a7a4a]">{formatCurrency(w.totalPaid)}</td>
+                    <td className={`px-5 py-3.5 text-sm font-semibold text-right ${w.totalEarnings - w.totalPaid > 0 ? 'text-[#d97706]' : 'text-[#1a7a4a]'}`}>
+                      {formatCurrency(w.totalEarnings - w.totalPaid)}
                     </td>
-                    <td className="p-3">
-                      <StatusBadge status={worker.status} />
+                    <td className="px-5 py-3.5">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        w.status === 'active' ? 'bg-[#e6f9f0] text-[#1a7a4a]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                      }`}>
+                        {w.status.charAt(0).toUpperCase() + w.status.slice(1)}
+                      </span>
                     </td>
-                    {canDelete && (
-                      <td className="p-3">
-                        <button className="p-1 hover:bg-red-100 rounded text-danger transition-colors">
+                    {canEdit && (
+                      <td className="px-5 py-3.5">
+                        <button className="p-1.5 rounded-lg hover:bg-[#fff0f0] text-[#9ca3af] hover:text-[#cc2200] transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -97,114 +128,113 @@ export default function WorkerManagementPage() {
               </tbody>
             </table>
           </div>
-        </TabsContent>
 
-        {/* Active Assignments Tab */}
-        <TabsContent value="assignments" className="space-y-4">
-          {mockAssignments.map(assignment => (
-            <Card key={assignment.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Worker</p>
-                    <p className="font-semibold text-text">
-                      {mockWorkers.find(w => w.id === assignment.workerId)?.name}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Design</p>
-                    <p className="font-semibold text-primary">{assignment.designCode}</p>
-                    <p className="text-xs text-muted">{assignment.designName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Qty Issued / Returned</p>
-                    <p className="font-semibold text-text">
-                      {assignment.issuedQty} / {assignment.returnedQty}
-                    </p>
-                    <p className="text-xs text-danger">Rejected: {assignment.rejectedQty}</p>
-                  </div>
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Status</p>
-                      <StatusBadge status={assignment.status} />
-                    </div>
-                    <Button variant="outline" size="sm">Edit</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
+          <div className="flex items-center justify-between px-6 py-3 border-t border-[#e5e7eb] bg-[#fafafa]">
+            <p className="text-xs text-[#6b7280]">Showing {filteredWorkers.length} of {mockWorkers.length} workers</p>
+            <div className="flex gap-1">
+              <button className="w-8 h-8 rounded-lg bg-[#0F2A4A] text-white text-xs font-semibold">1</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {/* Finished Goods Tab */}
-        <TabsContent value="finished-goods" className="space-y-4">
-          {mockFinishedGoods.map(entry => (
-            <Card key={entry.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Worker</p>
-                    <p className="font-semibold text-text">{entry.workerName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Design</p>
-                    <p className="font-semibold text-primary">{entry.designCode}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Quantity</p>
-                    <p className="font-semibold text-text">{entry.quantity}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Date</p>
-                    <p className="font-semibold text-text">{formatDate(entry.collectedDate)}</p>
-                  </div>
-                  <div className="flex items-end">
-                    <StatusBadge status={entry.quality} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
+      {/* Assignments Tab */}
+      {tab === 'assignments' && (
+        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#e5e7eb]">
+            <p className="text-sm font-semibold text-[#0F2A4A]">{mockAssignments.length} active assignments</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-[#f5f6fa] border-b border-[#e5e7eb]">
+                  <TH>Assignment</TH><TH>Worker</TH><TH>Design</TH>
+                  <TH right>Qty Assigned</TH><TH right>Qty Returned</TH>
+                  <TH>Assigned Date</TH><TH>Status</TH>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f3f4f6]">
+                {mockAssignments.map((a, idx) => (
+                  <tr key={a.id} className={`hover:bg-[#f0f4ff] transition-colors ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{a.id}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#374151]">{mockWorkers.find(w => w.id === a.workerId)?.name || 'Unknown'}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#374151]">{a.designCode}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{a.issuedQty}</td>
+                    <td className="px-5 py-3.5 text-sm text-right text-[#1a7a4a]">{a.returnedQty}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#6b7280]">{formatDate(a.issueDate)}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        a.status === 'in_progress' ? 'bg-[#e6f9f0] text-[#1a7a4a]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                      }`}>
+                        {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-        {/* Payment Settlement Tab */}
-        <TabsContent value="payments" className="space-y-4">
-          {mockWorkerPayments.map(payment => (
-            <Card key={payment.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-center">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Worker</p>
-                    <p className="font-semibold text-text">{payment.workerName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Work Date</p>
-                    <p className="font-semibold text-text">{formatDate(payment.workDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Amount</p>
-                    <p className="font-semibold text-primary">{formatCurrency(payment.amount)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Paid Date</p>
-                    <p className="font-semibold text-text">
-                      {payment.paymentDate ? formatDate(payment.paymentDate) : '-'}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <StatusBadge status={payment.status} />
-                    {payment.status === 'pending' && (
-                      <Button size="sm" className="gap-2">
-                        Mark Paid
-                      </Button>
-                    )}
-                  </div>
+      {/* Finished Goods Tab */}
+      {tab === 'finished-goods' && (
+        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#e5e7eb]">
+            <p className="text-sm font-semibold text-[#0F2A4A]">{mockFinishedGoods.length} returns recorded</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-[#f5f6fa] border-b border-[#e5e7eb]">
+                  <TH>Return ID</TH><TH>Worker</TH><TH>Design</TH>
+                  <TH right>Good Qty</TH><TH right>Rejected</TH><TH right>Earned</TH><TH>Date</TH>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f3f4f6]">
+                {mockFinishedGoods.map((g, idx) => (
+                  <tr key={g.id} className={`hover:bg-[#f0f4ff] transition-colors ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{g.id}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#374151]">{g.workerName}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#374151]">{g.designCode}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#1a7a4a]">{g.quantity}</td>
+                    <td className="px-5 py-3.5 text-sm text-right text-[#cc2200]">0</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{formatCurrency(0)}</td>
+                    <td className="px-5 py-3.5 text-sm text-[#6b7280]">{formatDate(g.collectedDate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Payments Tab */}
+      {tab === 'payments' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {mockWorkerPayments.map(p => (
+            <div key={p.id} className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-xs text-[#6b7280]">{p.id}</p>
+                  <p className="font-bold text-[18px] text-[#0F2A4A] mt-0.5">{p.workerName}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <span className="text-xl font-bold text-[#1a7a4a]">{formatCurrency(p.amount)}</span>
+              </div>
+              <div className="border-t border-[#f3f4f6] pt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Method</p>
+                  <p className="text-sm font-semibold text-[#374151] capitalize">Cash</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Date</p>
+                  <p className="text-sm text-[#374151]">{p.paymentDate ? formatDate(p.paymentDate) : '-'}</p>
+                </div>
+              </div>
+            </div>
           ))}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

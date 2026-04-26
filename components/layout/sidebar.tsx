@@ -40,102 +40,86 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
   flowoid_admin: { label: 'Flowoid Admin', color: '#7C3AED' },
-  owner:         { label: 'Business Owner', color: '#0D7377' },
-  manager:       { label: 'Manager',        color: '#0F2A4A' },
-  viewer:        { label: 'Viewer',          color: '#D97706' },
+  owner:         { label: 'Business Owner', color: '#f5a623' },
+  manager:       { label: 'Manager',        color: '#1a7a4a' },
+  viewer:        { label: 'Viewer',         color: '#6b7280' },
 };
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { role, user, logout } = useAuth();
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
 
-  // Filter navigation items based on role
   const roleKey = role || 'viewer';
   const visibleNav = navigationVisibility[roleKey] || [];
 
   const visibleItems = navigationItems.filter(item => {
-    // Owner-only items
     if (item.adminOnly && roleKey !== 'owner' && roleKey !== 'flowoid_admin') return false;
     return visibleNav.includes(item.id);
   });
 
-  const roleMeta = ROLE_BADGE[roleKey] || { label: roleKey, color: '#0F2A4A' };
+  const roleMeta = ROLE_BADGE[roleKey] || { label: roleKey, color: '#f5a623' };
 
   return (
     <>
-      {/* Mobile Toggle */}
+      {/* Mobile hamburger button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed md:hidden top-4 left-4 z-50 p-2 bg-white shadow-md rounded-lg border border-gray-200"
+        onClick={() => setIsOpen(true)}
+        className={`fixed md:hidden top-4 left-4 z-50 p-2 bg-white shadow-md rounded-lg border border-[#e5e7eb] transition-opacity duration-200 ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       >
         <Menu className="w-5 h-5 text-[#0F2A4A]" />
       </button>
 
-      {/* Overlay */}
+      {/* Backdrop */}
       {isOpen && (
         <div
           onClick={() => setIsOpen(false)}
-          className="fixed md:hidden inset-0 bg-black/50 z-30"
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar container */}
       <aside
-        className={`fixed md:static left-0 top-0 h-screen w-[240px] flex flex-col z-40 transition-transform duration-300 ${
-          !isOpen ? '-translate-x-full md:translate-x-0' : ''
+        className={`fixed md:static inset-y-0 left-0 h-full w-[260px] flex flex-col z-40 transition-transform duration-300 shrink-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
         style={{ background: 'linear-gradient(175deg, #0F2A4A 0%, #0A1E38 100%)' }}
       >
-        {/* Logo */}
-        <div className="p-5 border-b border-white/10">
+        {/* Logo area */}
+        <div className="p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/20 flex-shrink-0">
-                <Gem className="w-4 h-4 text-[#F5A623]" />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#f5a623] flex items-center justify-center shrink-0">
+                <Gem className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-white font-bold text-sm leading-none">Flowoid Stock</p>
-                <p className="text-white/40 text-[10px] mt-0.5">Ayanshi Imitation</p>
+                <p className="text-white font-bold text-[15px] leading-tight tracking-wide">Flowoid Stock</p>
+                <p className="text-white/50 text-[11px] font-medium tracking-wider uppercase mt-0.5">Ayanshi Imitation</p>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="md:hidden p-1 hover:bg-white/10 rounded"
+              className="md:hidden p-1 hover:bg-white/10 rounded-lg transition-colors"
             >
-              <ChevronLeft className="w-4 h-4 text-white/60" />
+              <ChevronLeft className="w-5 h-5 text-white/60" />
             </button>
           </div>
         </div>
 
-        {/* Role Badge */}
-        <div className="px-4 py-3 border-b border-white/10">
-          <div
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
-            style={{ backgroundColor: roleMeta.color + '25', color: roleMeta.color === '#0F2A4A' ? '#93C5FD' : '#F5A623' }}
-          >
-            <div
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: roleMeta.color === '#0F2A4A' ? '#93C5FD' : roleMeta.color }}
-            />
-            {roleMeta.label}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 scrollbar-none">
-          <div className="px-3 mb-2">
-            <p className="text-white/30 text-[10px] font-semibold uppercase tracking-wider px-2 mb-2">
+        {/* Navigation list */}
+        <nav className="flex-1 overflow-y-auto py-5 scrollbar-none">
+          <div className="px-5 mb-3">
+            <p className="text-white/40 text-[11px] font-bold uppercase tracking-widest">
               Navigation
             </p>
           </div>
-          <ul className="space-y-0.5 px-2">
+          <ul className="space-y-1 px-3">
             {visibleItems.map(item => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
               const Icon = iconMap[item.icon as keyof typeof iconMap];
@@ -145,50 +129,45 @@ export function Sidebar() {
                   <Link
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all group ${
+                    className={`relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-[14px] transition-all group overflow-hidden ${
                       isActive
-                        ? 'bg-white/15 text-white font-semibold'
-                        : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+                        ? 'bg-[#f5a623] text-[#0F2A4A] font-bold shadow-md'
+                        : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
                     }`}
                   >
+                    {isActive && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0F2A4A]" />
+                    )}
                     {Icon && (
                       <Icon
-                        className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                          isActive ? 'text-[#F5A623]' : 'text-white/40 group-hover:text-white/70'
+                        className={`w-[18px] h-[18px] shrink-0 transition-colors ${
+                          isActive ? 'text-[#0F2A4A]' : 'text-white/40 group-hover:text-white/80'
                         }`}
                       />
                     )}
                     <span>{item.label}</span>
-                    {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto text-[#F5A623]" />}
+                    {isActive && <ChevronRight className="w-4 h-4 ml-auto text-[#0F2A4A]/50" />}
                   </Link>
                 </li>
               );
             })}
           </ul>
-
-          {/* Viewer notice */}
-          {roleKey === 'viewer' && (
-            <div className="mx-3 mt-4 p-3 rounded-lg bg-[#F5A623]/10 border border-[#F5A623]/20">
-              <p className="text-[#F5A623] text-xs font-semibold mb-1">Read-Only Mode</p>
-              <p className="text-white/50 text-[11px]">You have view-only access. Contact the Owner to change permissions.</p>
-            </div>
-          )}
         </nav>
 
-        {/* User Footer */}
-        <div className="p-3 border-t border-white/10">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/5 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#0D7377] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+        {/* User profile footer */}
+        <div className="p-4 border-t border-white/10 shrink-0">
+          <div className="flex items-center gap-3 mb-3 px-2">
+            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold shrink-0 border border-white/20">
               {user?.name?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-semibold truncate">{user?.name || 'User'}</p>
-              <p className="text-white/40 text-[10px] truncate">{user?.email || ''}</p>
+              <p className="text-white text-[13px] font-bold truncate">{user?.name || 'User'}</p>
+              <p className="text-white/50 text-[11px] font-medium truncate uppercase tracking-wider">{roleMeta.label}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all text-xs font-medium"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all text-[13px] font-bold border border-transparent hover:border-white/10"
           >
             <LogOut className="w-4 h-4" />
             Sign Out

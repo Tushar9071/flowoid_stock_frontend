@@ -3,139 +3,115 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, LogOut, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+import { Bell, LogOut, User, Search, Settings } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   flowoid_admin: 'Flowoid Admin',
   owner: 'Business Owner',
   manager: 'Manager',
-  viewer: 'Viewer / Auditor',
+  viewer: 'Viewer',
 };
 
 export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
   const { user, role, logout } = useAuth();
   const router = useRouter();
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
 
-
-  const notifications = [
-    {
-      id: 1,
-      title: 'Low Stock Alert',
-      message: 'Gold Plating Solution is below threshold',
-      time: '2 hours ago',
-      read: false,
-    },
-    {
-      id: 2,
-      title: 'Payment Overdue',
-      message: 'Sharma Jewellers has overdue payment',
-      time: '5 hours ago',
-      read: false,
-    },
-    {
-      id: 3,
-      title: 'Order Dispatched',
-      message: 'Order ORD001 dispatched successfully',
-      time: '1 day ago',
-      read: true,
-    },
-  ];
-
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-border shadow-sm">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex-1">
-          {breadcrumb && <div className="text-sm text-muted-foreground">{breadcrumb}</div>}
+    <header className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb] shadow-sm">
+      <div className="flex items-center justify-between px-6 py-4 pl-16 md:pl-6 gap-6">
+        
+        {/* Breadcrumb / Title Area */}
+        <div className="hidden sm:block shrink-0">
+          {breadcrumb ? (
+            <div className="text-sm font-semibold text-[#6b7280]">{breadcrumb}</div>
+          ) : (
+            <div className="text-sm font-semibold text-[#6b7280]">Dashboard Overview</div>
+          )}
         </div>
 
-        {/* Right Section */}
-        <div className="flex items-center gap-4">
-          {/* Notifications */}
-          <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
-            <SheetTrigger asChild>
-              <button className="relative p-2 hover:bg-muted rounded-lg transition-colors">
-                <Bell className="w-5 h-5 text-primary" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-80">
-              <SheetHeader>
-                <SheetTitle>Notifications</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-3">
-                {notifications.map(notif => (
-                  <div
-                    key={notif.id}
-                    className={`p-3 rounded-lg border ${
-                      notif.read
-                        ? 'bg-white border-border'
-                        : 'bg-amber-50 border-amber-200'
-                    }`}
-                  >
-                    <p className="font-medium text-sm text-text">{notif.title}</p>
-                    <p className="text-xs text-muted mt-1">{notif.message}</p>
-                    <p className="text-xs text-muted-foreground mt-2">{notif.time}</p>
-                  </div>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
+        {/* Global Search Bar */}
+        <div className="flex-1 max-w-2xl hidden md:block">
+          <div className="relative w-full">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" />
+            <input
+              type="text"
+              placeholder="Search designs, dealers, or workers globally..."
+              className="w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[#0F2A4A] outline-none transition-all text-sm text-[#0F2A4A] placeholder:text-[#9ca3af]"
+            />
+          </div>
+        </div>
 
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 p-2 hover:bg-muted rounded-lg transition-colors">
-                <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-                  {user?.name.charAt(0) || 'U'}
+        {/* Right Actions */}
+        <div className="flex items-center gap-3 shrink-0 ml-auto">
+          {/* Notifications */}
+          <button className="relative p-2.5 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]">
+            <Bell className="w-5 h-5 text-[#374151]" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-[#cc2200] rounded-full border-2 border-white" />
+          </button>
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-[#e5e7eb] mx-1" />
+
+          {/* Profile Dropdown */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center gap-3 p-1.5 pr-3 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#0F2A4A] text-white flex items-center justify-center text-sm font-bold">
+                {user?.name.charAt(0) || 'U'}
+              </div>
+              <div className="hidden sm:block text-left">
+                 <p className="text-[13px] font-bold text-[#0F2A4A] leading-tight">{user?.name || 'User'}</p>
+                 <p className="text-[11px] font-semibold text-[#6b7280]">{role ? ROLE_LABELS[role] || role : ''}</p>
+              </div>
+            </button>
+
+            {showDropdown && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowDropdown(false)}
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#e5e7eb] z-50 overflow-hidden">
+                  <div className="p-4 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                    <p className="text-[14px] font-bold text-[#0F2A4A]">{user?.name || 'User'}</p>
+                    <p className="text-[12px] text-[#6b7280] truncate mt-0.5">{user?.email || 'user@example.com'}</p>
+                  </div>
+                  <div className="p-1.5">
+                    <button 
+                      onClick={() => { setShowDropdown(false); router.push('/dashboard/settings'); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-semibold text-[#374151] rounded-lg hover:bg-[#f3f4f6] transition-colors"
+                    >
+                      <User className="w-4 h-4 text-[#6b7280]" />
+                      My Profile
+                    </button>
+                    <button 
+                      onClick={() => { setShowDropdown(false); router.push('/dashboard/settings'); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-semibold text-[#374151] rounded-lg hover:bg-[#f3f4f6] transition-colors"
+                    >
+                      <Settings className="w-4 h-4 text-[#6b7280]" />
+                      Account Settings
+                    </button>
+                    <div className="h-px bg-[#e5e7eb] my-1.5" />
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-bold text-[#cc2200] rounded-lg hover:bg-[#fff0f0] transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </div>
                 </div>
-                <div className="hidden sm:block text-left">
-                   <p className="text-sm font-medium text-text">{user?.name || 'User'}</p>
-                   <p className="text-xs text-muted-foreground">{role ? ROLE_LABELS[role] || role : ''}</p>
-                </div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="flex flex-col">
-                <span className="text-sm font-semibold">{user?.name || 'User'}</span>
-                <span className="text-xs text-muted-foreground font-normal">{user?.email || 'user@ayanshi.com'}</span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">
-                <User className="w-4 h-4 mr-2" />
-                Profile Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="cursor-pointer text-danger focus:bg-danger/10 focus:text-danger"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>
