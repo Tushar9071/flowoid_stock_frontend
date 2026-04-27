@@ -26,6 +26,7 @@ export default function Home() {
         <FAQSection />
         <CTASection />
       </main>
+      
       <Footer />
     </div>
   );
