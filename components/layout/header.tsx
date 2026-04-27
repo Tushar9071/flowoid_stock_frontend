@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Bell, LogOut, User, Search, Settings } from 'lucide-react';
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 
 const ROLE_LABELS: Record<string, string> = {
   flowoid_admin: 'Flowoid Admin',
@@ -42,13 +43,19 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
             <input
               type="text"
               placeholder="Search designs, dealers, or workers globally..."
-              className="w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[#0F2A4A] outline-none transition-all text-sm text-[#0F2A4A] placeholder:text-[#9ca3af]"
+              className="theme-focus-ring w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:border-[var(--color-border-accent)] outline-none transition-all text-sm text-[#0F2A4A] placeholder:text-[#9ca3af]"
             />
           </div>
         </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-3 shrink-0 ml-auto">
+          {/* Theme Switcher — palette icon only, no label */}
+          <ThemeSwitcher />
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-[#e5e7eb] mx-1" />
+
           {/* Notifications */}
           <button className="relative p-2.5 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]">
             <Bell className="w-5 h-5 text-[#374151]" />
@@ -64,7 +71,8 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center gap-3 p-1.5 pr-3 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]"
             >
-              <div className="w-8 h-8 rounded-full bg-[#0F2A4A] text-white flex items-center justify-center text-sm font-bold">
+              {/* Avatar — uses theme accent color */}
+              <div className="theme-avatar w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-bold">
                 {user?.name.charAt(0) || 'U'}
               </div>
               <div className="hidden sm:block text-left">

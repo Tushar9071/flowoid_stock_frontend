@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Bell, Shield, Search, LogOut, Settings } from 'lucide-react';
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 
 const notifications = [
   { id: 1, title: 'New Tenant Signup',    message: 'Sharma Jewellers signed up for a trial', time: '1 hour ago',  read: false },
@@ -25,11 +26,7 @@ export function AdminHeader() {
     <header className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb] shadow-sm">
       <div className="flex items-center justify-between px-6 py-4 pl-16 md:pl-6 gap-6">
         
-        {/* Title Area */}
-        <div className="hidden lg:block shrink-0">
-          <h1 className="text-[14px] font-bold text-[#0F2A4A] leading-tight">Platform Administration</h1>
-          <p className="text-[11px] font-semibold text-[#6b7280]">Tenant &amp; Subscription Management</p>
-        </div>
+        {/* Title Area removed to prevent duplication with AdminLayout banner */}
 
         {/* Global Search Bar */}
         <div className="flex-1 max-w-2xl hidden md:block">
@@ -38,7 +35,7 @@ export function AdminHeader() {
             <input
               type="text"
               placeholder="Search tenants, subscriptions..."
-              className="w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#9333ea]/20 focus:border-[#9333ea] outline-none transition-all text-sm text-[#0F2A4A] placeholder:text-[#9ca3af]"
+              className="w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[var(--color-accent)] outline-none transition-all text-sm theme-text-primary placeholder:text-[#9ca3af]"
             />
           </div>
         </div>
@@ -51,10 +48,13 @@ export function AdminHeader() {
             <span className="text-[11px] font-bold text-[#1a7a4a] uppercase tracking-wide">Platform Online</span>
           </div>
 
+          {/* Theme Switcher */}
+          <ThemeSwitcher />
+
           {/* Notifications */}
           <button className="relative p-2.5 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]">
             <Bell className="w-5 h-5 text-[#374151]" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-[#cc2200] rounded-full border-2 border-white" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-theme-status-critical rounded-full border-2 border-white" />
           </button>
 
           {/* Divider */}
@@ -66,14 +66,14 @@ export function AdminHeader() {
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center gap-3 p-1.5 pr-3 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]"
             >
-              <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold">
+              <div className="w-8 h-8 rounded-full theme-sidebar-bg text-white flex items-center justify-center text-sm font-bold">
                 {user?.name?.charAt(0) || 'A'}
               </div>
               <div className="hidden sm:block text-left">
-                 <p className="text-[13px] font-bold text-[#0F2A4A] leading-tight">{user?.name || 'Admin'}</p>
+                 <p className="text-[13px] font-bold theme-text-primary leading-tight">{user?.name || 'Admin'}</p>
                  <div className="flex items-center gap-1">
-                   <Shield className="w-3 h-3 text-purple-600" />
-                   <p className="text-[11px] font-semibold text-purple-600">Flowoid Admin</p>
+                   <Shield className="w-3 h-3 text-[#6b7280]" />
+                   <p className="text-[11px] font-semibold text-[#6b7280]">Flowoid Admin</p>
                  </div>
               </div>
             </button>
@@ -84,9 +84,9 @@ export function AdminHeader() {
                   className="fixed inset-0 z-40" 
                   onClick={() => setShowDropdown(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#e5e7eb] z-50 overflow-hidden">
+                <div className="AdminHeader_dropdown absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#e5e7eb] z-50 overflow-hidden">
                   <div className="p-4 border-b border-[#e5e7eb] bg-[#f9fafb]">
-                    <p className="text-[14px] font-bold text-[#0F2A4A]">{user?.name || 'Admin'}</p>
+                    <p className="text-[14px] font-bold theme-text-primary">{user?.name || 'Admin'}</p>
                     <p className="text-[12px] text-[#6b7280] truncate mt-0.5">{user?.email || 'admin@flowoid.com'}</p>
                   </div>
                   <div className="p-1.5">

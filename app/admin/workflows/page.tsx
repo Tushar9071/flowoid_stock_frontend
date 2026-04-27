@@ -13,13 +13,9 @@ export default function WorkflowsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Approval Workflows</h1>
-          <p className="text-gray-600 mt-1">Create and manage multi-step approval workflows</p>
-        </div>
-        <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+      <div className="flex justify-end">
+        <button className="flex items-center gap-2 px-6 py-3 bg-linear-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
           <Plus className="w-5 h-5" />
           Create Workflow
         </button>

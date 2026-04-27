@@ -1,34 +1,45 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Plus, Edit2, Trash2, Shield, Mail, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { mockUsers } from '@/lib/data';
+import { SkeletonTable } from '@/components/skeleton/Skeletons';
 
 export default function UsersPage() {
   const [filter, setFilter] = useState('all');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<typeof mockUsers>([]);
 
-  const filtered = filter === 'all' ? mockUsers : mockUsers.filter(u => u.status === filter);
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUsers = async () => {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 700));
+      if (!isMounted) return;
+      setUsers(mockUsers);
+      setIsLoading(false);
+    };
+
+    loadUsers();
+
+    // Listen for global admin header action
+    const handleAdminAction = () => setShowInviteModal(true);
+    window.addEventListener('admin-action-click', handleAdminAction);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('admin-action-click', handleAdminAction);
+    };
+  }, []);
+
+  const filtered = filter === 'all' ? users : users.filter(u => u.status === filter);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-600 mt-2 max-w-2xl">
-            Invite team members, assign roles, and manage permissions. As the sole admin, only you can add new users and modify their access rights.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowInviteModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all whitespace-nowrap flex-shrink-0"
-        >
-          <Mail className="w-5 h-5" />
-          Send Invitation
-        </button>
-      </div>
+      {/* Action button moved logic if needed, but keeping it for now as a local button */}
 
       {/* Invitation Modal */}
       {showInviteModal && (
@@ -49,7 +60,12 @@ export default function UsersPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assign Role</label>
-                <select required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none">
+                <select
+                  required
+                  title="Assign role"
+                  aria-label="Assign role"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
+                >
                   <option>Owner</option>
                   <option>Manager</option>
                   <option>Viewer</option>
@@ -100,19 +116,25 @@ export default function UsersPage() {
           ))}
         </div>
 
-        <div className="overflow-x-auto">
+        {isLoading && (
+          <div className="p-6">
+            <SkeletonTable rows={8} cols={6} />
+          </div>
+        )}
+
+        {!isLoading && <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">User</th>
-                <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Role</th>
-                <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Department</th>
-                <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Status</th>
-                <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Joined</th>
-                <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Actions</th>
+              <tr className="bg-[#f5f6fa] border-b border-[#e5e7eb]">
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] text-left whitespace-nowrap">User</th>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] text-left whitespace-nowrap">Role</th>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] text-left whitespace-nowrap">Department</th>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] text-left whitespace-nowrap">Status</th>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] text-left whitespace-nowrap">Joined</th>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.5px] text-[#6b7280] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[#f3f4f6]">
               {filtered.map(user => {
                 const statusConfig = {
                   active: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100', label: 'Active' },
@@ -123,20 +145,20 @@ export default function UsersPage() {
                 const StatusIcon = config.icon;
 
                 return (
-                  <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={user.id} className="transition-colors hover:bg-[#f0f4ff]">
                     <td className="py-4 px-6">
                       <div>
-                        <p className="font-medium text-gray-900">{user.name}</p>
-                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <p className="font-semibold text-[#0F2A4A]">{user.name}</p>
+                        <p className="text-sm text-[#6b7280]">{user.email}</p>
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-teal-600" />
-                        <span className="font-medium text-gray-900 capitalize">{user.role}</span>
+                        <Shield className="w-4 h-4 text-[#0D7377]" />
+                        <span className="font-medium text-[#0F2A4A] capitalize">{user.role}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-gray-600">{user.department || '-'}</td>
+                    <td className="py-4 px-6 text-[#374151]">{user.department || '-'}</td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
                         <StatusIcon className={`w-4 h-4 ${config.color}`} />
@@ -145,7 +167,7 @@ export default function UsersPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-gray-600">
+                    <td className="py-4 px-6 text-[#6b7280]">
                       {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
                     </td>
                     <td className="py-4 px-6 text-right">
@@ -163,9 +185,9 @@ export default function UsersPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </div>}
 
-        {filtered.length === 0 && (
+        {!isLoading && filtered.length === 0 && (
           <div className="p-12 text-center text-gray-600">
             <p>No users found in this category.</p>
           </div>

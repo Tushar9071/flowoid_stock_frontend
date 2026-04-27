@@ -23,8 +23,9 @@ import {
   Gem,
   ChevronRight,
 } from 'lucide-react';
+import Image from 'next/image';
 
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   LayoutDashboard,
   Grid2X2,
   Users,
@@ -84,20 +85,24 @@ export function Sidebar() {
         />
       )}
 
-      {/* Sidebar container */}
+      {/* Sidebar container — background driven by --color-sidebar-bg */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 h-full w-[260px] flex flex-col z-40 transition-transform duration-300 shrink-0 ${
+        className={`theme-sidebar-bg fixed md:static inset-y-0 left-0 h-full w-[260px] flex flex-col z-40 transition-transform duration-300 shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
-        style={{ background: 'linear-gradient(175deg, #0F2A4A 0%, #0A1E38 100%)' }}
+        style={{ background: 'var(--color-sidebar-bg)' }}
       >
         {/* Logo area */}
         <div className="p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#f5a623] flex items-center justify-center shrink-0">
-                <Gem className="w-4 h-4 text-white" />
-              </div>
+              <Image 
+                src="/Only_logo.png" 
+                alt="Flowoid Logo" 
+                width={32} 
+                height={32} 
+                className="object-contain shrink-0"
+              />
               <div>
                 <p className="text-white font-bold text-[15px] leading-tight tracking-wide">Flowoid Stock</p>
                 <p className="text-white/50 text-[11px] font-medium tracking-wider uppercase mt-0.5">Ayanshi Imitation</p>
@@ -131,22 +136,36 @@ export function Sidebar() {
                     onClick={() => setIsOpen(false)}
                     className={`relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-[14px] transition-all group overflow-hidden ${
                       isActive
-                        ? 'bg-[#f5a623] text-[#0F2A4A] font-bold shadow-md'
+                        ? 'font-bold shadow-md'
                         : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
                     }`}
+                    style={isActive ? {
+                      backgroundColor: 'var(--color-sidebar-active)',
+                      color: 'var(--color-sidebar-active-text)',
+                    } : undefined}
                   >
+                    {/* Active indicator bar */}
                     {isActive && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0F2A4A]" />
+                      <div
+                        className="absolute left-0 top-0 bottom-0 w-1"
+                        style={{ backgroundColor: 'var(--color-accent-dark)' }}
+                      />
                     )}
                     {Icon && (
                       <Icon
                         className={`w-[18px] h-[18px] shrink-0 transition-colors ${
-                          isActive ? 'text-[#0F2A4A]' : 'text-white/40 group-hover:text-white/80'
+                          isActive ? '' : 'text-white/40 group-hover:text-white/80'
                         }`}
+                        style={isActive ? { color: 'var(--color-sidebar-active-text)' } : undefined}
                       />
                     )}
                     <span>{item.label}</span>
-                    {isActive && <ChevronRight className="w-4 h-4 ml-auto text-[#0F2A4A]/50" />}
+                    {isActive && (
+                      <ChevronRight
+                        className="w-4 h-4 ml-auto opacity-50"
+                        style={{ color: 'var(--color-sidebar-active-text)' }}
+                      />
+                    )}
                   </Link>
                 </li>
               );

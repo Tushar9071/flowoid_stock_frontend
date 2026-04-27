@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -26,7 +26,32 @@ const data = [
   { month: 'Dec', sales: 175000 },
 ];
 
+/** Read the computed value of a CSS variable from the document body. */
+function getCSSVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.body).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 export function SalesChart() {
+  // Chart stroke color tracked so it reacts when theme changes
+  const [chartColor, setChartColor] = useState('#0F2A4A');
+
+  useEffect(() => {
+    const sync = () => {
+      setChartColor(getCSSVar('--color-chart-fill', '#0F2A4A'));
+    };
+
+    // Initial read
+    sync();
+
+    // Re-read on theme class mutation on <body>
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 h-full flex flex-col">
       <div className="mb-6">
@@ -38,8 +63,8 @@ export function SalesChart() {
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#0F2A4A" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#0F2A4A" stopOpacity={0} />
+                <stop offset="5%" stopColor={chartColor} stopOpacity={0.2} />
+                <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -70,7 +95,7 @@ export function SalesChart() {
             <Area
               type="monotone"
               dataKey="sales"
-              stroke="#0F2A4A"
+              stroke={chartColor}
               strokeWidth={3}
               fillOpacity={1}
               fill="url(#colorSales)"

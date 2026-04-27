@@ -8,6 +8,7 @@ import {
   ChevronLeft, Settings, Shield, Building2,
   BarChart3, LogOut, Gem, CreditCard, FileText, Menu, ChevronRight,
 } from 'lucide-react';
+import Image from 'next/image';
 
 const adminNavItems = [
   { id: 'dashboard',     label: 'Dashboard',         href: '/admin',            icon: BarChart3  },
@@ -34,7 +35,7 @@ export function AdminSidebar() {
         onClick={() => setIsOpen(true)}
         className={`fixed md:hidden top-4 left-4 z-50 p-2 bg-white shadow-md rounded-lg border border-[#e5e7eb] transition-opacity duration-200 ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       >
-        <Menu className="w-5 h-5 text-[#0F2A4A]" />
+        <Menu className="w-5 h-5 theme-text-primary" />
       </button>
 
       {isOpen && (
@@ -45,17 +46,21 @@ export function AdminSidebar() {
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 h-full md:h-screen w-[260px] flex flex-col z-40 transition-transform duration-300 shrink-0 ${
+        className={`theme-sidebar-bg fixed md:static inset-y-0 left-0 h-full md:h-screen w-[260px] flex flex-col z-40 transition-transform duration-300 shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
-        style={{ background: 'linear-gradient(175deg, #0F2A4A 0%, #0A1E38 100%)' }}
+        style={{ background: 'var(--color-sidebar-bg)' }}
       >
         <div className="p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4 text-white" />
-              </div>
+              <Image 
+                src="/Only_logo.png" 
+                alt="Flowoid Logo" 
+                width={32} 
+                height={32} 
+                className="object-contain shrink-0"
+              />
               <div>
                 <p className="text-white font-bold text-[15px] leading-tight tracking-wide">Flowoid Admin</p>
                 <p className="text-white/50 text-[11px] font-medium tracking-wider uppercase mt-0.5">Platform Setup</p>
@@ -88,20 +93,25 @@ export function AdminSidebar() {
                     onClick={() => setIsOpen(false)}
                     className={`relative flex items-center gap-3 px-4 py-2.5 rounded-xl text-[14px] transition-all group overflow-hidden ${
                       isActive
-                        ? 'bg-purple-600 text-white font-bold shadow-md'
+                        ? 'font-bold shadow-md'
                         : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
                     }`}
+                    style={isActive ? {
+                      backgroundColor: 'var(--color-sidebar-active)',
+                      color: 'var(--color-sidebar-active-text)',
+                    } : undefined}
                   >
                     {isActive && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-white" />
+                      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: 'var(--color-accent-dark)' }} />
                     )}
                     <Icon
                       className={`w-[18px] h-[18px] shrink-0 transition-colors ${
-                        isActive ? 'text-white' : 'text-white/40 group-hover:text-white/80'
+                        isActive ? '' : 'text-white/40 group-hover:text-white/80'
                       }`}
+                      style={isActive ? { color: 'var(--color-sidebar-active-text)' } : undefined}
                     />
                     <span>{item.label}</span>
-                    {isActive && <ChevronRight className="w-4 h-4 ml-auto text-white/50" />}
+                    {isActive && <ChevronRight className="w-4 h-4 ml-auto opacity-50" style={{ color: 'var(--color-sidebar-active-text)' }} />}
                   </Link>
                 </li>
               );

@@ -37,7 +37,7 @@ export default function ReportsPage() {
     { label: 'Inventory Report', icon: <Package className="w-4 h-4 text-[#f5a623]" /> },
     { label: 'Worker Performance', icon: <Users className="w-4 h-4 text-[#8b5cf6]" /> },
     { label: 'Payment Ageing', icon: <Wallet className="w-4 h-4 text-[#ef4444]" /> },
-    { label: 'Design Analysis', icon: <FileText className="w-4 h-4 text-[#0F2A4A]" /> },
+    { label: 'Design Analysis', icon: <FileText className="w-4 h-4 theme-text-primary" /> },
   ];
 
   return (
@@ -46,7 +46,7 @@ export default function ReportsPage() {
       subtitle="View comprehensive metrics and download business reports"
       action={
         canExport ? (
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+          <button className="theme-accent-btn inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors">
             <Filter className="w-4 h-4" />
             Advanced Filters
           </button>
@@ -57,11 +57,11 @@ export default function ReportsPage() {
         {/* Quick Download Strip */}
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
           {reportTypes.map((report) => (
-            <button key={report.label} className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border border-[#e5e7eb] rounded-xl hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-[#0F2A4A]/30 transition-all">
+            <button key={report.label} className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border border-[#e5e7eb] rounded-xl theme-card-accent hover:border-[#0F2A4A]/30 transition-all">
               <div className="p-2 bg-[#f9fafb] rounded-lg">
                 {report.icon}
               </div>
-              <span className="text-sm font-semibold text-[#0F2A4A] whitespace-nowrap">{report.label}</span>
+              <span className="text-sm font-semibold theme-text-primary whitespace-nowrap">{report.label}</span>
               <Download className="w-4 h-4 text-[#9ca3af] ml-2" />
             </button>
           ))}
@@ -69,23 +69,23 @@ export default function ReportsPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-1">Total Sales (YTD)</p>
-            <p className="text-3xl font-black text-[#0F2A4A]">₹7,13,000</p>
+            <p className="text-3xl font-black theme-text-primary">₹7,13,000</p>
             <p className="text-sm font-semibold text-[#1a7a4a] mt-2 flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5" /> +15% vs last year
             </p>
           </div>
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-1">Avg Order Value</p>
-            <p className="text-3xl font-black text-[#0F2A4A]">₹22,281</p>
+            <p className="text-3xl font-black theme-text-primary">₹22,281</p>
             <p className="text-sm font-semibold text-[#cc2200] mt-2 flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 rotate-180" /> -8% vs last month
             </p>
           </div>
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-1">Payment Collection</p>
-            <p className="text-3xl font-black text-[#0F2A4A]">87%</p>
+            <p className="text-3xl font-black theme-text-primary">87%</p>
             <p className="text-sm font-semibold text-[#1a7a4a] mt-2 flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Improving trend
             </p>
@@ -93,8 +93,8 @@ export default function ReportsPage() {
         </div>
 
         {/* Sales Chart */}
-        <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
-          <h3 className="text-[18px] font-bold text-[#0F2A4A] mb-6">Sales & Orders Trend</h3>
+        <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
+          <h3 className="text-[18px] font-bold theme-text-primary mb-6">Sales & Orders Trend</h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={salesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -104,8 +104,8 @@ export default function ReportsPage() {
                 <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
                 <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '13px' }} />
-                <Bar yAxisId="left" dataKey="sales" fill="#0F2A4A" name="Sales (₹)" radius={[4, 4, 0, 0]} barSize={32} />
-                <Bar yAxisId="right" dataKey="orders" fill="#f5a623" name="Orders" radius={[4, 4, 0, 0]} barSize={32} />
+                <Bar yAxisId="left" dataKey="sales" fill="var(--color-sidebar-bg)" name="Sales (₹)" radius={[4, 4, 0, 0]} barSize={32} />
+                <Bar yAxisId="right" dataKey="orders" fill="var(--color-accent)" name="Orders" radius={[4, 4, 0, 0]} barSize={32} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -113,8 +113,8 @@ export default function ReportsPage() {
 
         {/* 2-Col layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
-             <h3 className="text-[18px] font-bold text-[#0F2A4A] mb-6">Inventory Status</h3>
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
+             <h3 className="text-[18px] font-bold theme-text-primary mb-6">Inventory Status</h3>
              <div className="space-y-6">
                 {inventoryData.map(item => {
                    const isLow = item.status === 'low';
@@ -122,7 +122,7 @@ export default function ReportsPage() {
                    return (
                      <div key={item.design}>
                         <div className="flex justify-between items-center mb-1.5">
-                           <span className="font-semibold text-[#0F2A4A]">{item.design}</span>
+                           <span className="font-semibold theme-text-primary">{item.design}</span>
                            <span className="text-sm font-semibold text-[#6b7280]">{item.current} / {item.threshold}</span>
                         </div>
                         <div className="h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
@@ -134,13 +134,13 @@ export default function ReportsPage() {
              </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
-             <h3 className="text-[18px] font-bold text-[#0F2A4A] mb-6">Worker Performance</h3>
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
+             <h3 className="text-[18px] font-bold theme-text-primary mb-6">Worker Performance</h3>
              <div className="space-y-6">
                 {workerData.map(worker => (
                   <div key={worker.name}>
                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="font-semibold text-[#0F2A4A]">{worker.name}</span>
+                        <span className="font-semibold theme-text-primary">{worker.name}</span>
                         <span className="text-sm font-medium text-[#6b7280]">
                            <span className="text-[#1a7a4a] font-bold">{worker.completion}%</span> comp / <span className="text-[#cc2200] font-bold">{worker.rejection}%</span> rej
                         </span>
