@@ -24,10 +24,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">System Settings</h1>
-        <p className="text-gray-600 mt-1">Configure system-wide preferences and security settings</p>
-      </div>
+      {/* Page Title removed as it is now handled by AdminLayout */}
 
       <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-6">
         {/* General Settings */}

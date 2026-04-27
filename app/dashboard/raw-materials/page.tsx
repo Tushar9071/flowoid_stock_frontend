@@ -17,7 +17,7 @@ export default function RawMaterialsPage() {
       subtitle="Track material stock, suppliers, and reordering"
       action={
         canEdit ? (
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg theme-accent-btn text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" />
             Add Material
           </button>
@@ -30,7 +30,7 @@ export default function RawMaterialsPage() {
           const stockPercentage = (material.currentStock / material.threshold) * 100;
 
           return (
-            <div key={material.id} className={`bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden flex ${isLow ? 'border-l-4 border-l-[#cc2200]' : 'border-l-4 border-l-[#1a7a4a]'}`}>
+            <div key={material.id} className={`bg-white rounded-2xl border border-[#e5e7eb] overflow-hidden flex ${isLow ? 'border-l-4 border-l-theme-status-critical' : 'theme-card-accent'}`}>
               <div className="flex-1 p-5">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -38,7 +38,7 @@ export default function RawMaterialsPage() {
                     <span className="inline-block px-2 py-0.5 rounded bg-[#f3f4f6] text-[11px] font-semibold text-[#6b7280] mb-1.5">
                       {material.code}
                     </span>
-                    <h3 className="text-[18px] font-bold text-[#0F2A4A] leading-tight">{material.type}</h3>
+                    <h3 className="text-[18px] font-bold theme-text-primary leading-tight">{material.type}</h3>
                     <p className="text-sm text-[#6b7280] mt-1">Supplier: {material.supplier}</p>
                   </div>
                   {isLow ? (
@@ -46,7 +46,7 @@ export default function RawMaterialsPage() {
                         <AlertTriangle className="w-3 h-3" /> Low Stock
                       </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#e6f9f0] text-[#1a7a4a]">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs theme-badge-soft">
                         ✓ Adequate
                       </span>
                   )}
@@ -59,13 +59,13 @@ export default function RawMaterialsPage() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-0.5">Current Stock</p>
-                    <p className="text-[15px] font-bold text-[#0F2A4A]">
+                    <p className="text-[15px] font-bold theme-text-primary">
                       {material.currentStock} <span className="text-sm font-medium text-[#6b7280]">{material.unitType}</span>
                     </p>
                   </div>
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-0.5">Threshold</p>
-                    <p className="text-[15px] font-bold text-[#0F2A4A]">
+                    <p className="text-[15px] font-bold theme-text-primary">
                       {material.threshold} <span className="text-sm font-medium text-[#6b7280]">{material.unitType}</span>
                     </p>
                   </div>
@@ -91,7 +91,7 @@ export default function RawMaterialsPage() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#f3f4f6] pt-4 mb-5">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-0.5">Cost / Unit</p>
-                    <p className="text-[14px] font-semibold text-[#0F2A4A]">{formatCurrency(material.costPerUnit)}</p>
+                    <p className="text-[14px] font-semibold theme-text-primary">{formatCurrency(material.costPerUnit)}</p>
                   </div>
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-0.5">Last Restock</p>

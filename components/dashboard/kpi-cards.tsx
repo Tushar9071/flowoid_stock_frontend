@@ -22,6 +22,7 @@ export function KPICards({
       icon: TrendingUp,
       color: 'bg-[#e0f2fe] text-[#0284c7]',
       trend: '+12.5%',
+      accentBorder: true,
     },
     {
       title: 'Active Orders',
@@ -29,6 +30,7 @@ export function KPICards({
       icon: Package,
       color: 'bg-[#fffbeb] text-[#d97706]',
       trend: '+3 today',
+      accentBorder: true,
     },
     {
       title: 'Pending Payments',
@@ -36,6 +38,7 @@ export function KPICards({
       icon: AlertCircle,
       color: 'bg-[#fff0f0] text-[#cc2200]',
       trend: '5 invoices',
+      accentBorder: false,
     },
     {
       title: 'Low Stock Items',
@@ -43,6 +46,7 @@ export function KPICards({
       icon: Package,
       color: 'bg-[#f3f4f6] text-[#6b7280]',
       trend: 'Needs restock',
+      accentBorder: false,
     },
   ];
 
@@ -51,7 +55,17 @@ export function KPICards({
       {kpis.map((kpi, index) => {
         const Icon = kpi.icon;
         return (
-          <div key={index} className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6">
+          <div
+            key={index}
+            className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6"
+            style={
+              kpi.accentBorder
+                ? {
+                    borderTop: '3px solid var(--color-accent)',
+                  }
+                : undefined
+            }
+          >
             <div className="flex items-start justify-between mb-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">
                 {kpi.title}
@@ -61,8 +75,13 @@ export function KPICards({
               </div>
             </div>
             <div>
-              <p className="text-3xl font-black text-[#0F2A4A] leading-none mb-2">{kpi.value}</p>
-              <p className="text-sm font-semibold text-[#1a7a4a]">{kpi.trend}</p>
+              <p className="text-3xl font-black theme-text-primary leading-none mb-2">{kpi.value}</p>
+              <p
+                className="text-sm font-semibold"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                {kpi.trend}
+              </p>
             </div>
           </div>
         );

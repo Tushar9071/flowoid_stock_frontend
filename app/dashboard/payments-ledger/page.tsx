@@ -44,7 +44,7 @@ export default function PaymentsLedgerPage() {
               <Download className="w-4 h-4" />
               Export
             </button>
-            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg theme-accent-btn text-sm font-semibold transition-colors">
               <Plus className="w-4 h-4" />
               {tab === 'invoices' ? 'Create Invoice' : 'Record Payment'}
             </button>
@@ -57,10 +57,10 @@ export default function PaymentsLedgerPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
               tab === t.id
-                ? 'bg-[#0F2A4A] text-white shadow-sm'
-                : 'text-[#6b7280] hover:text-[#0F2A4A] hover:bg-white/60'
+                ? 'theme-tab-active'
+                : 'theme-tab-inactive'
             }`}
           >
             {t.icon} {t.label}
@@ -88,7 +88,7 @@ export default function PaymentsLedgerPage() {
 
       {/* Invoices Tab */}
       {tab === 'invoices' && (
-        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#e5e7eb] theme-card-accent overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -105,9 +105,9 @@ export default function PaymentsLedgerPage() {
                     const due = invoice.amount - invoice.paidAmount;
                     return (
                       <tr key={invoice.id} className={`transition-colors hover:bg-[#f0f4ff] ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
-                        <td className="px-5 py-4 text-sm font-semibold text-[#0F2A4A]">{invoice.invoiceNumber}</td>
+                        <td className="px-5 py-4 text-sm font-semibold theme-text-primary">{invoice.invoiceNumber}</td>
                         <td className="px-5 py-4 text-sm font-medium text-[#374151]">{invoice.dealerName}</td>
-                        <td className="px-5 py-4 text-sm font-semibold text-right text-[#0F2A4A]">{formatCurrency(invoice.amount)}</td>
+                        <td className="px-5 py-4 text-sm font-semibold text-right theme-text-primary">{formatCurrency(invoice.amount)}</td>
                         <td className="px-5 py-4 text-sm font-semibold text-right text-[#1a7a4a]">{formatCurrency(invoice.paidAmount)}</td>
                         <td className="px-5 py-4 text-sm font-bold text-right text-[#cc2200]">
                           {due > 0 ? formatCurrency(due) : '-'}
@@ -138,13 +138,13 @@ export default function PaymentsLedgerPage() {
           {mockPaymentRecords
             .filter(p => p.dealerName.toLowerCase().includes(search.toLowerCase()) || p.invoiceId.toLowerCase().includes(search.toLowerCase()))
             .map(payment => (
-            <div key={payment.id} className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-5">
+            <div key={payment.id} className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-5">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <span className="inline-block px-2 py-0.5 rounded bg-[#f3f4f6] text-[11px] font-semibold text-[#6b7280] mb-1.5">
                     {payment.invoiceId}
                   </span>
-                  <h3 className="text-[16px] font-bold text-[#0F2A4A]">{payment.dealerName}</h3>
+                  <h3 className="text-[16px] font-bold theme-text-primary">{payment.dealerName}</h3>
                 </div>
                 <div className="text-right">
                   <p className="text-[18px] font-bold text-[#1a7a4a]">{formatCurrency(payment.amount)}</p>
@@ -167,7 +167,7 @@ export default function PaymentsLedgerPage() {
 
       {/* Ledger Tab */}
       {tab === 'ledger' && (
-        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#e5e7eb] theme-card-accent overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -185,7 +185,7 @@ export default function PaymentsLedgerPage() {
                   .filter(l => l.dealerName.toLowerCase().includes(search.toLowerCase()))
                   .map((ledger, idx) => (
                   <tr key={ledger.dealerId} className={`transition-colors hover:bg-[#f0f4ff] ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
-                    <td className="px-5 py-4 text-sm font-bold text-[#0F2A4A]">{ledger.dealerName}</td>
+                    <td className="px-5 py-4 text-sm font-bold theme-text-primary">{ledger.dealerName}</td>
                     <td className="px-5 py-4 text-sm font-semibold text-right text-[#374151]">{formatCurrency(ledger.totalInvoiced)}</td>
                     <td className="px-5 py-4 text-sm font-semibold text-right text-[#1a7a4a]">{formatCurrency(ledger.totalPaid)}</td>
                     <td className="px-5 py-4 text-sm font-bold text-right text-[#cc2200]">
@@ -214,8 +214,8 @@ export default function PaymentsLedgerPage() {
       {/* Ageing Tab */}
       {tab === 'ageing' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
-            <h3 className="text-[18px] font-bold text-[#0F2A4A] mb-1">Ageing Summary</h3>
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
+            <h3 className="text-[18px] font-bold theme-text-primary mb-1">Ageing Summary</h3>
             <p className="text-sm text-[#6b7280] mb-6">Pending invoices categorized by age</p>
             
             <div className="space-y-4">
@@ -238,18 +238,18 @@ export default function PaymentsLedgerPage() {
             
             <div className="mt-8 pt-4 border-t border-[#f3f4f6] flex justify-between items-center">
               <span className="text-sm font-bold uppercase tracking-wide text-[#9ca3af]">Total Outstanding</span>
-              <span className="text-2xl font-bold text-[#0F2A4A]">₹2,48,000</span>
+              <span className="text-2xl font-bold theme-text-primary">₹2,48,000</span>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-sm p-6">
-             <h3 className="text-[18px] font-bold text-[#0F2A4A] mb-1">Collection Performance</h3>
+          <div className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent p-6">
+             <h3 className="text-[18px] font-bold theme-text-primary mb-1">Collection Performance</h3>
              <p className="text-sm text-[#6b7280] mb-6">Metrics on payment collection speed</p>
 
              <div className="flex items-center justify-center p-8 bg-[#f9fafb] rounded-xl border border-[#e5e7eb] mb-6">
                 <div className="text-center">
                    <p className="text-[48px] font-black text-[#1a7a4a] leading-none mb-2">75%</p>
-                   <p className="text-sm font-semibold text-[#0F2A4A]">Paid On Time</p>
+                   <p className="text-sm font-semibold theme-text-primary">Paid On Time</p>
                    <p className="text-xs text-[#6b7280] mt-1">across all active dealers</p>
                 </div>
              </div>
@@ -257,11 +257,11 @@ export default function PaymentsLedgerPage() {
              <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-[#6b7280]">Average Days to Pay</span>
-                  <span className="text-[15px] font-bold text-[#0F2A4A]">42 Days</span>
+                   <span className="text-[15px] font-bold theme-text-primary">42 Days</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-[#6b7280]">Dealers with Overdue</span>
-                  <span className="text-[15px] font-bold text-[#cc2200]">8</span>
+                  <span className="text-[15px] font-bold theme-status-critical">8</span>
                 </div>
              </div>
           </div>

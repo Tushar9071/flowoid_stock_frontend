@@ -33,7 +33,7 @@ export default function AdminDashboard() {
       value: mockTenants.length,
       sub: `${activeTenants} active`,
       icon: Building2,
-      gradient: 'from-[#0F2A4A] to-[#0D3A6A]',
+      gradient: 'theme-sidebar-bg',
     },
     {
       label: 'Premium Plans',
@@ -60,18 +60,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Page Title */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Platform Overview</h2>
-        <p className="text-gray-500 text-sm mt-1">Manage all tenants, subscriptions, and platform health</p>
-      </div>
+      {/* Page Title removed as it is now handled by AdminLayout */}
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
           return (
-            <Card key={idx} className="p-5 rounded-xl border border-gray-200 bg-white hover:shadow-lg transition-shadow">
+            <Card key={idx} className="p-5 rounded-xl border border-gray-200 bg-white theme-card-accent transition-all">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
@@ -88,13 +84,13 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tenants Table */}
-      <Card className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <Card className="rounded-xl border border-gray-200 bg-white theme-card-accent overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <div>
             <h2 className="text-base font-bold text-gray-900">Active Tenants</h2>
             <p className="text-xs text-gray-400 mt-0.5">All subscribed businesses on the platform</p>
           </div>
-          <button className="px-4 py-2 rounded-lg bg-[#0F2A4A] text-white text-xs font-semibold hover:bg-[#0D3A6A] transition-colors">
+          <button className="theme-accent-btn px-4 py-2 rounded-lg text-xs font-semibold transition-colors">
             + Add Tenant
           </button>
         </div>
@@ -148,7 +144,7 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
-                        <button className="px-3 py-1.5 rounded-lg bg-[#0D7377]/10 text-[#0D7377] text-xs font-semibold hover:bg-[#0D7377]/20 transition-colors">
+                        <button className="px-3 py-1.5 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-semibold hover:bg-[var(--color-accent)]/20 transition-colors">
                           Manage
                         </button>
                         {tenant.subscriptionStatus === 'active' ? (

@@ -11,12 +11,8 @@ export default function PermissionsPage() {
   const resourceTypes = ['user', 'role', 'order', 'inventory', 'payment', 'design', 'worker', 'audit_log'];
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Permissions Management</h1>
-          <p className="text-gray-600 mt-1">Define and manage granular permissions. Only the admin can configure access control.</p>
-        </div>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+      <div className="flex justify-end">
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode('matrix')}
@@ -38,7 +34,7 @@ export default function PermissionsPage() {
           >
             Detailed Permissions
           </button>
-          <button className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
+          <button className="flex items-center gap-2 px-6 py-2 bg-linear-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-medium hover:shadow-lg transition-all">
             <Plus className="w-5 h-5" />
             Add Permission
           </button>

@@ -28,7 +28,7 @@ export function DashboardLayout({ children, title, subtitle, action, breadcrumb 
             <div className="flex items-center justify-between gap-4">
               <div>
                 {title && (
-                  <h1 className="text-[26px] font-bold text-[#0F2A4A] leading-tight">{title}</h1>
+                  <h1 className="text-[26px] font-bold theme-text-primary leading-tight">{title}</h1>
                 )}
                 {subtitle && (
                   <p className="text-sm text-[#6b7280] mt-0.5">{subtitle}</p>

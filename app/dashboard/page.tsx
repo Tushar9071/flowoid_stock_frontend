@@ -51,24 +51,24 @@ export default function DashboardPage() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-border">
+          <div className="bg-white rounded-xl p-4 theme-card-accent border border-border">
             <p className="text-sm text-muted-foreground mb-2">Total Designs</p>
-            <p className="text-2xl font-bold text-primary">6</p>
+            <p className="text-2xl font-bold theme-text-primary">6</p>
             <p className="text-xs text-success mt-2">Active designs</p>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-border">
+          <div className="bg-white rounded-xl p-4 theme-card-accent border border-border">
             <p className="text-sm text-muted-foreground mb-2">Active Workers</p>
-            <p className="text-2xl font-bold text-primary">4</p>
+            <p className="text-2xl font-bold theme-text-primary">4</p>
             <p className="text-xs text-muted mt-2">1 inactive</p>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-border">
+          <div className="bg-white rounded-xl p-4 theme-card-accent border border-border">
             <p className="text-sm text-muted-foreground mb-2">Active Dealers</p>
-            <p className="text-2xl font-bold text-primary">4</p>
+            <p className="text-2xl font-bold theme-text-primary">4</p>
             <p className="text-xs text-warning mt-2">1 overdue</p>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-border">
+          <div className="bg-white rounded-xl p-4 theme-card-accent border border-border">
             <p className="text-sm text-muted-foreground mb-2">Inventory Items</p>
-            <p className="text-2xl font-bold text-primary">3</p>
+            <p className="text-2xl font-bold theme-text-primary">3</p>
             <p className="text-xs text-danger mt-2">{lowStockItems} low stock</p>
           </div>
         </div>

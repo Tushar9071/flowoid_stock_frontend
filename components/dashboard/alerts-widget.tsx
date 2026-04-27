@@ -43,7 +43,7 @@ export function AlertsWidget({ alerts }: AlertsWidgetProps) {
   return (
     <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] h-full flex flex-col">
       <div className="p-6 border-b border-[#e5e7eb]">
-        <h3 className="text-[18px] font-bold text-[#0F2A4A]">Recent Alerts</h3>
+        <h3 className="text-[18px] font-bold theme-text-primary">Recent Alerts</h3>
         <p className="text-sm text-[#6b7280] mt-1">{alerts.length} active notifications</p>
       </div>
       <div className="flex-1 p-6 overflow-y-auto">
@@ -63,7 +63,7 @@ export function AlertsWidget({ alerts }: AlertsWidgetProps) {
                   {getSeverityIcon(alert.severity)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[15px] text-[#0F2A4A] leading-tight">{alert.title}</p>
+                  <p className="font-bold text-[15px] theme-text-primary leading-tight">{alert.title}</p>
                   <p className="text-[13px] text-[#374151] mt-1 leading-relaxed">{alert.message}</p>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mt-2">
                     {new Date(alert.timestamp).toLocaleString('en-IN', {

@@ -42,7 +42,7 @@ export default function WorkerManagementPage() {
       subtitle="Track workers, job assignments, finished goods and payment settlements"
       action={
         canEdit ? (
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+          <button className="theme-accent-btn inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" />
             Add Worker
           </button>
@@ -55,10 +55,10 @@ export default function WorkerManagementPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
               tab === t.id
-                ? 'bg-[#0F2A4A] text-white shadow-sm'
-                : 'text-[#6b7280] hover:text-[#0F2A4A] hover:bg-white/60'
+                ? 'theme-tab-active'
+                : 'theme-tab-inactive'
             }`}
           >
             {t.icon} {t.label}
@@ -68,9 +68,9 @@ export default function WorkerManagementPage() {
 
       {/* Workers Tab */}
       {tab === 'workers' && (
-        <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#e5e7eb] theme-card-accent overflow-hidden">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-4 border-b border-[#e5e7eb]">
-            <p className="text-sm font-semibold text-[#0F2A4A]">{filteredWorkers.length} workers</p>
+            <p className="text-sm font-semibold theme-text-primary">{filteredWorkers.length} workers</p>
             <div className="flex gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" />
@@ -79,7 +79,7 @@ export default function WorkerManagementPage() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search worker..."
-                  className="w-full sm:w-52 h-9 pl-9 pr-3 rounded-lg border border-[#e5e7eb] text-sm bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[#0F2A4A] outline-none transition-all"
+                  className="theme-focus-ring w-full sm:w-52 h-9 pl-9 pr-3 rounded-lg border border-[#e5e7eb] text-sm bg-[#f9fafb] focus:bg-white outline-none transition-all"
                 />
               </div>
               <button className="h-9 px-3 rounded-lg border border-[#e5e7eb] bg-white text-sm text-[#374151] flex items-center gap-1.5 hover:bg-[#f9fafb]">
@@ -98,15 +98,15 @@ export default function WorkerManagementPage() {
                   {canEdit && <TH>Action</TH>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f3f4f6]">
+              <tbody className="divide-y theme-divide">
                 {filteredWorkers.map((w, idx) => (
-                  <tr key={w.id} className={`hover:bg-[#f0f4ff] transition-colors ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{w.code}</td>
-                    <td className="px-5 py-3.5 text-sm font-medium text-[#374151]">{w.name}</td>
-                    <td className="px-5 py-3.5 text-sm text-[#6b7280]">{w.phone}</td>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{formatCurrency(w.totalEarnings)}</td>
-                    <td className="px-5 py-3.5 text-sm text-right text-[#1a7a4a]">{formatCurrency(w.totalPaid)}</td>
-                    <td className={`px-5 py-3.5 text-sm font-semibold text-right ${w.totalEarnings - w.totalPaid > 0 ? 'text-[#d97706]' : 'text-[#1a7a4a]'}`}>
+                  <tr key={w.id} className={`hover:theme-bg-hover transition-colors ${idx % 2 === 1 ? 'theme-bg-muted' : 'bg-transparent'}`}>
+                    <td className="px-5 py-4 text-sm font-semibold theme-text-primary">{w.code}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium theme-text-primary">{w.name}</td>
+                    <td className="px-5 py-3.5 text-sm theme-text-secondary">{w.phone}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-right theme-text-primary">{formatCurrency(w.totalEarnings)}</td>
+                    <td className="px-5 py-3.5 text-sm text-right theme-text-success">{formatCurrency(w.totalPaid)}</td>
+                    <td className={`px-5 py-3.5 text-sm font-semibold text-right ${w.totalEarnings - w.totalPaid > 0 ? 'theme-text-warning' : 'theme-text-success'}`}>
                       {formatCurrency(w.totalEarnings - w.totalPaid)}
                     </td>
                     <td className="px-5 py-3.5">
@@ -132,7 +132,7 @@ export default function WorkerManagementPage() {
           <div className="flex items-center justify-between px-6 py-3 border-t border-[#e5e7eb] bg-[#fafafa]">
             <p className="text-xs text-[#6b7280]">Showing {filteredWorkers.length} of {mockWorkers.length} workers</p>
             <div className="flex gap-1">
-              <button className="w-8 h-8 rounded-lg bg-[#0F2A4A] text-white text-xs font-semibold">1</button>
+              <button className="theme-accent-btn w-8 h-8 rounded-lg text-xs font-semibold">1</button>
             </div>
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function WorkerManagementPage() {
       {tab === 'assignments' && (
         <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-[#e5e7eb]">
-            <p className="text-sm font-semibold text-[#0F2A4A]">{mockAssignments.length} active assignments</p>
+            <p className="text-sm font-semibold theme-text-primary">{mockAssignments.length} active assignments</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -156,10 +156,10 @@ export default function WorkerManagementPage() {
               <tbody className="divide-y divide-[#f3f4f6]">
                 {mockAssignments.map((a, idx) => (
                   <tr key={a.id} className={`hover:bg-[#f0f4ff] transition-colors ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{a.id}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold theme-text-primary">{a.id}</td>
                     <td className="px-5 py-3.5 text-sm text-[#374151]">{mockWorkers.find(w => w.id === a.workerId)?.name || 'Unknown'}</td>
                     <td className="px-5 py-3.5 text-sm text-[#374151]">{a.designCode}</td>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{a.issuedQty}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-right theme-text-primary">{a.issuedQty}</td>
                     <td className="px-5 py-3.5 text-sm text-right text-[#1a7a4a]">{a.returnedQty}</td>
                     <td className="px-5 py-3.5 text-sm text-[#6b7280]">{formatDate(a.issueDate)}</td>
                     <td className="px-5 py-3.5">
@@ -181,7 +181,7 @@ export default function WorkerManagementPage() {
       {tab === 'finished-goods' && (
         <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-[#e5e7eb]">
-            <p className="text-sm font-semibold text-[#0F2A4A]">{mockFinishedGoods.length} returns recorded</p>
+            <p className="text-sm font-semibold theme-text-primary">{mockFinishedGoods.length} returns recorded</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -194,12 +194,12 @@ export default function WorkerManagementPage() {
               <tbody className="divide-y divide-[#f3f4f6]">
                 {mockFinishedGoods.map((g, idx) => (
                   <tr key={g.id} className={`hover:bg-[#f0f4ff] transition-colors ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-[#0F2A4A]">{g.id}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold theme-text-primary">{g.id}</td>
                     <td className="px-5 py-3.5 text-sm text-[#374151]">{g.workerName}</td>
                     <td className="px-5 py-3.5 text-sm text-[#374151]">{g.designCode}</td>
                     <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#1a7a4a]">{g.quantity}</td>
                     <td className="px-5 py-3.5 text-sm text-right text-[#cc2200]">0</td>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-right text-[#0F2A4A]">{formatCurrency(0)}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-right theme-text-primary">{formatCurrency(0)}</td>
                     <td className="px-5 py-3.5 text-sm text-[#6b7280]">{formatDate(g.collectedDate)}</td>
                   </tr>
                 ))}
@@ -217,7 +217,7 @@ export default function WorkerManagementPage() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-xs text-[#6b7280]">{p.id}</p>
-                  <p className="font-bold text-[18px] text-[#0F2A4A] mt-0.5">{p.workerName}</p>
+                  <p className="font-bold text-[18px] theme-text-primary mt-0.5">{p.workerName}</p>
                 </div>
                 <span className="text-xl font-bold text-[#1a7a4a]">{formatCurrency(p.amount)}</span>
               </div>

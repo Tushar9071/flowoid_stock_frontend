@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Diamond } from "lucide-react";
+import Image from "next/image";
 
 export function LandingHeader() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -38,7 +39,13 @@ export function LandingHeader() {
           {/* Logo */}
           <Link href="/" className="flex flex-col">
             <div className="flex items-center gap-2">
-              <Diamond className="w-7 h-7 text-[#D4A843] fill-[#D4A843]/20" />
+              <Image 
+                src="/Only_logo.png" 
+                alt="Flowoid Logo" 
+                width={28} 
+                height={28} 
+                className="object-contain"
+              />
               <span className="text-xl font-bold text-[#1B2D4F] font-jakarta">
                 Flowoid Stock
               </span>

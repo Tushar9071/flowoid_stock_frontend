@@ -33,7 +33,7 @@ export default function PartyManagementPage() {
       subtitle="Manage dealers, suppliers and outstanding balances"
       action={
         canEdit ? (
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg theme-accent-btn text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" />
             {tab === 'dealers' ? 'Add Dealer' : 'Add Supplier'}
           </button>
@@ -46,10 +46,10 @@ export default function PartyManagementPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm transition-all ${
               tab === t.id
-                ? 'bg-[#0F2A4A] text-white shadow-sm'
-                : 'text-[#6b7280] hover:text-[#0F2A4A] hover:bg-white/60'
+                ? 'theme-tab-active'
+                : 'theme-tab-inactive'
             }`}
           >
             {t.icon} {t.label}
@@ -80,8 +80,8 @@ export default function PartyManagementPage() {
             {filtered.map(dealer => (
               <div
                 key={dealer.id}
-                className={`bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden flex ${
-                  dealer.status === 'active' ? 'border-l-4 border-l-[#1a7a4a]' : 'border-l-4 border-l-[#d1d5db]'
+                className={`bg-white rounded-2xl border border-[#e5e7eb] overflow-hidden flex ${
+                  dealer.status === 'active' ? 'theme-card-accent' : 'border-l-4 border-l-[#d1d5db]'
                 }`}
               >
                 {/* Card content */}
@@ -94,12 +94,12 @@ export default function PartyManagementPage() {
                           {dealer.code}
                         </span>
                       </div>
-                      <h3 className="text-[18px] font-bold text-[#0F2A4A]">{dealer.name}</h3>
+                      <h3 className="text-[18px] font-bold theme-text-primary">{dealer.name}</h3>
                     </div>
                     <span
                       className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                         dealer.status === 'active'
-                          ? 'bg-[#e6f9f0] text-[#1a7a4a]'
+                          ? 'theme-badge-soft'
                           : 'bg-[#f3f4f6] text-[#6b7280]'
                       }`}
                     >
@@ -176,7 +176,7 @@ export default function PartyManagementPage() {
           <p className="text-[#0F2A4A] font-semibold text-lg mb-1">Supplier Management</p>
           <p className="text-sm text-[#6b7280] mb-6">Manage your material suppliers here.</p>
           {canEdit && (
-            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold">
+            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg theme-accent-btn text-sm font-semibold">
               <Plus className="w-4 h-4" /> Add Supplier
             </button>
           )}

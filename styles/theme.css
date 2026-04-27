@@ -1,0 +1,393 @@
+/**
+ * theme.css — Global Color Theme Layer
+ * ======================================
+ * All 4 non-default themes are defined here as body-level classes.
+ * Default (no class) = existing dashboard palette, never overridden.
+ *
+ * Mapped variables:
+ *   --color-accent          → primary brand accent
+ *   --color-accent-dark     → hover / dark shade
+ *   --color-accent-light    → light fill / tint
+ *   --color-sidebar-bg      → sidebar background
+ *   --color-sidebar-active  → active nav item background
+ *   --color-sidebar-active-text → active nav item text
+ *   --color-chart-fill      → chart bars / area strokes
+ *   --color-badge-bg        → active status badge background
+ *   --color-badge-text      → active status badge text
+ *   --color-progress-fill   → progress bar fill
+ *   --color-border-accent   → focus rings / outline borders
+ *   --color-icon-active     → icon active state color
+ *   --color-button-bg       → top-bar accent button background
+ *   --color-button-text     → top-bar accent button text
+ *   --color-button-hover    → top-bar accent button hover background
+ */
+
+/* ─── Default: CSS variables are undefined so components fall back to existing values ─── */
+:root {
+  /* ─── Default Executive Navy + Gold ─── */
+  --color-accent:         #D4AF37; /* Premium Gold */
+  --color-accent-dark:    #B8860B; /* Deep Gold */
+  --color-accent-light:   #FEF08A; /* Soft Gold Tint */
+  --color-sidebar-bg:     #0B1F3A; /* Executive Navy */
+  --color-sidebar-active: #D4AF37; /* Premium Gold */
+  --color-sidebar-active-text: #0B1F3A;
+  --color-chart-fill:     #D4AF37;
+  --color-badge-bg:       #FEF08A;
+  --color-badge-text:     #854D0E;
+  --color-text-primary:   #0B1F3A;
+  --color-progress-fill:  #D4AF37;
+  --color-border-accent:  #D4AF37;
+  --color-icon-active:    #D4AF37;
+  --color-button-bg:      #0B1F3A; /* Professional matching base */
+  --color-button-text:    #FFFFFF;
+  --color-button-hover:   #071426; /* Deeper Navy */
+}
+
+/* ─── Theme 2: Enterprise Emerald ─── */
+body.theme-emerald {
+  --color-sidebar-bg:     #022C22; /* Deep Premium Emerald Base */
+  --color-sidebar-active: #059669; /* Refined Professional Emerald */
+  --color-sidebar-active-text: #FFFFFF;
+  --color-button-bg:      #059669;
+  --color-button-text:    #FFFFFF;
+  --color-button-hover:   #047857;
+  --color-accent:         #059669;
+  --color-accent-dark:    #047857;
+  --color-accent-light:   #D1FAE5;
+  --color-chart-fill:     #059669;
+  --color-badge-bg:       #D1FAE5;
+  --color-badge-text:     #065F46;
+  --color-text-primary:   #022C22;
+  --color-progress-fill:  #059669;
+  --color-border-accent:  #059669;
+  --color-icon-active:    #059669;
+}
+
+/* ─── Theme 3: Indigo SaaS ─── */
+body.theme-indigo {
+  --color-sidebar-bg:     #111827; /* Corporate Charcoal/Slate */
+  --color-sidebar-active: #4338CA; /* Deeper Professional Indigo */
+  --color-sidebar-active-text: #FFFFFF;
+  --color-button-bg:      #4338CA;
+  --color-button-text:    #FFFFFF;
+  --color-button-hover:   #3730A3;
+  --color-accent:         #4338CA;
+  --color-accent-dark:    #3730A3;
+  --color-accent-light:   #E0E7FF;
+  --color-chart-fill:     #4338CA;
+  --color-badge-bg:       #E0E7FF;
+  --color-badge-text:     #312E81;
+  --color-text-primary:   #111827;
+  --color-progress-fill:  #4338CA;
+  --color-border-accent:  #4338CA;
+  --color-icon-active:    #4338CA;
+}
+
+/* ─── Theme 4: Charcoal Orange Professional ─── */
+body.theme-orange {
+  --color-sidebar-bg:     #111827; /* Deep Charcoal */
+  --color-sidebar-active: #EA580C; /* Refined Burnt Orange */
+  --color-sidebar-active-text: #FFFFFF;
+  --color-button-bg:      #EA580C;
+  --color-button-text:    #FFFFFF;
+  --color-button-hover:   #C2410C;
+  --color-accent:         #EA580C;
+  --color-accent-dark:    #C2410C;
+  --color-accent-light:   #FFEDD5;
+  --color-chart-fill:     #EA580C;
+  --color-badge-bg:       #FFEDD5;
+  --color-badge-text:     #9A3412;
+  --color-text-primary:   #111827;
+  --color-progress-fill:  #EA580C;
+  --color-border-accent:  #EA580C;
+  --color-icon-active:    #EA580C;
+}
+
+/* ─── Theme 5: Slate Teal Premium ─── */
+body.theme-teal {
+  --color-sidebar-bg:     #0F172A; /* Rich Slate */
+  --color-sidebar-active: #0D9488; /* Sophisticated Teal */
+  --color-sidebar-active-text: #FFFFFF;
+  --color-button-bg:      #0D9488;
+  --color-button-text:    #FFFFFF;
+  --color-button-hover:   #0F766E;
+  --color-accent:         #0D9488;
+  --color-accent-dark:    #0F766E;
+  --color-accent-light:   #CCFBF1;
+  --color-chart-fill:     #0D9488;
+  --color-badge-bg:       #CCFBF1;
+  --color-badge-text:     #115E59;
+  --color-text-primary:   #0F172A;
+  --color-progress-fill:  #0D9488;
+  --color-border-accent:  #0D9488;
+  --color-icon-active:    #0D9488;
+}
+
+/* ─── Theme 6: Custom Brand Theme (Live Color Picker) ─── */
+body.theme-custom {
+  --color-sidebar-bg:     #111827;
+  --color-accent:         var(--color-custom-accent, #4F46E5);
+  --color-accent-dark:    color-mix(in srgb, var(--color-custom-accent, #4F46E5) 80%, black);
+  --color-accent-light:   color-mix(in srgb, var(--color-custom-accent, #4F46E5) 12%, white);
+  --color-sidebar-active: var(--color-custom-accent, #4F46E5);
+  --color-sidebar-active-text: #FFFFFF;
+  --color-button-bg:      var(--color-custom-accent, #4F46E5);
+  --color-button-text:    #FFFFFF;
+  --color-button-hover:   color-mix(in srgb, var(--color-custom-accent, #4F46E5) 85%, black);
+  --color-chart-fill:     var(--color-custom-accent, #4F46E5);
+  --color-badge-bg:       color-mix(in srgb, var(--color-custom-accent, #4F46E5) 15%, white);
+  --color-badge-text:     var(--color-custom-accent, #4F46E5);
+  --color-text-primary:   #111827;
+  --color-progress-fill:  var(--color-custom-accent, #4F46E5);
+  --color-border-accent:  var(--color-custom-accent, #4F46E5);
+  --color-icon-active:    var(--color-custom-accent, #4F46E5);
+}
+
+/* ─── Global smooth transitions for all themed properties ─── */
+body,
+body * {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.25s ease,
+    fill 0.3s ease,
+    stroke 0.3s ease;
+}
+
+/* ─── Themed element mappings ─── */
+
+/* Sidebar background */
+.theme-sidebar-bg {
+  background: var(--color-sidebar-bg) !important;
+}
+
+/* Active nav item */
+.theme-nav-active {
+  background-color: var(--color-sidebar-active) !important;
+  color: var(--color-sidebar-active-text) !important;
+}
+
+/* Active nav indicator bar */
+.theme-nav-active-bar {
+  background-color: var(--color-accent-dark) !important;
+}
+
+/* Active nav icon */
+.theme-nav-active-icon {
+  color: var(--color-sidebar-active-text) !important;
+}
+
+/* Stat card top-border accent */
+.theme-card-accent-border {
+  border-top-color: var(--color-accent) !important;
+}
+
+/* Avatar / user icon circle */
+.theme-avatar {
+  background-color: var(--color-accent) !important;
+}
+
+/* Progress bar */
+.theme-progress-fill {
+  background-color: var(--color-progress-fill) !important;
+}
+
+/* Table header */
+.theme-table-header {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-badge-text) !important;
+}
+
+/* Status badge */
+.theme-badge {
+  background-color: var(--color-badge-bg) !important;
+  color: var(--color-badge-text) !important;
+}
+
+/* Focus rings */
+.theme-focus-ring:focus {
+  outline-color: var(--color-border-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-accent) 20%, transparent) !important;
+}
+
+/* Accent button in topbar and other primary buttons */
+.theme-accent-btn {
+  background-color: var(--color-button-bg) !important;
+  color: var(--color-button-text) !important;
+  border-color: var(--color-button-bg) !important;
+}
+
+.theme-accent-btn:hover {
+  background-color: var(--color-button-hover) !important;
+  border-color: var(--color-button-hover) !important;
+}
+
+
+/* ─── Premium UI Utility Classes (10/10 ERP Polish) ─── */
+
+/* Soft tinted theme-aware tabs */
+.theme-tab-active {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent-dark) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 0 0 1px var(--color-accent) !important;
+}
+
+.theme-tab-inactive {
+  color: #6B7280 !important;
+  background-color: transparent !important;
+}
+.theme-tab-inactive:hover {
+  color: var(--color-sidebar-bg) !important;
+  background-color: rgba(255,255,255,0.6) !important;
+}
+
+/* Premium Card with left accent border */
+.theme-card-accent {
+  border-left: 4px solid var(--color-accent) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Theme-aware soft status badges */
+.theme-badge-soft {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent-dark) !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(0,0,0,0.05) !important;
+}
+
+/* Refined primary buttons with premium shadow */
+.theme-accent-btn {
+  background-color: var(--color-button-bg) !important;
+  color: var(--color-button-text) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+}
+.theme-accent-btn:hover {
+  background-color: var(--color-button-hover) !important;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1) !important;
+  transform: translateY(-1px);
+}
+.theme-accent-btn:active {
+  transform: translateY(0);
+}
+
+/* Theme text utilities */
+.theme-text-primary {
+  color: var(--color-sidebar-bg) !important; /* Grounded text */
+}
+
+.theme-text-accent {
+  color: var(--color-accent-dark) !important; /* Bold accents */
+}
+
+/* Theme switcher icon — reflects current accent */
+.theme-palette-icon {
+  color: var(--color-accent);
+  transition: color 0.25s ease;
+}
+
+/* ─── Premium Dropdown & Select System (Stripe/Linear Style) ─── */
+
+/* Global Dropdown Panels */
+[class*="dropdown"], 
+.dropdown-menu,
+.dropdown-panel {
+  border-radius: 14px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04) !important;
+  background-color: white !important;
+  overflow: hidden !important;
+  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Dropdown Menu Items */
+.dropdown-item,
+[class*="dropdown"] button,
+[class*="dropdown"] a {
+  padding: 10px 14px !important;
+  border-radius: 8px !important;
+  margin: 2px 6px !important;
+  transition: all 0.2s ease !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.dropdown-item:hover,
+[class*="dropdown"] button:hover,
+[class*="dropdown"] a:hover {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Dividers in menus */
+.dropdown-divider,
+[class*="dropdown"] .h-px {
+  background-color: #f1f5f9 !important;
+  margin: 6px 0 !important;
+}
+
+/* Header/Footer in menus */
+.dropdown-header {
+  padding: 12px 16px !important;
+  background-color: #fafafa !important;
+}
+
+/* Global Select Boxes & Inputs */
+select, 
+input[type="text"], 
+input[type="number"], 
+input[type="email"], 
+input[type="password"] {
+  border-radius: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  background-color: #fcfcfc !important;
+  padding: 8px 12px !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+}
+
+select:focus, 
+input:focus {
+  background-color: white !important;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent) !important;
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0 !important;
+  border-radius: 10px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1 !important;
+}
+
+/* Scrollbar for theme menu specifically */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+/* Fix for the Admin Header profile dropdown specifically */
+.AdminHeader_dropdown {
+  border-radius: 16px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+}

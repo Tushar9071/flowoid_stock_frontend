@@ -12,11 +12,6 @@ export default function AuditLogsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
-        <p className="text-gray-600 mt-1 text-sm">Complete activity history with detailed change tracking</p>
-      </div>
-
       <Card className="rounded-lg border border-gray-200 bg-white">
         <div className="p-4 border-b border-gray-200 flex flex-wrap items-center gap-3">
           <Filter className="w-5 h-5 text-gray-600" />
@@ -26,8 +21,8 @@ export default function AuditLogsPage() {
               onClick={() => setFilter(status)}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                 filter === status
-                  ? 'bg-teal-100 text-teal-700'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'theme-tab-active'
+                  : 'theme-tab-inactive'
               }`}
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -52,7 +47,7 @@ export default function AuditLogsPage() {
                     <span className="font-semibold text-gray-900">{log.userName}</span>
                     <span className="text-gray-600">{log.action}</span>
                     <span className="text-gray-600">{log.resource}</span>
-                    {log.resourceName && <span className="font-medium text-teal-700">{log.resourceName}</span>}
+                    {log.resourceName && <span className="font-medium theme-text-accent">{log.resourceName}</span>}
                   </div>
 
                   <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">

@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { mockOrders, mockDispatches } from '@/lib/data';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { Plus, Truck, Search, ChevronDown, Package, FileText, MapPin } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { SkeletonList, SkeletonTable } from '@/components/skeleton/Skeletons';
 
 type Tab = 'orders' | 'dispatch';
 
@@ -13,16 +14,39 @@ export default function OrdersDispatchPage() {
   const { role } = useAuth();
   const [tab, setTab] = useState<Tab>('orders');
   const [search, setSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [orders, setOrders] = useState<typeof mockOrders>([]);
+  const [dispatches, setDispatches] = useState<typeof mockDispatches>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOrdersAndDispatches = async () => {
+      setIsLoading(true);
+      // Placeholder async flow until API integration.
+      await new Promise(resolve => setTimeout(resolve, 700));
+      if (!isMounted) return;
+      setOrders(mockOrders);
+      setDispatches(mockDispatches);
+      setIsLoading(false);
+    };
+
+    loadOrdersAndDispatches();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const canEdit = role === 'owner' || role === 'manager';
 
-  const filteredOrders = mockOrders.filter(
+  const filteredOrders = orders.filter(
     o =>
       o.orderId.toLowerCase().includes(search.toLowerCase()) ||
       o.dealerName.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const filteredDispatches = mockDispatches.filter(
+  const filteredDispatches = dispatches.filter(
     d =>
       d.orderId.toLowerCase().includes(search.toLowerCase()) ||
       d.dealerName.toLowerCase().includes(search.toLowerCase()),
@@ -39,7 +63,7 @@ export default function OrdersDispatchPage() {
       subtitle="Manage customer orders, tracking, and delivery status"
       action={
         canEdit && tab === 'orders' ? (
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg theme-accent-btn text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" />
             Create Order
           </button>
@@ -51,10 +75,10 @@ export default function OrdersDispatchPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm transition-all ${
               tab === t.id
-                ? 'bg-[#0F2A4A] text-white shadow-sm'
-                : 'text-[#6b7280] hover:text-[#0F2A4A] hover:bg-white/60'
+                ? 'theme-tab-active'
+                : 'theme-tab-inactive'
             }`}
           >
             {t.icon} {t.label}
@@ -78,10 +102,13 @@ export default function OrdersDispatchPage() {
         </button>
       </div>
 
-      {tab === 'orders' && (
+      {isLoading && tab === 'orders' && <SkeletonList count={6} />}
+      {isLoading && tab === 'dispatch' && <SkeletonTable rows={8} cols={5} />}
+
+      {!isLoading && tab === 'orders' && (
         <div className="space-y-4">
           {filteredOrders.map(order => (
-            <div key={order.id} className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden">
+            <div key={order.id} className="bg-white rounded-2xl border border-[#e5e7eb] theme-card-accent overflow-hidden">
               <div className="p-5">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -89,7 +116,7 @@ export default function OrdersDispatchPage() {
                     <span className="inline-block px-2 py-0.5 rounded bg-[#f3f4f6] text-[11px] font-semibold text-[#6b7280] mb-1.5">
                       {order.orderId}
                     </span>
-                    <h3 className="text-[18px] font-bold text-[#0F2A4A]">{order.dealerName}</h3>
+                    <h3 className="text-[18px] font-bold theme-text-primary">{order.dealerName}</h3>
                     <p className="text-sm text-[#6b7280] mt-0.5">Ordered on {formatDate(order.date)}</p>
                   </div>
                   <div className="text-right">
@@ -101,7 +128,7 @@ export default function OrdersDispatchPage() {
                     }`}>
                       {order.orderStatus}
                     </span>
-                    <p className="text-[18px] font-bold text-[#0F2A4A]">{formatCurrency(order.totalValue)}</p>
+                    <p className="text-[18px] font-bold theme-text-primary">{formatCurrency(order.totalValue)}</p>
                   </div>
                 </div>
 
@@ -115,11 +142,11 @@ export default function OrdersDispatchPage() {
                           <Package className="w-4 h-4 text-[#9ca3af]" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-[#0F2A4A]">{item.designCode}</p>
+                          <p className="text-sm font-semibold theme-text-primary">{item.designCode}</p>
                           <p className="text-[12px] text-[#6b7280]">{item.quantity} units × {formatCurrency(item.unitPrice)}</p>
                         </div>
                       </div>
-                      <p className="font-bold text-[#0F2A4A] text-sm">{formatCurrency(item.total)}</p>
+                      <p className="font-bold theme-text-primary text-sm">{formatCurrency(item.total)}</p>
                     </div>
                   ))}
                 </div>
@@ -136,7 +163,7 @@ export default function OrdersDispatchPage() {
                       {order.paymentStatus}
                     </span>
                   </div>
-                  <button className="text-sm font-semibold text-[#0F2A4A] hover:underline">
+                  <button className="text-sm font-semibold theme-text-primary hover:underline">
                     View Full Details
                   </button>
                 </div>
@@ -146,7 +173,7 @@ export default function OrdersDispatchPage() {
         </div>
       )}
 
-      {tab === 'dispatch' && (
+      {!isLoading && tab === 'dispatch' && (
         <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -162,7 +189,7 @@ export default function OrdersDispatchPage() {
               <tbody className="divide-y divide-[#f3f4f6]">
                 {filteredDispatches.map((dispatch, idx) => (
                   <tr key={dispatch.id} className={`transition-colors hover:bg-[#f0f4ff] ${idx % 2 === 1 ? 'bg-[#fafafa]' : 'bg-white'}`}>
-                    <td className="px-5 py-4 text-sm font-semibold text-[#0F2A4A]">{dispatch.orderId}</td>
+                    <td className="px-5 py-4 text-sm font-semibold theme-text-primary">{dispatch.orderId}</td>
                     <td className="px-5 py-4 text-sm font-medium text-[#374151]">{dispatch.dealerName}</td>
                     <td className="px-5 py-4 text-sm font-mono text-[#6b7280]">
                       {dispatch.trackerNumber || <span className="text-[#9ca3af] italic">Not Assigned</span>}
@@ -177,7 +204,7 @@ export default function OrdersDispatchPage() {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <button className="px-3 py-1.5 rounded bg-white border border-[#e5e7eb] text-xs font-semibold text-[#0F2A4A] hover:bg-[#f9fafb] transition-colors">
+                      <button className="px-3 py-1.5 rounded bg-white border border-[#e5e7eb] text-xs font-semibold theme-text-primary hover:bg-[#f9fafb] transition-colors">
                         Track Package
                       </button>
                     </td>

@@ -28,7 +28,7 @@ export default function DesignCataloguePage() {
       subtitle="Manage your jewelry designs, pricing, and status"
       action={
         canEdit ? (
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F2A4A] text-white text-sm font-semibold hover:bg-[#0A1E38] transition-colors">
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg theme-accent-btn text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" />
             Add Design
           </button>
@@ -59,8 +59,8 @@ export default function DesignCataloguePage() {
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg transition-colors border border-[#e5e7eb] ${
                 viewMode === 'grid'
-                  ? 'bg-[#0F2A4A] text-white border-[#0F2A4A]'
-                  : 'bg-white text-[#6b7280] hover:text-[#0F2A4A]'
+                  ? 'theme-tab-active'
+                  : 'bg-white text-[#6b7280] hover:theme-text-primary'
               }`}
             >
               <Grid2X2 className="w-4 h-4" />
@@ -69,8 +69,8 @@ export default function DesignCataloguePage() {
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-lg transition-colors border border-[#e5e7eb] ${
                 viewMode === 'list'
-                  ? 'bg-[#0F2A4A] text-white border-[#0F2A4A]'
-                  : 'bg-white text-[#6b7280] hover:text-[#0F2A4A]'
+                  ? 'theme-tab-active'
+                  : 'bg-white text-[#6b7280] hover:theme-text-primary'
               }`}
             >
               <List className="w-4 h-4" />
@@ -84,8 +84,8 @@ export default function DesignCataloguePage() {
             onClick={() => setSelectedCategory(null)}
             className={`px-4 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors border ${
               !selectedCategory
-                ? 'bg-[#0F2A4A] text-white border-[#0F2A4A]'
-                : 'bg-white text-[#6b7280] border-[#e5e7eb] hover:border-[#0F2A4A]/30'
+                ? 'theme-tab-active px-4 py-1.5 rounded-full text-[13px]'
+                : 'bg-white text-[#6b7280] border-[#e5e7eb] hover:border-[#0F2A4A]/30 px-4 py-1.5 rounded-full text-[13px]'
             }`}
           >
             All Categories
@@ -96,8 +96,8 @@ export default function DesignCataloguePage() {
               onClick={() => setSelectedCategory(cat.value)}
               className={`px-4 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors border ${
                 selectedCategory === cat.value
-                  ? 'bg-[#0F2A4A] text-white border-[#0F2A4A]'
-                  : 'bg-white text-[#6b7280] border-[#e5e7eb] hover:border-[#0F2A4A]/30'
+                  ? 'theme-tab-active px-4 py-1.5 rounded-full text-[13px]'
+                  : 'bg-white text-[#6b7280] border-[#e5e7eb] hover:border-[#0F2A4A]/30 px-4 py-1.5 rounded-full text-[13px]'
               }`}
             >
               {cat.label}
@@ -109,7 +109,7 @@ export default function DesignCataloguePage() {
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filteredDesigns.map(design => (
-              <div key={design.id} className="bg-white rounded-xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] transition-all cursor-pointer">
+              <div key={design.id} className="bg-white rounded-xl border border-[#e5e7eb] theme-card-accent overflow-hidden transition-all cursor-pointer">
                 {/* Image Placeholder */}
                 <div className="h-40 bg-[#f0f2f5] flex items-center justify-center border-b border-[#e5e7eb]">
                   <div className="text-center">
@@ -123,10 +123,10 @@ export default function DesignCataloguePage() {
                        <span className="inline-block px-2 py-0.5 rounded bg-[#f3f4f6] text-[11px] font-semibold text-[#6b7280] mb-1.5">
                          {design.code}
                        </span>
-                       <h3 className="text-[16px] font-bold text-[#0F2A4A] leading-tight">{design.name}</h3>
+                       <h3 className="text-[16px] font-bold theme-text-primary leading-tight">{design.name}</h3>
                      </div>
                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
-                        design.status === 'active' ? 'bg-[#e6f9f0] text-[#1a7a4a]' : 'bg-[#f3f4f6] text-[#6b7280]'
+                        design.status === 'active' ? 'theme-badge-soft' : 'bg-[#f3f4f6] text-[#6b7280]'
                       }`}>
                         {design.status.charAt(0).toUpperCase() + design.status.slice(1)}
                       </span>
@@ -135,11 +135,11 @@ export default function DesignCataloguePage() {
                    <div className="border-t border-[#f3f4f6] pt-4 grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-0.5">Piece Rate</p>
-                        <p className="text-[14px] font-bold text-[#0F2A4A]">{formatCurrency(design.pieceRate)}</p>
+                        <p className="text-[14px] font-bold theme-text-primary">{formatCurrency(design.pieceRate)}</p>
                       </div>
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-0.5">Dozen Rate</p>
-                        <p className="text-[14px] font-bold text-[#0F2A4A]">{formatCurrency(design.salePricePerDozen)}</p>
+                        <p className="text-[14px] font-bold theme-text-primary">{formatCurrency(design.salePricePerDozen)}</p>
                       </div>
                    </div>
                 </div>
