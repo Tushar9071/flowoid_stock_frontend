@@ -51,29 +51,27 @@ export function AdminSidebar() {
         }`}
         style={{ background: 'var(--color-sidebar-bg)' }}
       >
-        <div className="p-5 border-b border-white/10 shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Image 
-                src="/Only_logo.png" 
-                alt="Flowoid Logo" 
-                width={32} 
-                height={32} 
-                className="object-contain shrink-0"
-              />
-              <div>
-                <p className="text-white font-bold text-[15px] leading-tight tracking-wide">Flowoid Admin</p>
-                <p className="text-white/50 text-[11px] font-medium tracking-wider uppercase mt-0.5">Platform Setup</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="md:hidden p-1 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5 text-white/60" />
-            </button>
-          </div>
-        </div>
+        {/* Logo area */}
+                <div className="px-3 py-0 border-b border-white/10 shrink-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Image 
+                        src="/brand/StockFlow_horizontal_blue.svg" 
+                        alt="StockFlow" 
+                        width={2400} 
+                        height={600} 
+                        className="w-full h-auto object-contain object-left"
+                        priority
+                      />
+                    </div>
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="md:hidden p-1 hover:bg-white/10 rounded-lg transition-colors shrink-0"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-white/60" />
+                    </button>
+                  </div>
+                </div>
 
         <nav className="flex-1 overflow-y-auto py-5 scrollbar-none">
           <div className="px-5 mb-3">

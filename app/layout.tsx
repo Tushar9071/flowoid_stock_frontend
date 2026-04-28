@@ -31,6 +31,8 @@ export default function RootLayout({
       <head>
         {/* ── Theme initializer: reads localStorage and applies class BEFORE first paint ── */}
         <script src="/init-theme.js" />
+        <link rel="icon" sizes="32x32" href="/icon-light-32x32.png" />
+        <link rel="shortcut icon" href="/Appicon_blue.png" />
       </head>
       <body className="font-inter antialiased" suppressHydrationWarning>
         <AuthProvider>

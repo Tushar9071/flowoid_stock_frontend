@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { 
-  Diamond, 
   Sparkles, 
   Eye, 
   EyeOff, 
@@ -157,16 +157,15 @@ export default function LoginPage() {
         </motion.div>
 
         {/* Top: Logo block */}
-        <div className="relative z-20">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-12 h-12 rounded-xl bg-[#1B2D4F] flex items-center justify-center shadow-lg border border-white/10">
-              <Diamond className="w-6 h-6 text-[#D4A843] fill-[#D4A843]/20" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-white font-bold text-[18px] leading-tight">Flowoid Stock</span>
-              <span className="text-[#94A3B8] text-[12px] font-medium tracking-wide">by Flowoid Technologies</span>
-            </div>
-          </div>
+        <div className="relative z-30">
+          <Image
+            src="/brand/StockFlow_stacked_dark.svg"
+            alt="StockFlow"
+            width={270}
+            height={300}
+            className="h-[220px] lg:h-[270px] w-auto object-contain"
+            priority
+          />
         </div>
         
         {/* Middle: Hero copy */}
@@ -274,11 +273,15 @@ export default function LoginPage() {
         <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 pb-12 w-full max-w-[460px] mx-auto min-h-[500px]">
           
           {/* Mobile Logo (hidden on desktop) */}
-          <div className="md:hidden flex items-center gap-2 mb-10 justify-center">
-            <div className="w-10 h-10 rounded-lg bg-[#1B2D4F] flex items-center justify-center">
-              <Diamond className="w-5 h-5 text-[#D4A843] fill-[#D4A843]/20" />
-            </div>
-            <span className="text-[#0F1C2E] font-bold text-lg">Flowoid Stock</span>
+          <div className="md:hidden flex items-center mb-10 justify-center">
+            <Image
+              src="/brand/StockFlow_horizontal_blue.svg"
+              alt="StockFlow"
+              width={136}
+              height={34}
+              className="h-8 w-auto object-contain"
+              priority
+            />
           </div>
           
           {/* Top greeting */}

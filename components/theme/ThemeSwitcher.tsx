@@ -220,7 +220,7 @@ export function ThemeSwitcher() {
 
       {/* ── Premium Dropdown Panel ── */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-72 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-[#e2e8f0] z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+        <div className="fixed left-4 right-4 max-w-[340px] mx-auto top-[80px] w-auto sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-72 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-[#e2e8f0] z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top sm:origin-top-right">
           <div className="px-5 py-4 border-b border-[#f1f5f9] bg-white">
             <div className="flex items-center justify-between">
               <div>
