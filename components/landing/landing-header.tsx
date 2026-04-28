@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Diamond } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Image from "next/image";
 
 export function LandingHeader() {
@@ -37,22 +37,15 @@ export function LandingHeader() {
       <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <Link href="/" className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <Image 
-                src="/Only_logo.png" 
-                alt="Flowoid Logo" 
-                width={28} 
-                height={28} 
-                className="object-contain"
-              />
-              <span className="text-xl font-bold text-[#1B2D4F] font-jakarta">
-                Flowoid Stock
-              </span>
-            </div>
-            <span className="text-[10px] text-[#4B5C72] ml-9 -mt-1 font-medium tracking-wide">
-              by Flowoid Technologies
-            </span>
+          <Link href="/" className="flex items-center w-40 md:w-48 shrink-0">
+            <Image 
+              src="/brand/StockFlow_horizontal_light.svg" 
+              alt="StockFlow" 
+              width={2400} 
+              height={600} 
+              className="w-full h-auto object-contain object-left"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}

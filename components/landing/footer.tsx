@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import { Diamond, Twitter, Linkedin } from "lucide-react";
+import Image from "next/image";
+import { Twitter, Linkedin } from "lucide-react";
 
 export function Footer() {
   return (
@@ -10,13 +11,17 @@ export function Footer() {
           
           {/* Brand Column */}
           <div className="lg:col-span-2">
-            <Link href="/" className="flex flex-col mb-4">
-              <div className="flex items-center gap-2">
-                <Diamond className="w-6 h-6 text-[#D4A843] fill-[#D4A843]/20" />
-                <span className="text-xl font-bold text-[#1B2D4F] font-jakarta">
-                  Flowoid Stock
-                </span>
-              </div>
+            <Link href="/" className="inline-flex flex-col mb-4 w-40 md:w-48 shrink-0">
+              <Image
+                src="/brand/StockFlow_horizontal_light.svg"
+                alt="StockFlow"
+                width={2400}
+                height={600}
+                className="w-full h-auto object-contain object-left"
+              />
+              <span className="text-[11px] text-[#4B5C72] mt-1.5 font-medium tracking-wide">
+                Powered by Flowoid Technologies
+              </span>
             </Link>
             <p className="text-[#4B5C72] mb-6 max-w-xs leading-relaxed text-sm">
               Business Management for Jewellery Manufacturers. 
@@ -57,10 +62,10 @@ export function Footer() {
             
             <h4 className="font-bold text-[#0F1C2E] mb-4 mt-8 text-sm uppercase tracking-wider">Social</h4>
             <div className="flex gap-4">
-              <a href="#" className="w-8 h-8 rounded-full bg-[#F8F9FC] flex items-center justify-center text-[#4B5C72] hover:bg-[#1B2D4F] hover:text-[#D4A843] transition-all">
+              <a href="#" aria-label="LinkedIn" title="LinkedIn" className="w-8 h-8 rounded-full bg-[#F8F9FC] flex items-center justify-center text-[#4B5C72] hover:bg-[#1B2D4F] hover:text-[#D4A843] transition-all">
                 <Linkedin className="w-4 h-4" />
               </a>
-              <a href="#" className="w-8 h-8 rounded-full bg-[#F8F9FC] flex items-center justify-center text-[#4B5C72] hover:bg-[#1B2D4F] hover:text-[#D4A843] transition-all">
+              <a href="#" aria-label="Twitter" title="Twitter" className="w-8 h-8 rounded-full bg-[#F8F9FC] flex items-center justify-center text-[#4B5C72] hover:bg-[#1B2D4F] hover:text-[#D4A843] transition-all">
                 <Twitter className="w-4 h-4" />
               </a>
             </div>
