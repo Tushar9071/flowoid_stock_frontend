@@ -6,10 +6,12 @@ import { mockRawMaterials } from '@/lib/data';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { Plus, AlertTriangle, TrendingDown, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { normalizeRole } from '@/lib/roles';
 
 export default function RawMaterialsPage() {
   const { role } = useAuth();
-  const canEdit = role === 'owner' || role === 'manager';
+  const roleKey = normalizeRole(role);
+  const canEdit = roleKey === 'owner' || roleKey === 'manager';
 
   return (
     <DashboardLayout

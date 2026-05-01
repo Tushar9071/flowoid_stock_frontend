@@ -6,6 +6,7 @@ import { AlertTriangle, Plus, Search, ChevronDown, Package, Layers } from 'lucid
 import { mockInventoryItems } from '@/lib/data';
 import { formatDate } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
+import { isOwnerRole } from '@/lib/roles';
 import { SkeletonCard, SkeletonForm, SkeletonTable } from '@/components/skeleton/Skeletons';
 
 type Tab = 'unpackaged' | 'packaged' | 'packaging-form';
@@ -48,7 +49,7 @@ export default function InventoryPage() {
     { id: 'packaging-form', label: 'Packaging Form', icon: <Plus className="w-4 h-4" /> },
   ];
 
-  const canEdit = role === 'owner';
+  const canEdit = isOwnerRole(role);
 
   return (
     <DashboardLayout

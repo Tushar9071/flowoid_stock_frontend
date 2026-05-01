@@ -6,6 +6,7 @@ import { mockOrders, mockDispatches } from '@/lib/data';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { Plus, Truck, Search, ChevronDown, Package, FileText, MapPin } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { normalizeRole } from '@/lib/roles';
 import { SkeletonList, SkeletonTable } from '@/components/skeleton/Skeletons';
 
 type Tab = 'orders' | 'dispatch';
@@ -38,7 +39,8 @@ export default function OrdersDispatchPage() {
     };
   }, []);
 
-  const canEdit = role === 'owner' || role === 'manager';
+  const roleKey = normalizeRole(role);
+  const canEdit = roleKey === 'owner' || roleKey === 'manager';
 
   const filteredOrders = orders.filter(
     o =>

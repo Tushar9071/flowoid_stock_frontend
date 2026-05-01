@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Download, FileText, Package, Users, Wallet, CheckCircle, TrendingUp, Filter } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { normalizeRole } from '@/lib/roles';
 
 const salesData = [
   { month: 'Jan', sales: 65000, orders: 8 },
@@ -30,7 +31,8 @@ const workerData = [
 
 export default function ReportsPage() {
   const { role } = useAuth();
-  const canExport = role === 'owner' || role === 'manager';
+  const roleKey = normalizeRole(role);
+  const canExport = roleKey === 'owner' || roleKey === 'manager';
 
   const reportTypes = [
     { label: 'Sales Report', icon: <TrendingUp className="w-4 h-4 text-[#0d7377]" /> },

@@ -6,7 +6,11 @@ import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { AdminHeader } from '@/components/admin/admin-header';
 import { AuthGuard } from '@/components/shared/auth-guard';
 
-const ADMIN_PAGE_META: Record<string, { title: string; subtitle: string }> = {
+const ADMIN_PAGE_META: Record<string, { 
+  title: string; 
+  subtitle: string; 
+  action?: { label: string; icon: string } 
+}> = {
   '/admin': {
     title: 'Platform Overview',
     subtitle: 'Manage all tenants, subscriptions, and platform health',
@@ -54,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <AuthGuard allowedRoles={['flowoid_admin']}>
+    <AuthGuard allowedRoles={['SUPER_ADMIN']}>
       {/* Same structure as DashboardLayout */}
       <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
         <AdminSidebar />

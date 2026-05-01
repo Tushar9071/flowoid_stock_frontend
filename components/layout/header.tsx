@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Bell, LogOut, User, Search, Settings } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
+import { normalizeRole } from '@/lib/roles';
 
 const ROLE_LABELS: Record<string, string> = {
   flowoid_admin: 'Flowoid Admin',
@@ -17,6 +18,7 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
   const { user, role, logout } = useAuth();
   const router = useRouter();
   const [showDropdown, setShowDropdown] = useState(false);
+  const roleKey = normalizeRole(role);
 
   const handleLogout = () => {
     logout();
@@ -77,7 +79,7 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
               </div>
               <div className="hidden sm:block text-left">
                  <p className="text-[13px] font-bold text-[#0F2A4A] leading-tight">{user?.name || 'User'}</p>
-                 <p className="text-[11px] font-semibold text-[#6b7280]">{role ? ROLE_LABELS[role] || role : ''}</p>
+                 <p className="text-[11px] font-semibold text-[#6b7280]">{role ? ROLE_LABELS[roleKey] || role : ''}</p>
               </div>
             </button>
 

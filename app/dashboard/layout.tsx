@@ -9,7 +9,7 @@ export default function DashboardRootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthGuard allowedRoles={['owner', 'manager', 'viewer']}>
+    <AuthGuard>
       {children}
     </AuthGuard>
   );
