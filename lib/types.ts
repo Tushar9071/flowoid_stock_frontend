@@ -1,11 +1,10 @@
 // RBAC Types
-// flowoid_admin = Flowoid Technologies platform admin (Level 1)
-// owner = Tenant / Business Owner (Level 2)
-// manager = Manager / Staff created by owner (Level 3)
-// viewer = Viewer / Auditor — read-only (Level 4)
-export type UserRole = 'flowoid_admin' | 'owner' | 'manager' | 'viewer';
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'approve' | 'reject' | 'export';
-export type ResourceType = 'user' | 'role' | 'permission' | 'workflow' | 'order' | 'inventory' | 'payment' | 'design' | 'worker' | 'audit_log' | 'tenant' | 'subscription';
+// SUPER_ADMIN = Flowoid Technologies platform admin
+// OWNER = Tenant / Business Owner
+// STAFF = Staff member
+// CUSTOM roles created by owner
+export type UserRole = 'SUPER_ADMIN' | 'OWNER' | 'STAFF' | string;
+export type ResourceType = string;
 export type WorkflowStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type ApprovalAction = 'approve' | 'reject' | 'request_clarification';
 
@@ -46,23 +45,31 @@ export interface User {
 // Permission & Role Types
 export interface Permission {
   id: string;
+  code: string;
   name: string;
-  resource: ResourceType;
-  actions: PermissionAction[];
-  description: string;
-  createdAt: Date;
+  description?: string | null;
+  module?: string;
+  action?: string;
+  createdAt: string;
 }
 
 export interface Role {
   id: string;
   name: string;
-  displayName: string;
-  description: string;
-  permissions: string[]; // permission IDs
-  userCount: number;
-  isSystem: boolean; // cannot be deleted
-  createdAt: Date;
-  updatedAt: Date;
+  description?: string | null;
+  isSystem: boolean;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdById?: string | null;
+  permissions: Array<{
+    id: string;
+    roleId: string;
+    permissionId: string;
+    grantedAt: string;
+    permission: Permission;
+  }>;
 }
 
 // Workflow & Approval Types

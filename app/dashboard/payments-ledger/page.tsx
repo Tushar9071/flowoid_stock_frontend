@@ -10,6 +10,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { Plus, Download, FileText, Wallet, BookOpen, Clock, Search, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { normalizeRole } from '@/lib/roles';
 
 type Tab = 'invoices' | 'payments' | 'ledger' | 'ageing';
 
@@ -18,7 +19,8 @@ export default function PaymentsLedgerPage() {
   const [tab, setTab] = useState<Tab>('invoices');
   const [search, setSearch] = useState('');
 
-  const canEdit = role === 'owner' || role === 'manager';
+  const roleKey = normalizeRole(role);
+  const canEdit = roleKey === 'owner' || roleKey === 'manager';
 
   const tabs = [
     { id: 'invoices' as Tab, label: 'Invoices', icon: <FileText className="w-4 h-4" /> },

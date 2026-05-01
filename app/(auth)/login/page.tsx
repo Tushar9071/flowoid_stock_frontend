@@ -26,20 +26,19 @@ export default function LoginPage() {
   const { login } = useAuth();
   
   // Form state
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   
   // UI states
-  const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
   const [success, setSuccess] = useState(false);
   
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     setErrorMsg("");
-    if (!email || !password) {
+    if (!identifier || !password) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
       return;
@@ -47,9 +46,8 @@ export default function LoginPage() {
     
     setIsLoading(true);
     
-    // Process login
-    setTimeout(() => {
-      const result = login(email, password);
+    try {
+      const result = await login(identifier, password);
       
       if (result.success) {
         setIsLoading(false);
@@ -69,20 +67,14 @@ export default function LoginPage() {
         setShake(true);
         setTimeout(() => setShake(false), 500);
       }
-    }, 800);
+    } catch (error) {
+      setIsLoading(false);
+      setErrorMsg("An unexpected error occurred. Please try again.");
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+    }
   };
   
-  const handleDemoClick = (cardId: string, demoEmail: string, demoPass: string) => {
-    setActiveCardId(cardId);
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    
-    // Remove active state after animation
-    setTimeout(() => {
-      setActiveCardId(null);
-    }, 1500);
-  };
-
   const featurePills = [
     "Worker Management",
     "Inventory Tracking",
@@ -102,8 +94,8 @@ export default function LoginPage() {
         {/* Dot grid overlay */}
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none" 
              style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-             
-        {/* Abstract Floating Mini Dashboard (Option A) */}
+              
+        {/* Abstract Floating Mini Dashboard */}
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -143,15 +135,6 @@ export default function LoginPage() {
                 <div className="text-white/60 text-[9px] mb-1">Pending</div>
                 <div className="text-[#D4A843] font-bold text-sm">₹1.2L</div>
               </div>
-            </div>
-            
-            <div className="flex items-end gap-1.5 h-10 w-full opacity-60">
-              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[30%]"></div>
-              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[50%]"></div>
-              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[40%]"></div>
-              <div className="w-full bg-[#D4A843] rounded-t-[2px] h-[80%] shadow-[0_0_10px_rgba(212,168,67,0.4)]"></div>
-              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[60%]"></div>
-              <div className="w-full bg-[#1B2D4F] rounded-t-[2px] h-[70%]"></div>
             </div>
           </div>
         </motion.div>
@@ -204,73 +187,8 @@ export default function LoginPage() {
       {/* RIGHT PANEL - Login Form */}
       <div className="w-full md:w-[55%] h-full flex flex-col bg-[#F8F9FC] relative overflow-y-auto">
         
-        {/* ========================================================= */}
-        {/* REMOVE THIS SECTION FOR PRODUCTION */}
-        {/* DEMO CREDENTIALS (Testing Only) */}
-        {/* ========================================================= */}
-        <div className="w-full p-6 md:p-8 bg-white border-b border-[#E2E8F0] shadow-sm mb-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Info className="w-4 h-4 text-[#D4A843]" />
-            <h3 className="text-[#0F1C2E] text-[13px] font-bold uppercase tracking-wider">Demo Credentials (Testing Only)</h3>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Card 1 - Flowoid Admin */}
-            <DemoCard 
-              id="admin"
-              icon={<div className="w-8 h-8 rounded-[6px] bg-[#7C3AED] flex items-center justify-center text-white font-bold text-sm leading-none">F</div>}
-              title="Flowoid Admin"
-              subtitle="admin@flowoid.com"
-              badgeText="Admin"
-              badgeColor="bg-[#7C3AED]/10 text-[#7C3AED]"
-              isActive={activeCardId === "admin"}
-              onClick={() => handleDemoClick("admin", "admin@flowoid.com", "flowoid@2024")}
-            />
-            
-            {/* Card 2 - Business Owner */}
-            <DemoCard 
-              id="owner"
-              icon={<div className="w-8 h-8 rounded-[6px] bg-[#1B2D4F] flex items-center justify-center"><Briefcase className="w-4 h-4 text-[#D4A843]" /></div>}
-              title="Business Owner"
-              subtitle="owner@ayanshi.com"
-              badgeText="Owner"
-              badgeColor="bg-[#1B2D4F]/10 text-[#1B2D4F]"
-              isActive={activeCardId === "owner"}
-              onClick={() => handleDemoClick("owner", "owner@ayanshi.com", "ayanshi@2024")}
-            />
-            
-            {/* Card 3 - Manager */}
-            <DemoCard 
-              id="manager"
-              icon={<div className="w-8 h-8 rounded-[6px] bg-[#0D3D56] flex items-center justify-center"><Users className="w-4 h-4 text-white" /></div>}
-              title="Manager / Staff"
-              subtitle="manager@ayanshi.com"
-              badgeText="Manager"
-              badgeColor="bg-[#0D3D56]/10 text-[#0D3D56]"
-              isActive={activeCardId === "manager"}
-              onClick={() => handleDemoClick("manager", "manager@ayanshi.com", "manager@2024")}
-            />
-            
-            {/* Card 4 - Viewer */}
-            <DemoCard 
-              id="viewer"
-              icon={<div className="w-8 h-8 rounded-[6px] bg-[#D4A843]/15 flex items-center justify-center"><BarChart3 className="w-4 h-4 text-[#D4A843]" /></div>}
-              title="Viewer / Auditor"
-              subtitle="viewer@ayanshi.com"
-              badgeText="Viewer"
-              badgeColor="bg-[#D4A843]/15 text-[#D4A843]"
-              isActive={activeCardId === "viewer"}
-              onClick={() => handleDemoClick("viewer", "viewer@ayanshi.com", "viewer@2024")}
-            />
-          </div>
-        </div>
-        {/* ========================================================= */}
-        {/* END DEMO CREDENTIALS */}
-        {/* ========================================================= */}
-
-
         {/* Centered Form Container */}
-        <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 pb-12 w-full max-w-[460px] mx-auto min-h-[500px]">
+        <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 py-12 w-full max-w-[460px] mx-auto">
           
           {/* Mobile Logo (hidden on desktop) */}
           <div className="md:hidden flex items-center mb-10 justify-center">
@@ -303,16 +221,16 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-5">
-              {/* Email */}
+              {/* Identifier (Email or Phone) */}
               <div className="space-y-1.5">
-                <label className="block text-[#0F1C2E] text-[14px] font-semibold">Email Address</label>
+                <label className="block text-[#0F1C2E] text-[14px] font-semibold">Email or Phone Number</label>
                 <div className="relative">
                   <input 
-                    type="email"
+                    type="text"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Enter email or phone number"
                     className="w-full h-[48px] px-4 rounded-[10px] border-[1.5px] border-[#E2E8F0] bg-white text-[14px] text-[#0F1C2E] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#1B2D4F] focus:ring-[3px] focus:ring-[#1B2D4F]/10 transition-all"
                   />
                 </div>
@@ -322,7 +240,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-[#0F1C2E] text-[14px] font-semibold">Password</label>
-                  <Link href="#" className="text-[#D4A843] text-[13px] font-semibold hover:underline">
+                  <Link href="/forgot-password" className="text-[#D4A843] text-[13px] font-semibold hover:underline">
                     Forgot password?
                   </Link>
                 </div>
@@ -392,6 +310,15 @@ export default function LoginPage() {
                   </AnimatePresence>
                 </button>
               </motion.div>
+
+              <div className="mt-6 text-center">
+                <p className="text-[14px] text-gray-500 font-medium">
+                  Don't have an account?{' '}
+                  <Link href="/register" className="text-[#1B2D4F] font-bold hover:underline">
+                    Create one now
+                  </Link>
+                </p>
+              </div>
             </div>
           </motion.form>
           

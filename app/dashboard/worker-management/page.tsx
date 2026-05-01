@@ -8,6 +8,7 @@ import {
 } from '@/lib/data';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
+import { isOwnerRole } from '@/lib/roles';
 
 type Tab = 'workers' | 'assignments' | 'finished-goods' | 'payments';
 
@@ -15,7 +16,7 @@ export default function WorkerManagementPage() {
   const { role } = useAuth();
   const [tab, setTab] = useState<Tab>('workers');
   const [search, setSearch] = useState('');
-  const canEdit = role === 'owner';
+  const canEdit = isOwnerRole(role);
 
   const filteredWorkers = mockWorkers.filter(
     w =>

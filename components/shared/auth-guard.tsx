@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@/lib/types';
+import { isSuperAdminRole, normalizeRole } from '@/lib/roles';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -34,9 +35,12 @@ export function AuthGuard({
       return;
     }
 
-    if (allowedRoles.length > 0 && role && !allowedRoles.includes(role)) {
+    const normalizedRole = normalizeRole(role);
+    const normalizedAllowedRoles = allowedRoles.map(normalizeRole);
+
+    if (allowedRoles.length > 0 && role && !normalizedAllowedRoles.includes(normalizedRole)) {
       // Redirect to their correct home
-      if (role === 'flowoid_admin') {
+      if (isSuperAdminRole(role)) {
         router.replace('/admin');
       } else {
         router.replace('/dashboard');
@@ -56,11 +60,25 @@ export function AuthGuard({
   }
 
   if (!isAuthenticated || !user) {
-    return null; // Will redirect
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </div>
+    );
   }
 
-  if (allowedRoles.length > 0 && role && !allowedRoles.includes(role)) {
-    return null; // Will redirect
+  if (allowedRoles.length > 0 && role && !allowedRoles.map(normalizeRole).includes(normalizeRole(role))) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Opening your workspace...</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

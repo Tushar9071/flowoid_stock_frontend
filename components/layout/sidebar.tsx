@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { navigationItems, navigationVisibility } from '@/lib/constants';
+import { normalizeRole } from '@/lib/roles';
 import {
   ChevronLeft,
   Menu,
@@ -57,8 +58,8 @@ export function Sidebar() {
     router.push('/login');
   };
 
-  const roleKey = role || 'viewer';
-  const visibleNav = navigationVisibility[roleKey] || [];
+  const roleKey = normalizeRole(role);
+  const visibleNav = navigationVisibility[roleKey] || navigationVisibility.viewer;
 
   const visibleItems = navigationItems.filter(item => {
     if (item.adminOnly && roleKey !== 'owner' && roleKey !== 'flowoid_admin') return false;

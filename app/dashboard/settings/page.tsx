@@ -4,11 +4,12 @@ import React from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Shield, Building2, CreditCard, Package, Settings, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { isOwnerRole } from '@/lib/roles';
 
 export default function SettingsPage() {
   const { role } = useAuth();
 
-  if (role !== 'owner') {
+  if (!isOwnerRole(role)) {
     return (
       <DashboardLayout title="Settings">
         <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm p-12 text-center max-w-2xl mx-auto mt-10">

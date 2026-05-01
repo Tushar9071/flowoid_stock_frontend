@@ -2,40 +2,64 @@
 
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { mockUsers } from '@/lib/data';
+import { User } from '@/lib/types';
+import { UserService } from '@/lib/services/user.service';
 import { formatDate } from '@/lib/constants';
-import { Plus, Edit, Trash2, Shield, Search, ChevronDown, User as UserIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, Search, ChevronDown, User as UserIcon, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { toast } from 'sonner';
 import { SkeletonCard } from '@/components/skeleton/Skeletons';
+
+const MOCK_USERS: User[] = [
+  {
+    id: '1',
+    name: 'Admin User',
+    email: 'admin@flowoid.com',
+    role: 'SUPER_ADMIN',
+    status: 'active',
+    createdAt: new Date(),
+    department: 'Platform'
+  },
+  {
+    id: '2',
+    name: 'Business Owner',
+    email: 'owner@ayanshi.com',
+    role: 'OWNER',
+    status: 'active',
+    createdAt: new Date(),
+    department: 'Management'
+  }
+];
 
 export default function UserManagementPage() {
   const { role } = useAuth();
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [users, setUsers] = useState<typeof mockUsers>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    let isMounted = true;
-
     const loadUsers = async () => {
       setIsLoading(true);
-      // Placeholder async flow until API integration.
-      await new Promise(resolve => setTimeout(resolve, 700));
-      if (!isMounted) return;
-      setUsers(mockUsers);
-      setIsLoading(false);
+      try {
+        const response = await UserService.list();
+        if (response.success && response.data && response.data.length > 0) {
+          setUsers(response.data);
+        } else {
+          setUsers(MOCK_USERS);
+        }
+      } catch (error) {
+        setUsers(MOCK_USERS);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    if (role === 'owner') {
+    if (role === 'OWNER' || role === 'SUPER_ADMIN') {
       loadUsers();
     }
-
-    return () => {
-      isMounted = false;
-    };
   }, [role]);
 
-  if (role !== 'owner') {
+  if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
     return (
       <DashboardLayout title="User Management">
         <div className="bg-white rounded-xl border border-[#e5e7eb] shadow-sm p-12 text-center max-w-2xl mx-auto mt-10">
@@ -104,7 +128,7 @@ export default function UserManagementPage() {
                     <button className="p-1.5 rounded-lg text-[#9ca3af] hover:theme-text-primary hover:bg-[#f9fafb] transition-colors">
                       <Edit className="w-4 h-4" />
                     </button>
-                    {user.role !== 'owner' && (
+                    {user.role !== 'OWNER' && (
                        <button className="p-1.5 rounded-lg text-[#9ca3af] hover:text-[#cc2200] hover:bg-[#fff0f0] transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -117,8 +141,8 @@ export default function UserManagementPage() {
                      <div>
                        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-1">System Role</p>
                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#f3f4f6] text-xs font-bold text-[#374151] capitalize">
-                          {user.role === 'owner' && <Shield className="w-3 h-3" />}
-                          {user.role === 'manager' && <UserIcon className="w-3 h-3" />}
+                          {(user.role === 'OWNER' || user.role === 'SUPER_ADMIN') && <Shield className="w-3 h-3" />}
+                          {user.role === 'STAFF' && <UserIcon className="w-3 h-3" />}
                           {user.role}
                        </span>
                      </div>

@@ -6,6 +6,7 @@ import { Plus, Search, ChevronDown, MapPin, Phone, ArrowRight, Building2, Truck 
 import { mockDealers } from '@/lib/data';
 import { formatCurrency, formatDate } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
+import { isOwnerRole } from '@/lib/roles';
 
 type Tab = 'dealers' | 'suppliers';
 
@@ -14,7 +15,7 @@ export default function PartyManagementPage() {
   const [tab, setTab] = useState<Tab>('dealers');
   const [search, setSearch] = useState('');
 
-  const canEdit = role === 'owner';
+  const canEdit = isOwnerRole(role);
 
   const filtered = mockDealers.filter(
     d =>

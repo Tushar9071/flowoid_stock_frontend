@@ -3,34 +3,62 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Plus, Edit2, Trash2, Shield, Mail, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { mockUsers } from '@/lib/data';
+import { User } from '@/lib/types';
+import { UserService } from '@/lib/services/user.service';
+import { toast } from 'sonner';
 import { SkeletonTable } from '@/components/skeleton/Skeletons';
+
+const MOCK_USERS: User[] = [
+  {
+    id: '1',
+    name: 'Admin User',
+    email: 'admin@flowoid.com',
+    role: 'SUPER_ADMIN',
+    status: 'active',
+    createdAt: new Date(),
+    department: 'Platform'
+  },
+  {
+    id: '2',
+    name: 'Business Owner',
+    email: 'owner@ayanshi.com',
+    role: 'OWNER',
+    status: 'active',
+    createdAt: new Date(),
+    department: 'Management'
+  }
+];
 
 export default function UsersPage() {
   const [filter, setFilter] = useState('all');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [users, setUsers] = useState<typeof mockUsers>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    let isMounted = true;
-
     const loadUsers = async () => {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 700));
-      if (!isMounted) return;
-      setUsers(mockUsers);
-      setIsLoading(false);
+      try {
+        // Attempt API call, fallback to mock if API is not yet available
+        const response = await UserService.list();
+        if (response.success && response.data && response.data.length > 0) {
+          setUsers(response.data);
+        } else {
+          setUsers(MOCK_USERS);
+        }
+      } catch (error) {
+        setUsers(MOCK_USERS); // Graceful fallback
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadUsers();
 
-    // Listen for global admin header action
     const handleAdminAction = () => setShowInviteModal(true);
     window.addEventListener('admin-action-click', handleAdminAction);
 
     return () => {
-      isMounted = false;
       window.removeEventListener('admin-action-click', handleAdminAction);
     };
   }, []);

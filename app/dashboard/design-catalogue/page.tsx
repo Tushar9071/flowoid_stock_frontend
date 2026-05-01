@@ -6,6 +6,7 @@ import { Plus, Search, ChevronDown, Grid2X2, List } from 'lucide-react';
 import { mockDesigns } from '@/lib/data';
 import { designCategories, formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
+import { normalizeRole } from '@/lib/roles';
 
 export default function DesignCataloguePage() {
   const { role } = useAuth();
@@ -13,7 +14,8 @@ export default function DesignCataloguePage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const canEdit = role === 'owner' || role === 'manager';
+  const roleKey = normalizeRole(role);
+  const canEdit = roleKey === 'owner' || roleKey === 'manager';
 
   const filteredDesigns = mockDesigns.filter(design => {
     const matchesSearch = design.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
