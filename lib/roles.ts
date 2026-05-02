@@ -6,7 +6,7 @@ export function normalizeRole(role?: UserRole | null): string {
   const normalized = String(role).trim().toUpperCase();
 
   if (normalized === 'SUPER_ADMIN' || normalized === 'FLOWOID_ADMIN') return 'flowoid_admin';
-  if (normalized === 'OWNER' || normalized === 'TENANT_OWNER' || normalized.includes('OWNER')) return 'owner';
+  if (normalized === 'OWNER' || normalized === 'TENANT_OWNER' || normalized === 'FREE_USERS' || normalized.includes('OWNER')) return 'owner';
   if (normalized === 'MANAGER' || normalized === 'TENANT_MANAGER' || normalized.includes('MANAGER')) return 'manager';
   if (normalized === 'VIEWER' || normalized === 'AUDITOR' || normalized.includes('VIEWER')) return 'viewer';
   if (normalized === 'STAFF' || normalized === 'TENANT_STAFF') return 'manager';
@@ -26,4 +26,3 @@ export function canManageTenant(role?: UserRole | null): boolean {
   const normalized = normalizeRole(role);
   return normalized === 'owner' || normalized === 'flowoid_admin';
 }
-

@@ -1,8 +1,12 @@
 'use client';
 
 import React, { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
+import { useAuth } from '@/lib/auth-context';
+import { navigationItems } from '@/lib/constants';
+import { Shield } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -16,6 +20,12 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, title, subtitle, action, breadcrumb }: DashboardLayoutProps) {
+  const pathname = usePathname();
+  const { hasPermission, isFullAccess } = useAuth();
+  const navItem = navigationItems.find(item => pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)));
+  const pagePermission = navItem && 'permission' in navItem ? navItem.permission : undefined;
+  const canViewPage = !pagePermission || isFullAccess || hasPermission(pagePermission);
+
   return (
     <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
       <Sidebar />
@@ -41,7 +51,17 @@ export function DashboardLayout({ children, title, subtitle, action, breadcrumb 
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {children}
+          {canViewPage ? (
+            children
+          ) : (
+            <div className="mx-auto mt-10 max-w-2xl rounded-xl border border-[#e5e7eb] bg-white p-12 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#fff0f0]">
+                <Shield className="h-7 w-7 text-[#cc2200]" />
+              </div>
+              <p className="theme-text-primary mb-1 text-[18px] font-bold">Access Denied</p>
+              <p className="text-sm text-[#6b7280]">You do not have permission to view this page.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

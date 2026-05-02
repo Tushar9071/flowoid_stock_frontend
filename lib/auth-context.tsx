@@ -4,8 +4,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { usePathname } from 'next/navigation';
 import { User, UserRole, Permission } from './types';
 import { AuthService } from './services/auth.service';
-import { isSuperAdminRole } from './roles';
+import { isOwnerRole, isSuperAdminRole } from './roles';
 import { normalizePhoneForApi } from './utils';
+import { getMsUntilAccessTokenRefresh, refreshAccessToken } from './api-client';
 
 interface AuthContextType {
   user: User | null;
@@ -23,6 +24,49 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_USER_STORAGE_KEY = 'flowoid_auth_user';
+
+const OWNER_DEFAULT_PERMISSIONS = new Set([
+  'dashboard.read',
+  'designs.read',
+  'workers.read',
+  'raw_materials.read',
+  'stock_items.read',
+  'inventory.read',
+  'parties.read',
+  'sales_orders.read',
+  'payments.read',
+  'reports.read',
+  'users.read',
+  'users.create',
+  'users.update',
+  'users.delete',
+  'roles.read',
+  'roles.create',
+  'roles.update',
+  'roles.delete',
+  'settings.read',
+]);
+
+const PERMISSION_ALIASES: Record<string, string[]> = {
+  'dashboard.read': ['dashboard.read', 'home.read'],
+  'designs.read': ['designs.read', 'design_catalogue.read', 'design-catalogue.read'],
+  'workers.read': ['workers.read', 'worker_management.read', 'worker-management.read'],
+  'raw_materials.read': ['raw_materials.read', 'raw-materials.read', 'materials.read'],
+  'stock_items.read': ['stock_items.read', 'stock-items.read', 'inventory.read', 'stock.read'],
+  'parties.read': ['parties.read', 'party_management.read', 'party-management.read', 'customers.read', 'suppliers.read'],
+  'sales_orders.read': ['sales_orders.read', 'sales-orders.read', 'orders.read', 'orders_dispatch.read'],
+  'payments.read': ['payments.read', 'payments_ledger.read', 'payments-ledger.read', 'ledger.read'],
+  'reports.read': ['reports.read'],
+  'users.read': ['users.read', 'user_management.read', 'user-management.read'],
+  'users.create': ['users.create', 'user_management.create'],
+  'users.update': ['users.update', 'users.edit', 'user_management.update'],
+  'users.delete': ['users.delete', 'user_management.delete'],
+  'roles.read': ['roles.read', 'role_management.read', 'role-management.read'],
+  'roles.create': ['roles.create', 'role_management.create'],
+  'roles.update': ['roles.update', 'roles.edit', 'role_management.update'],
+  'roles.delete': ['roles.delete', 'role_management.delete'],
+  'settings.read': ['settings.read'],
+};
 
 
 function normalizePermissions(data: unknown): { codes: string[]; isFullAccess: boolean } {
@@ -89,6 +133,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
   }, [pathname]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let timer: number | undefined;
+
+    const scheduleRefresh = () => {
+      const delay = getMsUntilAccessTokenRefresh();
+      if (delay === null) return;
+
+      timer = window.setTimeout(async () => {
+        const refreshed = await refreshAccessToken();
+        const nextDelay = getMsUntilAccessTokenRefresh();
+        if (refreshed && nextDelay !== null) {
+          scheduleRefresh();
+        }
+      }, delay);
+    };
+
+    scheduleRefresh();
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [user]);
 
   const login = async (identifier: string, password: string): Promise<{ success: boolean; error?: string; redirectTo?: string }> => {
     try {
@@ -183,7 +252,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (permissionCode: string): boolean => {
     if (isFullAccess || isSuperAdminRole(user?.role)) return true;
-    return permissions.includes(permissionCode);
+    if (permissionCode === 'dashboard.read') return true;
+    if (isOwnerRole(user?.role) && permissions.length === 0 && OWNER_DEFAULT_PERMISSIONS.has(permissionCode)) {
+      return OWNER_DEFAULT_PERMISSIONS.has(permissionCode);
+    }
+
+    const normalizedPermissions = new Set(permissions.map(code => code.toLowerCase()));
+    const candidates = PERMISSION_ALIASES[permissionCode] || [permissionCode];
+    return candidates.some(code => normalizedPermissions.has(code.toLowerCase()));
   };
 
   return (

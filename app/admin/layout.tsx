@@ -33,6 +33,10 @@ const ADMIN_PAGE_META: Record<string, {
     title: 'Permissions Management',
     subtitle: 'Define and manage granular permission policies',
   },
+  '/admin/monitoring': {
+    title: 'Platform Monitoring',
+    subtitle: 'Watch service, system, API, and database health',
+  },
   '/admin/workflows': {
     title: 'Approval Workflows',
     subtitle: 'Create and monitor multi-step approval chains',

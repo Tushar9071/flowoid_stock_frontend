@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes — always allowed
-  const publicRoutes = ['/', '/login', '/demo'];
+  const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/demo'];
   if (publicRoutes.some(route => pathname === route || pathname.startsWith('/demo'))) {
     return NextResponse.next();
   }

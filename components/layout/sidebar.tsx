@@ -50,7 +50,7 @@ const ROLE_BADGE: Record<string, { label: string; color: string }> = {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, user, logout } = useAuth();
+  const { role, user, logout, hasPermission, isFullAccess } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
@@ -63,6 +63,9 @@ export function Sidebar() {
 
   const visibleItems = navigationItems.filter(item => {
     if (item.adminOnly && roleKey !== 'owner' && roleKey !== 'flowoid_admin') return false;
+    if ('permission' in item && item.permission && !isFullAccess && roleKey !== 'flowoid_admin' && !hasPermission(item.permission)) {
+      return false;
+    }
     return visibleNav.includes(item.id);
   });
 

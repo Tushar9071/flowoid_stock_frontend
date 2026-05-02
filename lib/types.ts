@@ -28,11 +28,76 @@ export interface Tenant {
   maxStaff: number;
 }
 
+export interface BackendTenant {
+  id: string;
+  name: string;
+  slug: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+  trialEndsAt?: string | null;
+  subscriptionEndsAt?: string | null;
+  logoUrl?: string | null;
+  businessCategory?: string | null;
+  users?: unknown[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateTenantPayload {
+  name: string;
+  slug?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  logoUrl?: string;
+  businessCategory?: string;
+}
+
+export interface MonitoringMetrics {
+  timestamp: string;
+  service: {
+    uptimeSeconds: number;
+    pid: number;
+    nodeVersion: string;
+    platform: string;
+    startedAt: string;
+  };
+  system: {
+    hostname: string;
+    cpuUsagePercent: number;
+    cpuCount: number;
+    loadAverage: number[];
+    totalMemoryMb: number;
+    usedMemoryMb: number;
+    freeMemoryMb: number;
+    memoryUsagePercent: number;
+  };
+  process: {
+    rssMb: number;
+    heapTotalMb: number;
+    heapUsedMb: number;
+    externalMb: number;
+  };
+  api: {
+    totalRequests: number;
+    activeRequests: number;
+    averageResponseTimeMs: number;
+    statusCodes: Record<string, number>;
+    routes: Record<string, number>;
+  };
+  database: {
+    status: 'UP' | 'DOWN' | string;
+    latencyMs: number | null;
+  };
+}
+
 // User & Auth Types
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string | null;
   role: UserRole;
   lastLogin?: Date;
   status: 'active' | 'inactive' | 'pending';
@@ -40,6 +105,54 @@ export interface User {
   department?: string;
   createdAt: Date;
   createdBy?: string;
+}
+
+export interface ManagedUser {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone: string;
+  roleId?: string;
+  role?: {
+    id: string;
+    name: string;
+    description?: string | null;
+  } | string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  tenantUsers?: Array<{
+    id: string;
+    isActive: boolean;
+    tenant?: {
+      id: string;
+      name: string;
+      slug: string;
+      status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+    };
+    role?: {
+      id: string;
+      name: string;
+    };
+  }>;
+}
+
+export interface CreateUserPayload {
+  name: string;
+  phone: string;
+  password: string;
+  email?: string;
+  roleId?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateUserPayload {
+  name?: string;
+  email?: string | null;
+  phone?: string;
+  password?: string;
+  roleId?: string;
+  isActive?: boolean;
 }
 
 // Permission & Role Types
@@ -57,9 +170,9 @@ export interface Role {
   id: string;
   name: string;
   description?: string | null;
-  isSystem: boolean;
+  isSystem?: boolean;
   isActive: boolean;
-  isDefault: boolean;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
   createdById?: string | null;
