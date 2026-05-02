@@ -281,6 +281,57 @@ body * {
   color: var(--color-accent-dark) !important; /* Bold accents */
 }
 
+.theme-surface-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.04) !important;
+}
+
+.theme-surface-muted {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-icon-chip {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent-dark) !important;
+}
+
+.theme-secondary-btn {
+  background-color: #ffffff !important;
+  color: var(--color-sidebar-bg) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.theme-secondary-btn:hover {
+  border-color: var(--color-accent) !important;
+  color: var(--color-accent-dark) !important;
+  background-color: color-mix(in srgb, var(--color-accent-light) 35%, white) !important;
+}
+
+.theme-danger-btn {
+  background-color: #fff7f7 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+
+.theme-danger-btn:hover {
+  background-color: #fee2e2 !important;
+}
+
+.theme-modal-panel {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24) !important;
+}
+
+.theme-table-row:hover {
+  background-color: color-mix(in srgb, var(--color-accent-light) 18%, white) !important;
+}
+
 /* Theme switcher icon — reflects current accent */
 .theme-palette-icon {
   color: var(--color-accent);

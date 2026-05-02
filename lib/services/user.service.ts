@@ -1,25 +1,43 @@
 import { api } from '../api-client';
-import { User } from '../types';
+import { CreateUserPayload, ManagedUser, UpdateUserPayload } from '../types';
+
+export interface UserListQuery {
+  search?: string;
+  roleId?: string;
+  isActive?: boolean;
+}
+
+function buildUserQuery(query?: UserListQuery) {
+  if (!query) return '';
+
+  const params = new URLSearchParams();
+  if (query.search) params.set('search', query.search);
+  if (query.roleId) params.set('roleId', query.roleId);
+  if (typeof query.isActive === 'boolean') params.set('isActive', String(query.isActive));
+
+  const value = params.toString();
+  return value ? `?${value}` : '';
+}
 
 export const UserService = {
-  async list() {
-    return api.get<User[]>('/users');
+  async list(query?: UserListQuery) {
+    return api.get<ManagedUser[]>(`/users${buildUserQuery(query)}`);
   },
 
   async get(id: string) {
-    return api.get<User>(`/users/${id}`);
+    return api.get<ManagedUser>(`/users/${id}`);
   },
 
-  async create(data: Partial<User>) {
-    return api.post<User>('/users', data);
+  async create(data: CreateUserPayload) {
+    return api.post<ManagedUser>('/users', data);
   },
 
-  async update(id: string, data: Partial<User>) {
-    return api.put<User>(`/users/${id}`, data);
+  async update(id: string, data: UpdateUserPayload) {
+    return api.put<ManagedUser>(`/users/${id}`, data);
   },
 
   async delete(id: string) {
-    return api.delete<{ message: string }>(`/users/${id}`);
+    return api.delete<ManagedUser | { message: string }>(`/users/${id}`);
   },
 
   async getDashboardStats() {

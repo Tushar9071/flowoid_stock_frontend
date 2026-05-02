@@ -10,6 +10,7 @@ import { Sora, Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { Toaster } from 'sonner'
+import { Toaster as HotToaster } from 'react-hot-toast'
 import { LoaderProvider } from '@/context/LoaderContext'
 import AppLoader from '@/components/loader/AppLoader'
 import PageLoader from '@/components/loader/PageLoader'
@@ -44,6 +45,7 @@ export default function RootLayout({
             </div>
           </LoaderProvider>
           <Toaster position="top-right" />
+          <HotToaster position="top-right" />
         </AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

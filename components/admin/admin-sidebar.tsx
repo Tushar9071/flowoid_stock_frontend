@@ -6,14 +6,17 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import {
   ChevronLeft, Settings, Shield, Building2,
-  BarChart3, LogOut, Gem, CreditCard, FileText, Menu, ChevronRight,
+  BarChart3, LogOut, CreditCard, FileText, Menu, ChevronRight, Users, Activity,
 } from 'lucide-react';
 import Image from 'next/image';
 
 const adminNavItems = [
   { id: 'dashboard',     label: 'Dashboard',         href: '/admin',            icon: BarChart3  },
-  { id: 'tenants',       label: 'Tenants',            href: '/admin/users',      icon: Building2  },
-  { id: 'subscriptions', label: 'Subscriptions',      href: '/admin/roles',      icon: CreditCard },
+  { id: 'tenants',       label: 'Tenants',            href: '/admin/tenants',    icon: Building2  },
+  { id: 'users',         label: 'User Management',    href: '/admin/users',      icon: Users      },
+  { id: 'roles',         label: 'Roles & Permissions', href: '/admin/roles',     icon: Shield     },
+  { id: 'permissions',   label: 'Permissions',        href: '/admin/permissions', icon: CreditCard },
+  { id: 'monitoring',    label: 'Monitoring',         href: '/admin/monitoring', icon: Activity   },
   { id: 'audit-logs',    label: 'Audit Logs',         href: '/admin/audit-logs', icon: FileText   },
   { id: 'settings',      label: 'Platform Settings',  href: '/admin/settings',   icon: Settings   },
 ];
