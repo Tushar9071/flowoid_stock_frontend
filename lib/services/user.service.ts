@@ -4,6 +4,7 @@ import { CreateUserPayload, ManagedUser, UpdateUserPayload } from '../types';
 export interface UserListQuery {
   search?: string;
   roleId?: string;
+  tenantId?: string;
   isActive?: boolean;
 }
 
@@ -13,6 +14,7 @@ function buildUserQuery(query?: UserListQuery) {
   const params = new URLSearchParams();
   if (query.search) params.set('search', query.search);
   if (query.roleId) params.set('roleId', query.roleId);
+  if (query.tenantId) params.set('tenantId', query.tenantId);
   if (typeof query.isActive === 'boolean') params.set('isActive', String(query.isActive));
 
   const value = params.toString();

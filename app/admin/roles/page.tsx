@@ -8,6 +8,7 @@ import { Permission, Role } from '@/lib/types';
 import {
   Check,
   ChevronRight,
+  Database,
   Edit2,
   Eye,
   Info,
@@ -42,6 +43,75 @@ const emptyForm: RoleForm = {
   permissionIds: [],
 };
 
+const seedModules = [
+  'dashboard',
+  'designs',
+  'workers',
+  'raw-materials',
+  'stock_items',
+  'parties',
+  'sales_orders',
+  'payments',
+  'reports',
+  'users',
+  'roles',
+  'settings',
+];
+
+const seedActions = ['read', 'create', 'update', 'delete'] as const;
+
+const seededPermissionTemplates = seedModules.flatMap(moduleName =>
+  seedActions.map(action => ({
+    code: `${moduleName}.${action}`,
+    name: `${action === 'read' ? 'View' : action === 'create' ? 'Create' : action === 'update' ? 'Update' : 'Delete'} ${moduleName.replace(/[-_]/g, ' ')}`,
+    description: `Allows ${action} access for ${moduleName.replace(/[-_]/g, ' ')}.`,
+  })),
+);
+
+const ownerRoleSeedTemplates = [
+  {
+    name: 'TENANT_OWNER',
+    description: 'Business owner with full access inside their own tenant.',
+    permissionCodes: seededPermissionTemplates.map(permission => permission.code),
+  },
+  {
+    name: 'TENANT_STAFF',
+    description: 'Staff role for daily stock, party, worker, order and payment operations.',
+    permissionCodes: [
+      'dashboard.read',
+      'designs.read',
+      'designs.create',
+      'designs.update',
+      'workers.read',
+      'workers.create',
+      'workers.update',
+      'raw-materials.read',
+      'raw-materials.create',
+      'raw-materials.update',
+      'stock_items.read',
+      'stock_items.create',
+      'stock_items.update',
+      'parties.read',
+      'parties.create',
+      'parties.update',
+      'sales_orders.read',
+      'sales_orders.create',
+      'sales_orders.update',
+      'payments.read',
+      'payments.create',
+      'payments.update',
+      'reports.read',
+    ],
+  },
+  {
+    name: 'TENANT_AUDITOR',
+    description: 'Read-only tenant role for checking stock, ledgers and reports.',
+    permissionCodes: seededPermissionTemplates
+      .filter(permission => permission.code.endsWith('.read'))
+      .map(permission => permission.code),
+  },
+];
+
 function deriveModule(permission: Permission) {
   return permission.module || permission.code?.split('.')?.[0] || 'system';
 }
@@ -65,6 +135,7 @@ export default function RolesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [formData, setFormData] = useState<RoleForm>(emptyForm);
+  const [isSeeding, setIsSeeding] = useState(false);
   const canCreate = isFullAccess || hasPermission('roles.create');
   const canUpdate = isFullAccess || hasPermission('roles.update');
   const canDelete = isFullAccess || hasPermission('roles.delete');
@@ -253,6 +324,72 @@ export default function RolesPage() {
     }
   };
 
+  const handleSeedOwnerRoles = async () => {
+    if (!canCreate || !canUpdate) {
+      toast.error('You need role create and update permission to seed owner roles');
+      return;
+    }
+
+    setIsSeeding(true);
+    try {
+      const permissionsRes = await PermissionService.list();
+      let allPermissions = permissionsRes.success ? permissionsRes.data || [] : permissions;
+      const existingCodes = new Set(allPermissions.map(permission => permission.code));
+
+      for (const template of seededPermissionTemplates) {
+        if (existingCodes.has(template.code)) continue;
+        const created = await PermissionService.create(template);
+        if (created.success && created.data) {
+          allPermissions = [...allPermissions, created.data];
+          existingCodes.add(created.data.code);
+        }
+      }
+
+      const rolesRes = await RoleService.list();
+      let allRoles = rolesRes.success ? rolesRes.data || [] : roles;
+      let seededCount = 0;
+
+      for (const roleTemplate of ownerRoleSeedTemplates) {
+        const permissionIds = roleTemplate.permissionCodes
+          .map(code => allPermissions.find(permission => permission.code === code)?.id)
+          .filter((id): id is string => Boolean(id));
+        const existingRole = allRoles.find(role => role.name.toUpperCase() === roleTemplate.name);
+
+        const response = existingRole
+          ? await RoleService.update(existingRole.id, {
+              name: existingRole.name,
+              description: roleTemplate.description,
+              isActive: true,
+              permissionIds,
+            })
+          : await RoleService.create({
+              name: roleTemplate.name,
+              description: roleTemplate.description,
+              isActive: true,
+              permissionIds,
+            });
+
+        if (response.success) {
+          seededCount += 1;
+          allRoles = existingRole
+            ? allRoles.map(role => (role.id === response.data.id ? response.data : role))
+            : [response.data, ...allRoles];
+        } else {
+          toast.error(response.error?.message || `Failed to seed ${roleTemplate.name}`);
+        }
+      }
+
+      setPermissions(allPermissions);
+      setRoles(allRoles);
+      setSelectedRole(allRoles.find(role => role.name.toUpperCase() === 'TENANT_OWNER') || allRoles[0] || null);
+      toast.success(`Owner role seed complete: ${seededCount} roles ready`);
+    } catch {
+      toast.error('Failed to seed owner roles and permissions');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center p-12">
@@ -265,11 +402,11 @@ export default function RolesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="grid items-start gap-6 lg:grid-cols-[374px_minmax(0,1fr)]">
+    <div className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6">
+      <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="theme-surface-card overflow-hidden lg:sticky lg:top-6">
-          <div className="flex items-center justify-between border-b border-gray-100 p-5">
-            <h2 className="flex items-center gap-2 font-bold text-gray-900">
+          <div className="flex items-center justify-between border-b border-gray-100 p-4">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
               <Shield className="h-4 w-4 text-gray-500" />
               Available Roles
             </h2>
@@ -278,12 +415,12 @@ export default function RolesPage() {
             </span>
           </div>
 
-          <div className="max-h-[420px] space-y-2 overflow-y-auto p-4 lg:max-h-[calc(100vh-170px)]">
+          <div className="max-h-[420px] space-y-2 overflow-y-auto p-3 lg:max-h-[calc(100vh-170px)]">
             {roles.map(role => (
               <button
                 key={role.id}
                 onClick={() => setSelectedRole(role)}
-                className={`group w-full rounded-lg p-4 text-left transition ${
+                className={`group w-full rounded-lg p-3 text-left transition ${
                   selectedRole?.id === role.id
                     ? 'theme-accent-btn shadow-sm'
                     : 'bg-white theme-text-primary hover:bg-gray-50'
@@ -291,7 +428,7 @@ export default function RolesPage() {
               >
                 <div className="flex items-center justify-between">
                   <div className="min-w-0">
-                    <h3 className="truncate text-base font-black uppercase tracking-wide">{role.name}</h3>
+                    <h3 className="truncate text-sm font-black uppercase tracking-wide">{role.name}</h3>
                     <p className={`mt-1 text-xs font-black uppercase tracking-widest ${
                       selectedRole?.id === role.id ? 'opacity-80' : 'text-gray-400'
                     }`}>
@@ -304,23 +441,33 @@ export default function RolesPage() {
             ))}
 
             {canCreate && (
-              <button
-                onClick={handleCreateRole}
-                className="theme-secondary-btn mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-bold transition"
-              >
-                <Plus className="h-4 w-4" />
-                Add New Role
-              </button>
+              <div className="mt-3 space-y-2">
+                <button
+                  onClick={handleSeedOwnerRoles}
+                  disabled={isSeeding}
+                  className="theme-secondary-btn flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-bold transition disabled:opacity-60"
+                >
+                  {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                  Seed Owner Roles
+                </button>
+                <button
+                  onClick={handleCreateRole}
+                  className="theme-secondary-btn flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-bold transition"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add New Role
+                </button>
+              </div>
             )}
           </div>
         </Card>
 
         {selectedRole && (
-          <Card className="theme-surface-card overflow-hidden p-6 sm:p-8">
+          <Card className="theme-surface-card overflow-hidden p-5 sm:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <h2 className="theme-text-primary text-4xl font-black uppercase tracking-tight">{selectedRole.name}</h2>
-                <p className="mt-2 text-base text-gray-500">{selectedRole.description || 'No description provided.'}</p>
+                <h2 className="theme-text-primary text-2xl font-black uppercase tracking-wide">{selectedRole.name}</h2>
+                <p className="mt-1.5 text-sm text-gray-500">{selectedRole.description || 'No description provided.'}</p>
               </div>
 
               {!selectedRole.isSystem && (canUpdate || canDelete) && (
@@ -347,21 +494,21 @@ export default function RolesPage() {
               )}
             </div>
 
-            <div className="mt-7 grid gap-4 md:grid-cols-3">
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
               <InfoTile label="Current Status" value={selectedRole.isActive ? 'Active Session' : 'Inactive'} active={selectedRole.isActive} />
               <InfoTile label="Scope" value="Organization Wide" />
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs font-black uppercase tracking-widest text-gray-400">Assigned Permissions</p>
-                <p className="theme-text-accent mt-2 text-4xl font-black">
+                <p className="theme-text-accent mt-1 text-2xl font-black">
                   {totalAssigned}
                   <span className="ml-1 text-base text-gray-400">/ {permissions.length}</span>
                 </p>
               </div>
             </div>
 
-            <div className="mt-8 space-y-4">
+            <div className="mt-6 space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="theme-text-primary flex items-center gap-2 text-xl font-black">
+                <h3 className="theme-text-primary flex items-center gap-2 text-base font-black">
                   <Lock className="h-5 w-5" />
                   Detailed Permissions Matrix
                   <Info className="h-4 w-4 text-gray-400" />
@@ -381,11 +528,11 @@ export default function RolesPage() {
                 <table className="w-full min-w-[860px]">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-widest text-gray-400">Page / Module</th>
+                      <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-gray-400">Page / Module</th>
                       {actions.map(action => {
                         const Icon = action.icon;
                         return (
-                          <th key={action.key} className="px-5 py-4 text-center text-xs font-black uppercase tracking-widest text-gray-400">
+                          <th key={action.key} className="px-4 py-3 text-center text-xs font-black uppercase tracking-widest text-gray-400">
                             <div className="flex flex-col items-center gap-1">
                               <Icon className="theme-text-accent h-4 w-4" />
                               {action.label}
@@ -397,12 +544,12 @@ export default function RolesPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     <tr className="theme-table-header">
-                      <td className="px-5 py-4 text-sm font-black uppercase tracking-wide">Select / Deselect All</td>
+                      <td className="px-4 py-3 text-sm font-black uppercase tracking-wide">Select / Deselect All</td>
                       {actions.map(action => {
                         const actionPermissions = permissions.filter(permission => deriveAction(permission) === action.key);
                         const allChecked = actionPermissions.length > 0 && actionPermissions.every(permission => selectedIds.has(permission.id));
                         return (
-                          <td key={action.key} className="px-5 py-4 text-center">
+                          <td key={action.key} className="px-4 py-3 text-center">
                             <PermissionCheckbox
                               checked={allChecked}
                               disabled={selectedRole.isSystem || !canUpdate || actionPermissions.length === 0 || savingPermissionId !== null}
@@ -423,7 +570,7 @@ export default function RolesPage() {
 
                     {permissionRows.map(row => (
                       <tr key={row.moduleName} className="theme-table-row bg-white">
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <p className="theme-text-primary font-black capitalize">{row.moduleName.replace(/[-_]/g, ' ')}</p>
                           <p className="text-sm text-gray-400">Permission module</p>
                         </td>
@@ -431,7 +578,7 @@ export default function RolesPage() {
                           const permission = row.actionMap[action.key];
                           const isChecked = Boolean(permission && selectedIds.has(permission.id));
                           return (
-                            <td key={action.key} className="px-5 py-4 text-center">
+                            <td key={action.key} className="px-4 py-3 text-center">
                               {permission ? (
                                 <PermissionCheckbox
                                   checked={isChecked}
@@ -547,11 +694,11 @@ export default function RolesPage() {
 
 function InfoTile({ label, value, active }: { label: string; value: string; active?: boolean }) {
   return (
-    <div className="theme-surface-muted rounded-xl border p-5">
+    <div className="theme-surface-muted rounded-lg border p-4">
       <p className="text-xs font-black uppercase tracking-widest text-gray-400">{label}</p>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-1.5 flex items-center gap-2">
         {typeof active === 'boolean' && <span className={`h-3 w-3 rounded-full ${active ? 'bg-[var(--color-accent)]' : 'bg-gray-300'}`} />}
-        <p className={`text-base font-black ${active ? 'theme-text-accent' : 'theme-text-primary'}`}>{value}</p>
+        <p className={`text-sm font-black ${active ? 'theme-text-accent' : 'theme-text-primary'}`}>{value}</p>
       </div>
     </div>
   );
