@@ -645,6 +645,7 @@ export interface CreateRawMaterialTypePayload {
   name: string;
   unit: RawMaterialUnit;
   description?: string;
+  openingStock?: number;
 }
 
 export interface UpdateRawMaterialTypePayload extends Partial<CreateRawMaterialTypePayload> {

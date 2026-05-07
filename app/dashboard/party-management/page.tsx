@@ -2,6 +2,7 @@
 
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { SkeletonTable, SkeletonCard } from '@/components/skeleton/Skeletons';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import {
   Activity,
@@ -289,6 +290,7 @@ export default function PartyManagementPage() {
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [selectedParty, setSelectedParty] = useState<BackendParty | null>(null);
   const [form, setForm] = useState<PartyFormState>(emptyForm('DEALER'));
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [balanceHasExisting, setBalanceHasExisting] = useState(false);
   const [ledgerMode, setLedgerMode] = useState<LedgerMode>('statement');
@@ -365,7 +367,7 @@ export default function PartyManagementPage() {
 
   useEffect(() => {
     loadParties();
-  }, [loadParties]);
+  }, [page, search, status, tab, tenant?.id]); // Re-fetch when dependencies change, but ensure loadParties uses useCallback properly
 
   useEffect(() => {
     setPage(1);
@@ -381,6 +383,7 @@ export default function PartyManagementPage() {
     if (!canCreate) return toast.error('You do not have permission to create parties');
     setSelectedParty(null);
     setForm(emptyForm(tab));
+    setFormErrors({});
     setModalMode('create');
   };
 
@@ -396,6 +399,7 @@ export default function PartyManagementPage() {
 
     setSelectedParty(response.data);
     setForm(formFromParty(response.data));
+    setFormErrors({});
     setModalMode(mode);
   };
 
@@ -431,7 +435,16 @@ export default function PartyManagementPage() {
         setSelectedParty(null);
         await loadParties();
       } else {
-        toast.error(response.error?.message || 'Failed to save party');
+        if (response.error?.details?.fieldErrors) {
+          const errors: Record<string, string> = {};
+          for (const [key, messages] of Object.entries(response.error.details.fieldErrors as Record<string, string[]>)) {
+            errors[key] = messages[0];
+          }
+          setFormErrors(errors);
+          toast.error('Please correct the errors in the form');
+        } else {
+          toast.error(response.error?.message || 'Failed to save party');
+        }
       }
     } catch {
       toast.error('Failed to save party');
@@ -523,6 +536,7 @@ export default function PartyManagementPage() {
     setSelectedParty(response.data.party);
     setBalanceHasExisting(response.data.hasOpeningBalance);
     setForm(formFromParty(response.data.party));
+    setFormErrors({});
     setBalanceModalOpen(true);
   };
 
@@ -549,7 +563,15 @@ export default function PartyManagementPage() {
       setBalanceModalOpen(false);
       await loadParties();
     } else {
-      toast.error(response.error?.message || 'Failed to save opening balance');
+      if (response.error?.details?.fieldErrors) {
+        const errors: Record<string, string> = {};
+        for (const [key, messages] of Object.entries(response.error.details.fieldErrors as Record<string, string[]>)) {
+          errors[key] = messages[0];
+        }
+        setFormErrors(errors);
+      } else {
+        toast.error(response.error?.message || 'Failed to save opening balance');
+      }
     }
   };
 
@@ -613,39 +635,47 @@ export default function PartyManagementPage() {
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="theme-surface-card p-4">
-            <div className="flex items-center gap-3">
-              <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                <ClipboardList className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Visible Records</p>
-                <p className="text-2xl font-bold theme-text-primary">{pagination.totalItems}</p>
-              </div>
+          {loading && parties.length === 0 ? (
+            <div className="col-span-1 lg:col-span-3">
+              <SkeletonCard count={3} />
             </div>
-          </div>
-          <div className="theme-surface-card p-4">
-            <div className="flex items-center gap-3">
-              <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                <CheckCircle2 className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Active On Page</p>
-                <p className="text-2xl font-bold theme-text-primary">{stats.active}</p>
+          ) : (
+            <>
+              <div className="theme-surface-card p-4">
+                <div className="flex items-center gap-3">
+                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
+                    <ClipboardList className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Visible Records</p>
+                    <p className="text-2xl font-bold theme-text-primary">{pagination.totalItems}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="theme-surface-card p-4">
-            <div className="flex items-center gap-3">
-              <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                <BadgeIndianRupee className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Opening Balance</p>
-                <p className="text-2xl font-bold theme-text-primary">{formatCurrency(stats.totalOpening)}</p>
+              <div className="theme-surface-card p-4">
+                <div className="flex items-center gap-3">
+                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Active On Page</p>
+                    <p className="text-2xl font-bold theme-text-primary">{stats.active}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+              <div className="theme-surface-card p-4">
+                <div className="flex items-center gap-3">
+                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
+                    <BadgeIndianRupee className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Opening Balance</p>
+                    <p className="text-2xl font-bold theme-text-primary">{formatCurrency(stats.totalOpening)}</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="theme-surface-card overflow-hidden">
@@ -698,10 +728,9 @@ export default function PartyManagementPage() {
             </div>
           </div>
 
-          {loading ? (
-            <div className="flex min-h-[320px] items-center justify-center text-slate-500">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Loading parties
+          {loading && parties.length === 0 ? (
+            <div className="p-4">
+              <SkeletonTable rows={6} cols={6} />
             </div>
           ) : parties.length === 0 ? (
             <div className="p-12 text-center">
@@ -840,6 +869,7 @@ export default function PartyManagementPage() {
         <PartyModal
           mode={modalMode}
           form={form}
+          errors={formErrors}
           setForm={setForm}
           saving={saving}
           onClose={() => setModalMode(null)}
@@ -851,6 +881,7 @@ export default function PartyManagementPage() {
         <BalanceModal
           party={selectedParty}
           form={form}
+          errors={formErrors}
           setForm={setForm}
           saving={saving}
           hasExisting={balanceHasExisting}
@@ -887,6 +918,7 @@ function Field({
   type = 'text',
   required = false,
   placeholder,
+  error,
 }: {
   label: string;
   value: string;
@@ -895,10 +927,13 @@ function Field({
   type?: string;
   required?: boolean;
   placeholder?: string;
+  error?: string;
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+        {label} {required && <span className="text-red-500">*</span>}
+      </span>
       <input
         type={type}
         value={value}
@@ -906,8 +941,9 @@ function Field({
         disabled={disabled}
         required={required}
         placeholder={placeholder}
-        className="h-10 w-full text-sm disabled:bg-slate-100"
+        className={`h-10 w-full text-sm disabled:bg-slate-100 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
       />
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
     </label>
   );
 }
@@ -915,6 +951,7 @@ function Field({
 function PartyModal({
   mode,
   form,
+  errors,
   setForm,
   saving,
   onClose,
@@ -922,6 +959,7 @@ function PartyModal({
 }: {
   mode: ModalMode;
   form: PartyFormState;
+  errors: Record<string, string>;
   setForm: React.Dispatch<React.SetStateAction<PartyFormState>>;
   saving: boolean;
   onClose: () => void;
@@ -946,47 +984,49 @@ function PartyModal({
 
         <div className="grid gap-4 overflow-y-auto p-4 md:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Party Type</span>
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Party Type <span className="text-red-500">*</span></span>
             <select
               disabled={disabled}
               value={form.type}
               onChange={event => setForm(value => ({ ...value, type: event.target.value as PartyType }))}
-              className="h-10 w-full text-sm font-semibold"
+              className={`h-10 w-full text-sm font-semibold ${errors.type ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
             >
               <option value="DEALER">Dealer</option>
               <option value="SUPPLIER">Supplier</option>
             </select>
+            {errors.type && <p className="mt-1 text-xs text-red-500">{errors.type}</p>}
           </label>
-          <Field label="Name" value={form.name} onChange={value => setForm(data => ({ ...data, name: value }))} disabled={disabled} required />
-          <Field label="Code" value={form.code} onChange={value => setForm(data => ({ ...data, code: value }))} disabled={disabled} placeholder="Auto uppercase" />
-          <Field label="Contact Person" value={form.contactPerson} onChange={value => setForm(data => ({ ...data, contactPerson: value }))} disabled={disabled} />
-          <Field label="Phone" value={form.phone} onChange={value => setForm(data => ({ ...data, phone: value }))} disabled={disabled} />
-          <Field label="Alternate Phone" value={form.alternatePhone} onChange={value => setForm(data => ({ ...data, alternatePhone: value }))} disabled={disabled} />
-          <Field label="Email" type="email" value={form.email} onChange={value => setForm(data => ({ ...data, email: value }))} disabled={disabled} />
-          <Field label="GSTIN" value={form.gstin} onChange={value => setForm(data => ({ ...data, gstin: value }))} disabled={disabled} />
-          <Field label="PAN" value={form.pan} onChange={value => setForm(data => ({ ...data, pan: value }))} disabled={disabled} />
-          <Field label="Credit Period Days" type="number" value={form.creditPeriodDays} onChange={value => setForm(data => ({ ...data, creditPeriodDays: value }))} disabled={disabled} />
-          <Field label="Credit Limit" type="number" value={form.creditLimit} onChange={value => setForm(data => ({ ...data, creditLimit: value }))} disabled={disabled} />
-          <Field label="Opening Balance" type="number" value={form.openingBalance} onChange={value => setForm(data => ({ ...data, openingBalance: value }))} disabled={disabled} />
+          <Field label="Name" value={form.name} onChange={value => setForm(data => ({ ...data, name: value }))} disabled={disabled} required error={errors.name} />
+          <Field label="Code" value={form.code} onChange={value => setForm(data => ({ ...data, code: value }))} disabled={disabled} placeholder="Auto uppercase" error={errors.code} />
+          <Field label="Contact Person" value={form.contactPerson} onChange={value => setForm(data => ({ ...data, contactPerson: value }))} disabled={disabled} error={errors.contactPerson} />
+          <Field label="Phone" value={form.phone} onChange={value => setForm(data => ({ ...data, phone: value }))} disabled={disabled} error={errors.phone} />
+          <Field label="Alternate Phone" value={form.alternatePhone} onChange={value => setForm(data => ({ ...data, alternatePhone: value }))} disabled={disabled} error={errors.alternatePhone} />
+          <Field label="Email" type="email" value={form.email} onChange={value => setForm(data => ({ ...data, email: value }))} disabled={disabled} error={errors.email} />
+          <Field label="GSTIN" value={form.gstin} onChange={value => setForm(data => ({ ...data, gstin: value }))} disabled={disabled} error={errors.gstin} />
+          <Field label="PAN" value={form.pan} onChange={value => setForm(data => ({ ...data, pan: value }))} disabled={disabled} error={errors.pan} />
+          <Field label="Credit Period Days" type="number" value={form.creditPeriodDays} onChange={value => setForm(data => ({ ...data, creditPeriodDays: value }))} disabled={disabled} error={errors.creditPeriodDays} />
+          <Field label="Credit Limit" type="number" value={form.creditLimit} onChange={value => setForm(data => ({ ...data, creditLimit: value }))} disabled={disabled} error={errors.creditLimit} />
+          <Field label="Opening Balance" type="number" value={form.openingBalance} onChange={value => setForm(data => ({ ...data, openingBalance: value }))} disabled={disabled} error={errors.openingBalance} />
           <label className="block">
-            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Balance Type</span>
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Balance Type <span className="text-red-500">*</span></span>
             <select
               disabled={disabled}
               value={form.openingBalanceType}
               onChange={event => setForm(value => ({ ...value, openingBalanceType: event.target.value as OpeningBalanceType }))}
-              className="h-10 w-full text-sm font-semibold"
+              className={`h-10 w-full text-sm font-semibold ${errors.openingBalanceType ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
             >
               <option value="RECEIVABLE">Receivable</option>
               <option value="PAYABLE">Payable</option>
             </select>
+            {errors.openingBalanceType && <p className="mt-1 text-xs text-red-500">{errors.openingBalanceType}</p>}
           </label>
-          <Field label="Opening Balance Date" type="date" value={form.openingBalanceDate} onChange={value => setForm(data => ({ ...data, openingBalanceDate: value }))} disabled={disabled} />
-          <Field label="Address Line 1" value={form.addressLine1} onChange={value => setForm(data => ({ ...data, addressLine1: value }))} disabled={disabled} />
-          <Field label="Address Line 2" value={form.addressLine2} onChange={value => setForm(data => ({ ...data, addressLine2: value }))} disabled={disabled} />
-          <Field label="City" value={form.city} onChange={value => setForm(data => ({ ...data, city: value }))} disabled={disabled} />
-          <Field label="State" value={form.state} onChange={value => setForm(data => ({ ...data, state: value }))} disabled={disabled} />
-          <Field label="Country" value={form.country} onChange={value => setForm(data => ({ ...data, country: value }))} disabled={disabled} />
-          <Field label="Postal Code" value={form.postalCode} onChange={value => setForm(data => ({ ...data, postalCode: value }))} disabled={disabled} />
+          <Field label="Opening Balance Date" type="date" value={form.openingBalanceDate} onChange={value => setForm(data => ({ ...data, openingBalanceDate: value }))} disabled={disabled} error={errors.openingBalanceDate} />
+          <Field label="Address Line 1" value={form.addressLine1} onChange={value => setForm(data => ({ ...data, addressLine1: value }))} disabled={disabled} error={errors.addressLine1} />
+          <Field label="Address Line 2" value={form.addressLine2} onChange={value => setForm(data => ({ ...data, addressLine2: value }))} disabled={disabled} error={errors.addressLine2} />
+          <Field label="City" value={form.city} onChange={value => setForm(data => ({ ...data, city: value }))} disabled={disabled} error={errors.city} />
+          <Field label="State" value={form.state} onChange={value => setForm(data => ({ ...data, state: value }))} disabled={disabled} error={errors.state} />
+          <Field label="Country" value={form.country} onChange={value => setForm(data => ({ ...data, country: value }))} disabled={disabled} error={errors.country} />
+          <Field label="Postal Code" value={form.postalCode} onChange={value => setForm(data => ({ ...data, postalCode: value }))} disabled={disabled} error={errors.postalCode} />
           <label className="block md:col-span-2">
             <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Notes</span>
             <textarea
@@ -994,8 +1034,9 @@ function PartyModal({
               onChange={event => setForm(data => ({ ...data, notes: event.target.value }))}
               disabled={disabled}
               rows={3}
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] disabled:bg-slate-100"
+              className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] disabled:bg-slate-100 ${errors.notes ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
             />
+            {errors.notes && <p className="mt-1 text-xs text-red-500">{errors.notes}</p>}
           </label>
         </div>
 
@@ -1019,6 +1060,7 @@ function PartyModal({
 function BalanceModal({
   party,
   form,
+  errors,
   setForm,
   saving,
   hasExisting,
@@ -1027,6 +1069,7 @@ function BalanceModal({
 }: {
   party: BackendParty;
   form: PartyFormState;
+  errors: Record<string, string>;
   setForm: React.Dispatch<React.SetStateAction<PartyFormState>>;
   saving: boolean;
   hasExisting: boolean;
@@ -1047,20 +1090,21 @@ function BalanceModal({
           </button>
         </div>
         <div className="grid gap-4 p-4">
-          <Field label="Amount" type="number" value={form.openingBalance} onChange={value => setForm(data => ({ ...data, openingBalance: value }))} />
+          <Field label="Amount" type="number" value={form.openingBalance} onChange={value => setForm(data => ({ ...data, openingBalance: value }))} error={errors.openingBalance} />
           <label className="block">
-            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Type</span>
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Type <span className="text-red-500">*</span></span>
             <select
               value={form.openingBalanceType}
               onChange={event => setForm(value => ({ ...value, openingBalanceType: event.target.value as OpeningBalanceType }))}
-              className="h-10 w-full text-sm font-semibold"
+              className={`h-10 w-full text-sm font-semibold ${errors.openingBalanceType ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
             >
               <option value="RECEIVABLE">Receivable</option>
               <option value="PAYABLE">Payable</option>
             </select>
+            {errors.openingBalanceType && <p className="mt-1 text-xs text-red-500">{errors.openingBalanceType}</p>}
           </label>
-          <Field label="Date" type="date" value={form.openingBalanceDate} onChange={value => setForm(data => ({ ...data, openingBalanceDate: value }))} />
-          <Field label="Notes" value={form.notes} onChange={value => setForm(data => ({ ...data, notes: value }))} />
+          <Field label="Date" type="date" value={form.openingBalanceDate} onChange={value => setForm(data => ({ ...data, openingBalanceDate: value }))} error={errors.openingBalanceDate} />
+          <Field label="Notes" value={form.notes} onChange={value => setForm(data => ({ ...data, notes: value }))} error={errors.notes} />
         </div>
         <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
           <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg px-4 py-2 text-sm font-semibold">Cancel</button>

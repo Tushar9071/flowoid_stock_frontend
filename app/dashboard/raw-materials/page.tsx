@@ -2,6 +2,7 @@
 
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { SkeletonTable, SkeletonCard } from '@/components/skeleton/Skeletons';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import {
   AlertTriangle,
@@ -49,6 +50,9 @@ type TypeForm = {
   unit: RawMaterialUnit;
   description: string;
   isActive: boolean;
+  openingStock: string;
+  costPerUnit?: string;
+  supplierId?: string;
 };
 
 type PurchaseForm = {
@@ -77,6 +81,9 @@ const emptyTypeForm: TypeForm = {
   unit: 'KG',
   description: '',
   isActive: true,
+  openingStock: '',
+  costPerUnit: '',
+  supplierId: '',
 };
 
 const emptyPurchaseForm = (): PurchaseForm => ({
@@ -132,6 +139,7 @@ function typeFormFromMaterial(material: RawMaterialType): TypeForm {
     unit: material.unit,
     description: material.description || '',
     isActive: material.isActive,
+    openingStock: material.currentStock || '',
   };
 }
 
@@ -178,6 +186,8 @@ export default function RawMaterialsPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<RawMaterialPurchase | null>(null);
   const [typeForm, setTypeForm] = useState<TypeForm>(emptyTypeForm);
   const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>(emptyPurchaseForm());
+  const [typeFormErrors, setTypeFormErrors] = useState<Record<string, string>>({});
+  const [purchaseFormErrors, setPurchaseFormErrors] = useState<Record<string, string>>({});
 
   const canCreate = hasPermission('raw-materials.create');
   const canUpdate = hasPermission('raw-materials.update');
@@ -296,18 +306,26 @@ export default function RawMaterialsPage() {
   const openTypeModal = async (material?: RawMaterialType) => {
     if (material && !canUpdate) return toast.error('You do not have permission to update material types');
     if (!material && !canCreate) return toast.error('You do not have permission to create material types');
-    if (!tenant && !(await loadTenant())) return;
+    const currentTenant = tenant || await loadTenant();
+    if (!currentTenant) return;
+
+    await loadReferenceData(currentTenant.id);
 
     setSelectedType(material || null);
     setTypeForm(material ? typeFormFromMaterial(material) : emptyTypeForm);
+    setTypeFormErrors({});
     setTypeModalMode(material ? 'edit' : 'create');
   };
 
   const saveType = async (event: FormEvent) => {
     event.preventDefault();
     const currentTenant = tenant || await loadTenant();
-    if (!currentTenant) return;
     if (!typeForm.name.trim() || typeForm.name.trim().length < 2) return toast.error('Material name must be at least 2 characters');
+
+    if (!selectedType && Number(typeForm.openingStock) > 0) {
+      if (!typeForm.supplierId) return toast.error('Supplier is required by the database to log initial stock');
+      if (!typeForm.costPerUnit || Number(typeForm.costPerUnit) <= 0) return toast.error('Cost per unit is required by the database to log initial stock');
+    }
 
     setSaving(true);
     try {
@@ -315,6 +333,7 @@ export default function RawMaterialsPage() {
         name: typeForm.name.trim(),
         unit: typeForm.unit,
         description: typeForm.description.trim() || undefined,
+        openingStock: typeForm.openingStock ? Number(typeForm.openingStock) : undefined,
       };
 
       const response = selectedType
@@ -322,13 +341,39 @@ export default function RawMaterialsPage() {
         : await RawMaterialService.createType(currentTenant.id, payload);
 
       if (response.success) {
+        if (!selectedType && Number(typeForm.openingStock) > 0 && typeForm.costPerUnit && typeForm.supplierId) {
+          const quantity = parseFloat(typeForm.openingStock);
+          const cost = parseFloat(typeForm.costPerUnit);
+          if (!isNaN(quantity) && quantity > 0 && !isNaN(cost) && cost > 0) {
+            await RawMaterialService.createPurchase(currentTenant.id, {
+              materialTypeId: response.data.id,
+              supplierId: typeForm.supplierId,
+              quantity,
+              costPerUnit: cost,
+              purchaseDate: new Date().toISOString(),
+              status: 'RECEIVED',
+              notes: 'Opening Stock',
+            });
+          }
+        }
         toast.success(selectedType ? 'Material type updated' : 'Material type created');
         setTypeModalMode(null);
         setSelectedType(null);
         await loadData();
       } else {
-        toast.error(response.error?.message || 'Failed to save material type');
+        if (response.error?.details?.fieldErrors) {
+          const errors: Record<string, string> = {};
+          for (const [key, messages] of Object.entries(response.error.details.fieldErrors as Record<string, string[]>)) {
+            errors[key] = messages[0];
+          }
+          setTypeFormErrors(errors);
+          toast.error('Please correct the errors in the form');
+        } else {
+          toast.error(response.error?.message || 'Failed to save material type');
+        }
       }
+    } catch {
+      toast.error('Failed to save material type');
     } finally {
       setSaving(false);
     }
@@ -358,6 +403,7 @@ export default function RawMaterialsPage() {
     await loadReferenceData(currentTenant.id);
     setSelectedPurchase(purchase || null);
     setPurchaseForm(purchase ? purchaseFormFromPurchase(purchase) : emptyPurchaseForm());
+    setPurchaseFormErrors({});
     setPurchaseModalMode(purchase ? 'edit' : 'create');
   };
 
@@ -398,8 +444,19 @@ export default function RawMaterialsPage() {
         setSelectedPurchase(null);
         await loadData();
       } else {
-        toast.error(response.error?.message || 'Failed to save purchase');
+        if (response.error?.details?.fieldErrors) {
+          const errors: Record<string, string> = {};
+          for (const [key, messages] of Object.entries(response.error.details.fieldErrors as Record<string, string[]>)) {
+            errors[key] = messages[0];
+          }
+          setPurchaseFormErrors(errors);
+          toast.error('Please correct the errors in the form');
+        } else {
+          toast.error(response.error?.message || 'Failed to save purchase');
+        }
       }
+    } catch {
+      toast.error('Failed to save purchase');
     } finally {
       setSaving(false);
     }
@@ -536,24 +593,30 @@ export default function RawMaterialsPage() {
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          {[
-            { label: 'Current Stock', value: stockStats.current.toLocaleString('en-IN'), Icon: Package },
-            { label: 'Purchased', value: stockStats.purchased.toLocaleString('en-IN'), Icon: Truck },
-            { label: 'Issued', value: stockStats.issued.toLocaleString('en-IN'), Icon: FileText },
-            { label: 'Low Items', value: stockStats.low.toLocaleString('en-IN'), Icon: AlertTriangle },
-          ].map(({ label, value, Icon }) => (
-            <div key={label} className="theme-surface-card p-4">
-              <div className="flex items-center gap-3">
-                <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-                  <p className="theme-text-primary text-xl font-black">{value}</p>
+          {loading && stock.length === 0 ? (
+            <div className="col-span-1 lg:col-span-4">
+              <SkeletonCard count={4} />
+            </div>
+          ) : (
+            [
+              { label: 'Current Stock', value: stockStats.current.toLocaleString('en-IN'), Icon: Package },
+              { label: 'Purchased', value: stockStats.purchased.toLocaleString('en-IN'), Icon: Truck },
+              { label: 'Issued', value: stockStats.issued.toLocaleString('en-IN'), Icon: FileText },
+              { label: 'Low Items', value: stockStats.low.toLocaleString('en-IN'), Icon: AlertTriangle },
+            ].map(({ label, value, Icon }) => (
+              <div key={label} className="theme-surface-card p-4">
+                <div className="flex items-center gap-3">
+                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+                    <p className="theme-text-primary text-xl font-black">{value}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         <div className="theme-surface-card overflow-hidden">
@@ -605,10 +668,9 @@ export default function RawMaterialsPage() {
             </div>
           </div>
 
-          {loading ? (
-            <div className="flex items-center justify-center p-16 text-slate-500">
-              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-              Loading raw materials
+          {loading && ((tab === 'stock' && stock.length === 0) || (tab === 'types' && types.length === 0) || (tab === 'purchases' && purchases.length === 0) || (tab === 'issuances' && issuances.length === 0)) ? (
+            <div className="p-4">
+              <SkeletonTable rows={6} cols={6} />
             </div>
           ) : tab === 'stock' ? (
             <StockGrid stock={stock} />
@@ -652,7 +714,9 @@ export default function RawMaterialsPage() {
         <TypeModal
           mode={typeModalMode}
           form={typeForm}
+          errors={typeFormErrors}
           setForm={setTypeForm}
+          suppliers={suppliers}
           saving={saving}
           onClose={() => setTypeModalMode(null)}
           onSubmit={saveType}
@@ -663,6 +727,7 @@ export default function RawMaterialsPage() {
         <PurchaseModal
           mode={purchaseModalMode}
           form={purchaseForm}
+          errors={purchaseFormErrors}
           setForm={setPurchaseForm}
           materialTypes={types}
           suppliers={suppliers}
@@ -921,6 +986,7 @@ function Field({
   type = 'text',
   required = false,
   placeholder,
+  error,
 }: {
   label: string;
   value: string;
@@ -929,10 +995,13 @@ function Field({
   type?: string;
   required?: boolean;
   placeholder?: string;
+  error?: string;
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+        {label} {required && <span className="text-red-500">*</span>}
+      </span>
       <input
         type={type}
         value={value}
@@ -940,8 +1009,9 @@ function Field({
         disabled={disabled}
         required={required}
         placeholder={placeholder}
-        className="h-10 w-full text-sm disabled:bg-slate-100"
+        className={`h-10 w-full text-sm disabled:bg-slate-100 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
       />
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
     </label>
   );
 }
@@ -949,14 +1019,18 @@ function Field({
 function TypeModal({
   mode,
   form,
+  errors,
   setForm,
+  suppliers,
   saving,
   onClose,
   onSubmit,
 }: {
   mode: TypeModalMode;
   form: TypeForm;
+  errors: Record<string, string>;
   setForm: React.Dispatch<React.SetStateAction<TypeForm>>;
+  suppliers: PartyDropdownItem[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -975,12 +1049,13 @@ function TypeModal({
             </button>
           </div>
           <div className="grid gap-4 p-4">
-            <Field label="Name" value={form.name} onChange={value => setForm(data => ({ ...data, name: value }))} required />
+            <Field label="Name" value={form.name} onChange={value => setForm(data => ({ ...data, name: value }))} required error={errors.name} />
             <label className="block">
-              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Unit</span>
-              <select value={form.unit} onChange={event => setForm(data => ({ ...data, unit: event.target.value as RawMaterialUnit }))} className="h-10 w-full text-sm font-semibold">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Unit <span className="text-red-500">*</span></span>
+              <select value={form.unit} onChange={event => setForm(data => ({ ...data, unit: event.target.value as RawMaterialUnit }))} className={`h-10 w-full text-sm font-semibold ${errors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}>
                 {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
               </select>
+              {errors.unit && <p className="mt-1 text-xs text-red-500">{errors.unit}</p>}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Description</span>
@@ -988,9 +1063,34 @@ function TypeModal({
                 value={form.description}
                 onChange={event => setForm(data => ({ ...data, description: event.target.value }))}
                 rows={3}
-                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)]"
+                className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] ${errors.description ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
               />
+              {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}
             </label>
+            {mode === 'create' && (
+              <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h4 className="mb-4 text-sm font-bold text-slate-700">Opening Stock (Optional)</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Initial Quantity (Pieces/Units)" type="number" value={form.openingStock} onChange={value => setForm(data => ({ ...data, openingStock: value }))} />
+                  {Number(form.openingStock) > 0 && (
+                    <>
+                      <Field label="Cost Per Unit" type="number" value={form.costPerUnit || ''} onChange={value => setForm(data => ({ ...data, costPerUnit: value }))} />
+                      <label className="block md:col-span-2">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Supplier for Initial Stock</span>
+                        <select
+                          value={form.supplierId || ''}
+                          onChange={event => setForm(data => ({ ...data, supplierId: event.target.value }))}
+                          className="h-10 w-full text-sm font-semibold disabled:bg-slate-100"
+                        >
+                          <option value="">Select supplier</option>
+                          {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                        </select>
+                      </label>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <label className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
               Active material type
               <input type="checkbox" checked={form.isActive} onChange={event => setForm(data => ({ ...data, isActive: event.target.checked }))} />
@@ -1012,6 +1112,7 @@ function TypeModal({
 function PurchaseModal({
   mode,
   form,
+  errors,
   setForm,
   materialTypes,
   suppliers,
@@ -1022,6 +1123,7 @@ function PurchaseModal({
 }: {
   mode: PurchaseModalMode;
   form: PurchaseForm;
+  errors: Record<string, string>;
   setForm: React.Dispatch<React.SetStateAction<PurchaseForm>>;
   materialTypes: RawMaterialType[];
   suppliers: PartyDropdownItem[];
@@ -1045,49 +1147,53 @@ function PurchaseModal({
           </div>
           <div className="grid gap-4 p-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Material Type</span>
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Material Type <span className="text-red-500">*</span></span>
               <select
                 value={form.materialTypeId}
                 disabled={editing}
                 onChange={event => setForm(data => ({ ...data, materialTypeId: event.target.value }))}
-                className="h-10 w-full text-sm font-semibold disabled:bg-slate-100"
+                className={`h-10 w-full text-sm font-semibold disabled:bg-slate-100 ${errors.materialTypeId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
                 required
               >
                 <option value="">Select material</option>
                 {materialTypes.map(material => <option key={material.id} value={material.id}>{material.name} ({material.unit})</option>)}
               </select>
+              {errors.materialTypeId && <p className="mt-1 text-xs text-red-500">{errors.materialTypeId}</p>}
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Supplier</span>
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Supplier <span className="text-red-500">*</span></span>
               <select
                 value={form.supplierId}
                 disabled={editing}
                 onChange={event => setForm(data => ({ ...data, supplierId: event.target.value }))}
-                className="h-10 w-full text-sm font-semibold disabled:bg-slate-100"
+                className={`h-10 w-full text-sm font-semibold disabled:bg-slate-100 ${errors.supplierId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
                 required
               >
                 <option value="">Select supplier</option>
                 {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
               </select>
+              {errors.supplierId && <p className="mt-1 text-xs text-red-500">{errors.supplierId}</p>}
             </label>
-            <Field label="Quantity" type="number" value={form.quantity} onChange={value => setForm(data => ({ ...data, quantity: value }))} required />
-            <Field label="Cost Per Unit" type="number" value={form.costPerUnit} onChange={value => setForm(data => ({ ...data, costPerUnit: value }))} required />
-            <Field label="Purchase Date" type="date" value={form.purchaseDate} onChange={value => setForm(data => ({ ...data, purchaseDate: value }))} required />
+            <Field label="Quantity" type="number" value={form.quantity} onChange={value => setForm(data => ({ ...data, quantity: value }))} required error={errors.quantity} />
+            <Field label="Cost Per Unit" type="number" value={form.costPerUnit} onChange={value => setForm(data => ({ ...data, costPerUnit: value }))} required error={errors.costPerUnit} />
+            <Field label="Purchase Date" type="date" value={form.purchaseDate} onChange={value => setForm(data => ({ ...data, purchaseDate: value }))} required error={errors.purchaseDate} />
             <label className="block">
-              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Status</span>
-              <select value={form.status} onChange={event => setForm(data => ({ ...data, status: event.target.value as RawMaterialPurchaseStatus }))} className="h-10 w-full text-sm font-semibold">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Status <span className="text-red-500">*</span></span>
+              <select value={form.status} onChange={event => setForm(data => ({ ...data, status: event.target.value as RawMaterialPurchaseStatus }))} className={`h-10 w-full text-sm font-semibold ${errors.status ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}>
                 {PURCHASE_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
               </select>
+              {errors.status && <p className="mt-1 text-xs text-red-500">{errors.status}</p>}
             </label>
-            <Field label="Invoice Number" value={form.invoiceNumber} onChange={value => setForm(data => ({ ...data, invoiceNumber: value }))} />
+            <Field label="Invoice Number" value={form.invoiceNumber} onChange={value => setForm(data => ({ ...data, invoiceNumber: value }))} error={errors.invoiceNumber} />
             <label className="block md:col-span-2">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Notes</span>
               <textarea
                 value={form.notes}
                 onChange={event => setForm(data => ({ ...data, notes: event.target.value }))}
                 rows={3}
-                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)]"
+                className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] ${errors.notes ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
               />
+              {errors.notes && <p className="mt-1 text-xs text-red-500">{errors.notes}</p>}
             </label>
           </div>
           <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
