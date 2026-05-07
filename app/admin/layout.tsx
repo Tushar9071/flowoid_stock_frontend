@@ -22,7 +22,7 @@ const ADMIN_PAGE_META: Record<string, {
   '/admin/users': {
     title: 'User Management',
     subtitle: 'Manage users, invitations, and account access',
-    action: { label: 'Send Invitation', icon: 'Mail' }
+    action: { label: 'Create User', icon: 'Plus' }
   },
   '/admin/roles': {
     title: 'Roles Management',
@@ -48,6 +48,10 @@ const ADMIN_PAGE_META: Record<string, {
   '/admin/settings': {
     title: 'System Settings',
     subtitle: 'Configure platform-wide preferences and security controls',
+  },
+  '/admin/profile': {
+    title: 'My Profile',
+    subtitle: 'Your account, role, and platform access details',
   },
 };
 

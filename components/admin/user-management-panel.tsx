@@ -3,9 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
+import { CurrentTenantService } from '@/lib/services/current-tenant.service';
 import { RoleService } from '@/lib/services/role-permission.service';
 import { UserService } from '@/lib/services/user.service';
-import { CreateUserPayload, ManagedUser, Role, UpdateUserPayload } from '@/lib/types';
+import { BackendTenant, CreateUserPayload, ManagedUser, Role, UpdateUserPayload } from '@/lib/types';
+import { isOwnerRole, isSuperAdminRole } from '@/lib/roles';
 import { normalizePhoneForApi } from '@/lib/utils';
 import {
   CheckCircle,
@@ -47,10 +49,31 @@ function getRoleName(user: ManagedUser) {
   return user.role?.name || 'Default Role';
 }
 
+function userBelongsToTenant(user: ManagedUser, tenantIds: Set<string>) {
+  if (user.tenantId && tenantIds.has(user.tenantId)) return true;
+
+  return Boolean(user.tenantUsers?.some(item => {
+    const tenantId = item.tenant?.id || item.tenantId;
+    return tenantId ? tenantIds.has(tenantId) : false;
+  }));
+}
+
+function tenantNamesForUser(user: ManagedUser, tenants: BackendTenant[]) {
+  const fallbackTenants = new Map(tenants.map(tenant => [tenant.id, tenant.name]));
+  const names = user.tenantUsers
+    ?.map(item => item.tenant?.name || (item.tenantId ? fallbackTenants.get(item.tenantId) : undefined))
+    .filter(Boolean);
+
+  if (names?.length) return names.join(', ');
+  if (user.tenantId && fallbackTenants.has(user.tenantId)) return fallbackTenants.get(user.tenantId);
+  return '-';
+}
+
 export function UserManagementPanel({ showLocalAction = false }: { showLocalAction?: boolean }) {
-  const { hasPermission, isFullAccess } = useAuth();
+  const { hasPermission, isFullAccess, role } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [tenants, setTenants] = useState<BackendTenant[]>([]);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -63,12 +86,17 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
   const canCreate = isFullAccess || hasPermission('users.create');
   const canUpdate = isFullAccess || hasPermission('users.update');
   const canDelete = isFullAccess || hasPermission('users.delete');
+  const isOwner = isOwnerRole(role);
+  const isSuperAdmin = isSuperAdminRole(role);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
+      const tenantsRes = isOwner ? await CurrentTenantService.listCurrentTenants() : null;
+      const ownerTenants = tenantsRes?.success ? tenantsRes.data || [] : [];
+      const ownerTenantId = ownerTenants[0]?.id;
       const [usersRes, rolesRes] = await Promise.all([
-        UserService.list(),
+        UserService.list(isOwner && ownerTenantId ? { tenantId: ownerTenantId } : undefined),
         RoleService.list(),
       ]);
 
@@ -79,10 +107,27 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
       }
 
       if (rolesRes.success) {
-        const activeRoles = (rolesRes.data || []).filter(role => role.isActive);
+        const activeRoles = (rolesRes.data || []).filter(item => {
+          if (!item.isActive) return false;
+          if (isSuperAdmin) return true;
+
+          const roleName = item.name.toUpperCase();
+          const protectedRole =
+            roleName.includes('SUPER_ADMIN') ||
+            roleName.includes('FLOWOID_ADMIN') ||
+            roleName === 'FREE_USERS' ||
+            roleName === 'OWNER' ||
+            roleName === 'TENANT_OWNER';
+
+          return !protectedRole;
+        });
         setRoles(activeRoles);
       } else {
         toast.error(rolesRes.error?.message || 'Failed to load roles');
+      }
+
+      if (tenantsRes && tenantsRes.success) {
+        setTenants(ownerTenants);
       }
     } catch {
       toast.error('Failed to load user management data');
@@ -101,9 +146,17 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
     return () => window.removeEventListener('admin-action-click', handleAdminAction);
   }, [roles]);
 
+  const tenantIds = useMemo(() => new Set(tenants.map(tenant => tenant.id)), [tenants]);
+
+  const tenantScopedUsers = useMemo(() => {
+    if (!isOwner || tenantIds.size === 0) return users;
+
+    return users.filter(user => userBelongsToTenant(user, tenantIds));
+  }, [isOwner, tenantIds, users]);
+
   const filteredUsers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    return users.filter(user => {
+    return tenantScopedUsers.filter(user => {
       const matchesStatus =
         activeFilter === 'all' ||
         (activeFilter === 'active' ? user.isActive : !user.isActive);
@@ -116,7 +169,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
 
       return matchesStatus && matchesSearch;
     });
-  }, [activeFilter, search, users]);
+  }, [activeFilter, search, tenantScopedUsers]);
 
   const openCreateModal = () => {
     if (!canCreate) {
@@ -322,9 +375,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {user.tenantUsers?.length
-                        ? user.tenantUsers.map(item => item.tenant?.name).filter(Boolean).join(', ')
-                        : '-'}
+                      {tenantNamesForUser(user, tenants)}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${
@@ -396,7 +447,9 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
             <div className="flex items-center justify-between border-b border-gray-100 p-5 sm:p-6">
               <div>
                 <h2 className="theme-text-primary text-xl font-black sm:text-2xl">{editingUser ? 'Edit User' : 'Create User'}</h2>
-                <p className="mt-1 text-sm text-gray-500">Assign only roles available to your account.</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {isOwner ? 'Assign roles only inside your business tenant.' : 'Assign only roles available to your account.'}
+                </p>
               </div>
               <button onClick={closeModal} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100">
                 <X className="h-5 w-5" />
@@ -512,8 +565,8 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
                     {viewingUser.tenantUsers.map(item => (
                       <div key={item.id} className="flex items-center justify-between rounded-lg bg-white px-4 py-3">
                         <div>
-                          <p className="font-bold text-gray-900">{item.tenant?.name || 'Tenant'}</p>
-                          <p className="text-xs text-gray-500">{item.tenant?.slug || '-'}</p>
+                          <p className="font-bold text-gray-900">{item.tenant?.name || (item.tenantId ? tenants.find(tenant => tenant.id === item.tenantId)?.name : null) || 'Tenant'}</p>
+                          <p className="text-xs text-gray-500">{item.tenant?.slug || item.tenantId || '-'}</p>
                         </div>
                         <span className="theme-badge-soft rounded-full px-3 py-1 text-xs font-bold">
                           {item.role?.name || getRoleName(viewingUser)}

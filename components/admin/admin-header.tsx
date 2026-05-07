@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, Shield, Search, LogOut, Settings } from 'lucide-react';
+import { Bell, Shield, Search, LogOut, Settings, User } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 
 const notifications = [
@@ -90,6 +90,13 @@ export function AdminHeader() {
                     <p className="text-[12px] text-[#6b7280] truncate mt-0.5">{user?.email || 'admin@flowoid.com'}</p>
                   </div>
                   <div className="p-1.5">
+                    <button 
+                      onClick={() => { setShowDropdown(false); router.push('/admin/profile'); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-semibold text-[#374151] rounded-lg hover:bg-[#f3f4f6] transition-colors"
+                    >
+                      <User className="w-4 h-4 text-[#6b7280]" />
+                      My Profile
+                    </button>
                     <button 
                       onClick={() => { setShowDropdown(false); router.push('/admin/settings'); }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-semibold text-[#374151] rounded-lg hover:bg-[#f3f4f6] transition-colors"

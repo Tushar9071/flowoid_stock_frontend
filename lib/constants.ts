@@ -245,6 +245,13 @@ export const navigationItems = [
     adminOnly: true,
     permission: 'settings.read',
   },
+  {
+    id: 'profile',
+    label: 'Profile',
+    href: '/dashboard/profile',
+    icon: 'Shield',
+    permission: 'dashboard.read',
+  },
 ];
 
 // Format currency

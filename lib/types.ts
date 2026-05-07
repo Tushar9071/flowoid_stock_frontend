@@ -99,6 +99,18 @@ export interface User {
   name: string;
   email?: string | null;
   role: UserRole;
+  tenantId?: string;
+  tenant?: BackendTenant;
+  tenants?: BackendTenant[];
+  tenantUsers?: Array<{
+    id?: string;
+    tenantId?: string;
+    tenant?: BackendTenant;
+    role?: {
+      id: string;
+      name: string;
+    };
+  }>;
   lastLogin?: Date;
   status: 'active' | 'inactive' | 'pending';
   phone?: string;
@@ -112,6 +124,7 @@ export interface ManagedUser {
   name: string;
   email?: string | null;
   phone: string;
+  tenantId?: string;
   roleId?: string;
   role?: {
     id: string;
@@ -123,6 +136,7 @@ export interface ManagedUser {
   updatedAt?: string;
   tenantUsers?: Array<{
     id: string;
+    tenantId?: string;
     isActive: boolean;
     tenant?: {
       id: string;
@@ -383,6 +397,296 @@ export interface Supplier {
   phone: string;
   materials: string[];
   status: 'active' | 'inactive';
+}
+
+export type PartyType = 'DEALER' | 'SUPPLIER';
+export type OpeningBalanceType = 'RECEIVABLE' | 'PAYABLE';
+export type PartyLedgerEntryType =
+  | 'OPENING_BALANCE'
+  | 'SALE'
+  | 'PURCHASE'
+  | 'PAYMENT_RECEIVED'
+  | 'PAYMENT_MADE'
+  | 'CREDIT_NOTE'
+  | 'DEBIT_NOTE'
+  | 'ADJUSTMENT'
+  | 'JOURNAL';
+
+export interface BackendParty {
+  id: string;
+  tenantId: string;
+  type: PartyType;
+  name: string;
+  code?: string | null;
+  contactPerson?: string | null;
+  phone?: string | null;
+  alternatePhone?: string | null;
+  email?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
+  creditPeriodDays?: number | null;
+  creditLimit?: string | number | null;
+  openingBalance?: string | number | null;
+  openingBalanceType?: OpeningBalanceType | null;
+  openingBalanceDate?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+  deletedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePartyPayload {
+  type: PartyType;
+  name: string;
+  code?: string;
+  contactPerson?: string;
+  phone?: string;
+  alternatePhone?: string;
+  email?: string;
+  gstin?: string;
+  pan?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+  creditPeriodDays?: number;
+  creditLimit?: number;
+  openingBalance?: number;
+  openingBalanceType?: OpeningBalanceType;
+  openingBalanceDate?: string;
+  notes?: string;
+}
+
+export type UpdatePartyPayload = Partial<Omit<CreatePartyPayload, 'type'>> & {
+  type?: PartyType;
+};
+
+export interface PartyListQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: PartyType;
+  isActive?: boolean;
+}
+
+export interface PartyListResponse {
+  items: BackendParty[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
+export interface PartyDropdownItem {
+  id: string;
+  tenantId: string;
+  type: PartyType;
+  name: string;
+  code?: string | null;
+  phone?: string | null;
+  gstin?: string | null;
+  isActive: boolean;
+}
+
+export interface PartyDuplicateResponse {
+  exists: boolean;
+  duplicateBy: string[];
+  party?: Pick<BackendParty, 'id' | 'name' | 'code' | 'gstin' | 'phone'> | null;
+  checkedFields: Record<string, string | null>;
+}
+
+export interface PartyLedgerEntry {
+  id: string;
+  entryDate: string;
+  entryType: PartyLedgerEntryType;
+  debitAmount: string;
+  creditAmount: string;
+  runningBalance: string;
+  description?: string | null;
+  referenceNo?: string | null;
+  voucherType?: string | null;
+  voucherId?: string | null;
+  isOpeningEntry: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PartyOpeningBalanceResponse {
+  party: BackendParty;
+  hasOpeningBalance: boolean;
+  openingBalance?: {
+    amount: string;
+    type: OpeningBalanceType;
+    date: string;
+    entry?: PartyLedgerEntry;
+  } | null;
+}
+
+export interface PartyOpeningBalancePayload {
+  openingBalance: number;
+  openingBalanceType?: OpeningBalanceType;
+  openingBalanceDate?: string;
+  notes?: string;
+}
+
+export interface PartyStatementQuery {
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  includeOpeningEntry?: boolean;
+}
+
+export interface PartyStatementResponse {
+  party: BackendParty;
+  filters: {
+    fromDate?: string;
+    toDate?: string;
+    includeOpeningEntry: boolean;
+  };
+  summary: {
+    balanceBeforePeriod: string;
+    totalDebit: string;
+    totalCredit: string;
+    closingBalance: string;
+    balanceNature: OpeningBalanceType;
+  };
+  entries: PartyLedgerEntry[];
+  pagination: PartyListResponse['pagination'];
+}
+
+// Raw Material Types
+export type RawMaterialUnit = 'KG' | 'GRAM' | 'PIECE' | 'METER' | 'DOZEN';
+export type RawMaterialPurchaseStatus = 'PENDING' | 'RECEIVED' | 'CANCELLED';
+
+export interface RawMaterialType {
+  id: string;
+  tenantId: string;
+  name: string;
+  unit: RawMaterialUnit;
+  description?: string | null;
+  isActive: boolean;
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  currentStock?: string;
+}
+
+export interface RawMaterialPurchase {
+  id: string;
+  tenantId: string;
+  materialTypeId: string;
+  supplierId: string;
+  quantity: string;
+  costPerUnit: string;
+  totalCost: string;
+  status: RawMaterialPurchaseStatus;
+  purchaseDate: string;
+  invoiceNumber?: string | null;
+  notes?: string | null;
+  deletedAt?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  materialType?: RawMaterialType;
+  supplier?: BackendParty;
+}
+
+export interface RawMaterialIssuance {
+  id: string;
+  tenantId: string;
+  materialTypeId: string;
+  assignmentId: string;
+  quantity: string;
+  issuedAt: string;
+  notes?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  materialType?: RawMaterialType;
+}
+
+export interface RawMaterialStockSummary {
+  materialTypeId: string;
+  name: string;
+  unit: RawMaterialUnit;
+  totalPurchased: string;
+  totalIssued: string;
+  currentStock: string;
+  isLow: boolean;
+}
+
+export interface RawMaterialPaginatedResponse<T> {
+  items: T[];
+  pagination: PartyListResponse['pagination'];
+}
+
+export interface RawMaterialTypeQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isActive?: boolean;
+}
+
+export interface CreateRawMaterialTypePayload {
+  name: string;
+  unit: RawMaterialUnit;
+  description?: string;
+}
+
+export interface UpdateRawMaterialTypePayload extends Partial<CreateRawMaterialTypePayload> {
+  isActive?: boolean;
+}
+
+export interface RawMaterialPurchaseQuery {
+  page?: number;
+  limit?: number;
+  materialTypeId?: string;
+  supplierId?: string;
+  status?: RawMaterialPurchaseStatus;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface CreateRawMaterialPurchasePayload {
+  materialTypeId: string;
+  supplierId: string;
+  quantity: number;
+  costPerUnit: number;
+  purchaseDate: string;
+  status?: RawMaterialPurchaseStatus;
+  invoiceNumber?: string;
+  notes?: string;
+}
+
+export interface UpdateRawMaterialPurchasePayload {
+  quantity?: number;
+  costPerUnit?: number;
+  purchaseDate?: string;
+  status?: RawMaterialPurchaseStatus;
+  invoiceNumber?: string;
+  notes?: string;
+}
+
+export interface RawMaterialIssuanceQuery {
+  page?: number;
+  limit?: number;
+  materialTypeId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 // Orders & Dispatch Types

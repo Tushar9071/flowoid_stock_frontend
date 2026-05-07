@@ -30,7 +30,7 @@ const moduleOptions = [
   { value: 'dashboard', label: 'Dashboard' },
   { value: 'designs', label: 'Design Catalogue' },
   { value: 'workers', label: 'Worker Management' },
-  { value: 'raw_materials', label: 'Raw Materials' },
+  { value: 'raw-materials', label: 'Raw Materials' },
   { value: 'stock_items', label: 'Stock Items / Inventory' },
   { value: 'parties', label: 'Party Management' },
   { value: 'sales_orders', label: 'Orders & Dispatch' },
@@ -252,7 +252,23 @@ export default function PermissionsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          onClick={handleCreateDefaultPermissions}
+          disabled={isSaving}
+          className="theme-secondary-btn flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold transition-all disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+          Seed Defaults
+        </button>
+        <button
+          onClick={handleSeedAndAssignFreeUser}
+          disabled={isSaving}
+          className="theme-secondary-btn flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold transition-all disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+          Seed Free Owner
+        </button>
         <button
           onClick={openCreateModal}
           className="theme-accent-btn flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all active:scale-95"

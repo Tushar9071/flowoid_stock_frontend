@@ -96,7 +96,7 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
                   </div>
                   <div className="p-1.5">
                     <button 
-                      onClick={() => { setShowDropdown(false); router.push('/dashboard/settings'); }}
+                      onClick={() => { setShowDropdown(false); router.push('/dashboard/profile'); }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-semibold text-[#374151] rounded-lg hover:bg-[#f3f4f6] transition-colors"
                     >
                       <User className="w-4 h-4 text-[#6b7280]" />
