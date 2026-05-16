@@ -11,20 +11,10 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-const data = [
-  { month: 'Jan', sales: 65000 },
-  { month: 'Feb', sales: 78000 },
-  { month: 'Mar', sales: 85000 },
-  { month: 'Apr', sales: 92000 },
-  { month: 'May', sales: 88000 },
-  { month: 'Jun', sales: 105000 },
-  { month: 'Jul', sales: 125000 },
-  { month: 'Aug', sales: 118000 },
-  { month: 'Sep', sales: 132000 },
-  { month: 'Oct', sales: 145000 },
-  { month: 'Nov', sales: 155000 },
-  { month: 'Dec', sales: 175000 },
-];
+export interface SalesDataPoint {
+  month: string;
+  sales: number;
+}
 
 /** Read the computed value of a CSS variable from the document body. */
 function getCSSVar(name: string, fallback: string): string {
@@ -33,7 +23,7 @@ function getCSSVar(name: string, fallback: string): string {
   return value || fallback;
 }
 
-export function SalesChart() {
+export function SalesChart({ data = [] }: { data?: SalesDataPoint[] }) {
   // Chart stroke color tracked so it reacts when theme changes
   const [chartColor, setChartColor] = useState('#0F2A4A');
 
