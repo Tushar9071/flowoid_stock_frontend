@@ -46,8 +46,9 @@ function splitSetCookieHeader(header: string) {
 async function proxy(request: Request, context: RouteParams) {
   const { path = [] } = await context.params;
   const inboundUrl = new URL(request.url);
-  const targetUrl = new URL(`${BACKEND_API_URL.replace(/\/$/, '')}/${path.join('/')}`);
-  targetUrl.search = inboundUrl.search;
+  const targetUrl = new URL(
+    `${BACKEND_API_URL.replace(/\/$/, '')}/api/${path.join('/')}`
+  ); targetUrl.search = inboundUrl.search;
 
   const headers = new Headers(request.headers);
   for (const header of HOP_BY_HOP_HEADERS) {
