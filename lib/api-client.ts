@@ -229,10 +229,15 @@ export async function apiFetch<T>(
         success: false,
         data: null as any,
         error: result?.error || {
-          code: 'FETCH_ERROR',
-          message: response.status === 500
-            ? 'Backend server error. Please check the API logs or try again.'
-            : `Request failed with status ${response.status}`,
+          code: result?.statusCode ? String(result.statusCode) : 'FETCH_ERROR',
+          message:
+            result?.message ||
+            result?.error?.message ||
+            (response.status === 500
+              ? 'Backend server error. Please check the API logs or try again.'
+              : `Request failed with status ${response.status}`),
+          // Capture field-level validation errors from the backend
+          details: result?.errors || result?.details || result?.validationErrors || result?.error?.details,
         },
       };
     }

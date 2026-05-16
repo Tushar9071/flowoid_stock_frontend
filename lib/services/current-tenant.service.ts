@@ -27,19 +27,77 @@ type TenantCarrier = Partial<User> | Partial<ManagedUser>;
 function tenantFromUser(user?: TenantCarrier | null): BackendTenant | null {
   if (!user) return null;
   const data = user as any;
+  const nestedUser = data.user || data.data?.user || data.profile || data.data?.profile;
+  if (nestedUser && nestedUser !== data) {
+    const tenant = tenantFromUser(nestedUser);
+    if (tenant) return tenant;
+  }
+
   if (data.tenant?.id) return data.tenant;
   if (data.tenants?.[0]?.id) return data.tenants[0];
+  if (data.currentTenant?.id) return data.currentTenant;
+  if (data.activeTenant?.id) return data.activeTenant;
+  if (data.business?.id) return {
+    id: data.business.id,
+    name: data.business.name || data.business.businessName || 'Current Business',
+    slug: data.business.slug || data.business.id,
+    status: data.business.status || 'ACTIVE',
+  };
 
   const tenantUser = data.tenantUsers?.find((item: any) => item.tenant?.id || item.tenantId);
   if (tenantUser?.tenant?.id) return tenantUser.tenant;
   if (tenantUser?.tenantId) return tenantFromId(tenantUser.tenantId);
 
-  return tenantFromId(data.tenantId);
+  return tenantFromId(
+    data.tenantId ||
+    data.activeTenantId ||
+    data.currentTenantId ||
+    data.businessId
+  );
 }
 
 function saveTenant(tenant: BackendTenant | null) {
   if (!tenant || typeof window === 'undefined') return;
   localStorage.setItem(CURRENT_TENANT_STORAGE_KEY, JSON.stringify(tenant));
+}
+
+function firstTenantFromPayload(payload: any): BackendTenant | null {
+  if (!payload) return null;
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      if (item?.id) return item;
+      if (item?.tenant?.id) return item.tenant;
+      const nested = firstTenantFromPayload(item);
+      if (nested?.id) return nested;
+    }
+    return null;
+  }
+  if (payload.id) return payload as BackendTenant;
+  if (payload.tenant?.id) return payload.tenant;
+  if (payload.currentTenant?.id) return payload.currentTenant;
+  if (payload.activeTenant?.id) return payload.activeTenant;
+
+  const candidates = [
+    payload.items,
+    payload.tenants,
+    payload.businesses,
+    payload.userTenants,
+    payload.tenantUsers,
+    payload.data,
+    payload.data?.items,
+    payload.data?.tenants,
+    payload.data?.businesses,
+    payload.data?.tenantUsers,
+    payload.result,
+    payload.result?.items,
+  ];
+
+  for (const candidate of candidates) {
+    const tenant = firstTenantFromPayload(candidate);
+    if (tenant?.id) return tenant;
+  }
+
+  return null;
 }
 
 function storedCurrentTenant() {
@@ -74,16 +132,20 @@ function tokenTenant() {
 
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
     const decoded = JSON.parse(window.atob(normalized));
-    const tenantId =
+    const rawTenant =
       decoded.tenantId ||
       decoded.tenant_id ||
       decoded.activeTenantId ||
       decoded.currentTenantId ||
+      decoded.businessId ||
+      decoded.tenantIds?.[0] ||
       decoded.tenants?.[0]?.id ||
+      decoded.tenants?.[0] ||
       decoded.tenantUsers?.[0]?.tenantId ||
       decoded.tenantUsers?.[0]?.tenant?.id;
 
-    return tenantFromId(tenantId);
+    if (rawTenant && typeof rawTenant === 'object' && rawTenant.id) return rawTenant;
+    return tenantFromId(rawTenant);
   } catch {
     return null;
   }
@@ -101,20 +163,13 @@ export const CurrentTenantService = {
   },
 
   async resolveCurrentTenant() {
-    const previousTenant = storedCurrentTenant();
-    if (previousTenant?.id) {
-      return {
-        success: true,
-        data: previousTenant,
-      };
-    }
-
     const mine = await TenantService.mine();
-    if (mine.success && mine.data?.[0]?.id) {
-      saveTenant(mine.data[0]);
+    const mineTenant = firstTenantFromPayload(mine.data);
+    if (mine.success && mineTenant?.id) {
+      saveTenant(mineTenant);
       return {
         success: true,
-        data: mine.data[0],
+        data: mineTenant,
       };
     }
 
@@ -160,6 +215,14 @@ export const CurrentTenantService = {
       };
     }
 
+    const previousTenant = storedCurrentTenant();
+    if (previousTenant?.id && !mine.error && !currentUser.error) {
+      return {
+        success: true,
+        data: previousTenant,
+      };
+    }
+
     return {
       success: false,
       data: null,
@@ -171,18 +234,14 @@ export const CurrentTenantService = {
   },
 
   async listCurrentTenants() {
-    const previousTenant = storedCurrentTenant();
-    if (previousTenant?.id) {
+    const mine = await TenantService.mine();
+    const mineTenant = firstTenantFromPayload(mine.data);
+    if (mine.success && mineTenant?.id) {
+      saveTenant(mineTenant);
       return {
         success: true,
-        data: [previousTenant],
+        data: Array.isArray(mine.data) ? mine.data : [mineTenant],
       };
-    }
-
-    const mine = await TenantService.mine();
-    if (mine.success && mine.data?.length) {
-      saveTenant(mine.data[0]);
-      return mine;
     }
 
     const current = await this.getCurrentTenant();
@@ -191,6 +250,14 @@ export const CurrentTenantService = {
       return {
         success: true,
         data: [current.data],
+      };
+    }
+
+    const previousTenant = storedCurrentTenant();
+    if (previousTenant?.id && !current.error) {
+      return {
+        success: true,
+        data: [previousTenant],
       };
     }
 

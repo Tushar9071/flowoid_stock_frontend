@@ -613,15 +613,7 @@ export default function PartyManagementPage() {
       subtitle="Tenant-scoped dealers, suppliers, balances and ledger history"
       action={
         canCreate ? (
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              onClick={seedSampleParties}
-              disabled={seedLoading}
-              className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
-            >
-              {seedLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-              Seed Sample
-            </button>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={openCreate}
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold theme-accent-btn"

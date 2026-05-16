@@ -18,9 +18,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const MONITORING_SOCKET_URL =
-  process.env.NEXT_PUBLIC_MONITORING_SOCKET_URL ||
-  'http://140.245.193.49:3000/admin-monitoring';
+const MONITORING_SOCKET_URL = process.env.NEXT_PUBLIC_MONITORING_SOCKET_URL as string;
 
 function formatUptime(seconds: number) {
   const days = Math.floor(seconds / 86400);

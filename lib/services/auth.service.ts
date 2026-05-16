@@ -12,13 +12,44 @@ export interface PermissionResponse {
 
 export type MyPermissionsResponse = PermissionResponse | string[];
 
+function unwrapUser(payload: any): User {
+  return (
+    payload?.user ||
+    payload?.data?.user ||
+    payload?.profile ||
+    payload?.data?.profile ||
+    payload
+  ) as User;
+}
+
+function normalizeAuthResponse(payload: any): AuthResponse {
+  return {
+    ...payload,
+    user: unwrapUser(payload),
+  };
+}
+
 export const AuthService = {
   async login(credentials: any) {
-    return api.post<AuthResponse>('/auth/login', credentials);
+    const response = await api.post<any>('/auth/login', credentials);
+    if (response.success) {
+      return {
+        ...response,
+        data: normalizeAuthResponse(response.data),
+      };
+    }
+    return response;
   },
 
   async register(data: any) {
-    return api.post<AuthResponse>('/auth/register', data);
+    const response = await api.post<any>('/auth/register', data);
+    if (response.success) {
+      return {
+        ...response,
+        data: normalizeAuthResponse(response.data),
+      };
+    }
+    return response;
   },
 
   async logout() {
@@ -26,7 +57,14 @@ export const AuthService = {
   },
 
   async getCurrentUser() {
-    return api.get<User>('/auth/me');
+    const response = await api.get<any>('/auth/me');
+    if (response.success) {
+      return {
+        ...response,
+        data: unwrapUser(response.data),
+      };
+    }
+    return response;
   },
 
   async getMyPermissions() {
@@ -34,7 +72,14 @@ export const AuthService = {
   },
 
   async refresh() {
-    return api.post<AuthResponse>('/auth/refresh');
+    const response = await api.post<any>('/auth/refresh');
+    if (response.success) {
+      return {
+        ...response,
+        data: normalizeAuthResponse(response.data),
+      };
+    }
+    return response;
   },
 
   async changePassword(data: any) {

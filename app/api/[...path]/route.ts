@@ -1,7 +1,7 @@
-const BACKEND_API_URL =
-  process.env.BACKEND_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://140.245.193.49:3000/api';
+const BACKEND_API_URL = (process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL) as string;
+if (!BACKEND_API_URL) {
+  throw new Error('BACKEND_API_URL or NEXT_PUBLIC_API_URL environment variable is not defined');
+}
 
 export const dynamic = 'force-dynamic';
 

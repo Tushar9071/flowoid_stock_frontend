@@ -3,6 +3,7 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SkeletonTable, SkeletonCard } from '@/components/skeleton/Skeletons';
+import { DataTable } from '@/components/shared/DataTable';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import {
   AlertTriangle,
@@ -320,6 +321,7 @@ export default function RawMaterialsPage() {
   const saveType = async (event: FormEvent) => {
     event.preventDefault();
     const currentTenant = tenant || await loadTenant();
+    if (!currentTenant) return;
     if (!typeForm.name.trim() || typeForm.name.trim().length < 2) return toast.error('Material name must be at least 2 characters');
 
     if (!selectedType && Number(typeForm.openingStock) > 0) {
@@ -565,14 +567,6 @@ export default function RawMaterialsPage() {
         canCreate ? (
           <div className="flex flex-wrap justify-end gap-2">
             <button
-              onClick={seedSampleTypes}
-              disabled={seedLoading}
-              className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
-            >
-              {seedLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-              Seed Types
-            </button>
-            <button
               onClick={checkRawMaterialApis}
               disabled={checkingApis}
               className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
@@ -675,37 +669,11 @@ export default function RawMaterialsPage() {
           ) : tab === 'stock' ? (
             <StockGrid stock={stock} />
           ) : tab === 'types' ? (
-            <TypesTable types={types} canUpdate={canUpdate} canDelete={canDelete} onEdit={openTypeModal} onDelete={deleteType} />
+            <TypesTable types={types} canUpdate={canUpdate} canDelete={canDelete} onEdit={openTypeModal} onDelete={deleteType} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
           ) : tab === 'purchases' ? (
-            <PurchasesTable purchases={purchases} canUpdate={canUpdate} canDelete={canDelete} onEdit={openPurchaseModal} onDelete={deletePurchase} />
+            <PurchasesTable purchases={purchases} canUpdate={canUpdate} canDelete={canDelete} onEdit={openPurchaseModal} onDelete={deletePurchase} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
           ) : (
-            <IssuancesTable issuances={issuances} />
-          )}
-
-          {tab !== 'stock' && (
-            <div className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">
-                Page {pagination.page} of {Math.max(pagination.totalPages, 1)} / {pagination.totalItems} total
-              </p>
-              <div className="flex gap-2">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage(value => Math.max(1, value - 1))}
-                  className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </button>
-                <button
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage(value => value + 1)}
-                  className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            <IssuancesTable issuances={issuances} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
           )}
         </div>
       </div>
@@ -812,24 +780,46 @@ function TypesTable({
   canDelete,
   onEdit,
   onDelete,
+  loading,
+  page,
+  totalPages,
+  totalItems,
+  onPageChange
 }: {
   types: RawMaterialType[];
   canUpdate: boolean;
   canDelete: boolean;
   onEdit: (material: RawMaterialType) => void;
   onDelete: (material: RawMaterialType) => void;
+  loading: boolean;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
 }) {
   return (
-    <TableWrap
-      empty={types.length === 0}
-      emptyText="No material types found."
-      headerLabels={['Item', 'Unit', 'Qty / Stock', 'Status', 'Date', 'Actions']}
+    <DataTable
+      headers={['Item', 'Unit', 'Qty / Stock', 'Status', 'Date', 'Actions']}
+      loading={loading}
+      page={page}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      onPageChange={onPageChange}
+      emptyIcon={<Package className="h-6 w-6 text-slate-400" />}
+      emptyTitle="No material types found"
     >
       {types.map(material => (
         <tr key={material.id} className="theme-table-row">
           <td className="px-4 py-3">
-            <p className="theme-text-primary font-bold">{material.name}</p>
-            <p className="text-sm text-slate-500">{material.description || '-'}</p>
+            <div className="flex items-center gap-3">
+              <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
+                <Package className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="theme-text-primary font-bold">{material.name}</p>
+                <p className="text-sm text-slate-500">{material.description || '-'}</p>
+              </div>
+            </div>
           </td>
           <td className="px-4 py-3 text-sm font-semibold">{material.unit}</td>
           <td className="px-4 py-3 text-sm font-semibold">{material.currentStock || '0'}</td>
@@ -855,7 +845,7 @@ function TypesTable({
           </td>
         </tr>
       ))}
-    </TableWrap>
+    </DataTable>
   );
 }
 
@@ -865,24 +855,46 @@ function PurchasesTable({
   canDelete,
   onEdit,
   onDelete,
+  loading,
+  page,
+  totalPages,
+  totalItems,
+  onPageChange
 }: {
   purchases: RawMaterialPurchase[];
   canUpdate: boolean;
   canDelete: boolean;
   onEdit: (purchase: RawMaterialPurchase) => void;
   onDelete: (purchase: RawMaterialPurchase) => void;
+  loading: boolean;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
 }) {
   return (
-    <TableWrap
-      empty={purchases.length === 0}
-      emptyText="No purchases found."
-      headerLabels={['Item', 'Supplier', 'Qty / Unit', 'Cost / Unit', 'Total', 'Status', 'Date', 'Actions']}
+    <DataTable
+      headers={['Item', 'Supplier', 'Qty / Unit', 'Cost / Unit', 'Total', 'Status', 'Date', 'Actions']}
+      loading={loading}
+      page={page}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      onPageChange={onPageChange}
+      emptyIcon={<Truck className="h-6 w-6 text-slate-400" />}
+      emptyTitle="No purchases found"
     >
       {purchases.map(purchase => (
         <tr key={purchase.id} className="theme-table-row">
           <td className="px-4 py-3">
-            <p className="theme-text-primary font-bold">{purchase.materialType?.name || purchase.materialTypeId}</p>
-            <p className="text-sm text-slate-500">{purchase.invoiceNumber || '-'}</p>
+            <div className="flex items-center gap-3">
+              <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
+                <Truck className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="theme-text-primary font-bold">{purchase.materialType?.name || purchase.materialTypeId}</p>
+                <p className="text-sm text-slate-500">{purchase.invoiceNumber || '-'}</p>
+              </div>
+            </div>
           </td>
           <td className="px-4 py-3 text-sm">{purchase.supplier?.name || purchase.supplierId}</td>
           <td className="px-4 py-3 text-sm font-semibold">{purchase.quantity} {purchase.materialType?.unit || ''}</td>
@@ -908,73 +920,56 @@ function PurchasesTable({
           </td>
         </tr>
       ))}
-    </TableWrap>
+    </DataTable>
   );
 }
 
-function IssuancesTable({ issuances }: { issuances: RawMaterialIssuance[] }) {
+function IssuancesTable({
+  issuances,
+  loading,
+  page,
+  totalPages,
+  totalItems,
+  onPageChange
+}: {
+  issuances: RawMaterialIssuance[];
+  loading: boolean;
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}) {
   return (
-    <TableWrap
-      empty={issuances.length === 0}
-      emptyText="No assignment issuances found. Manual issuance creation is disabled."
-      headerLabels={['Item', 'Qty / Unit', 'Date', 'Notes']}
+    <DataTable
+      headers={['Item', 'Qty / Unit', 'Date', 'Notes']}
+      loading={loading}
+      page={page}
+      totalPages={totalPages}
+      totalItems={totalItems}
+      onPageChange={onPageChange}
+      emptyIcon={<FileText className="h-6 w-6 text-slate-400" />}
+      emptyTitle="No assignment issuances found"
+      emptySubtitle="Manual issuance creation is disabled."
     >
       {issuances.map(issuance => (
         <tr key={issuance.id} className="theme-table-row">
           <td className="px-4 py-3">
-            <p className="theme-text-primary font-bold">{issuance.materialType?.name || issuance.materialTypeId}</p>
-            <p className="text-sm text-slate-500">Assignment: {issuance.assignmentId}</p>
+            <div className="flex items-center gap-3">
+              <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="theme-text-primary font-bold">{issuance.materialType?.name || issuance.materialTypeId}</p>
+                <p className="text-sm text-slate-500">Assignment: {issuance.assignmentId}</p>
+              </div>
+            </div>
           </td>
           <td className="px-4 py-3 text-sm font-semibold">{issuance.quantity} {issuance.materialType?.unit || ''}</td>
           <td className="px-4 py-3 text-sm text-slate-500">{prettyDate(issuance.issuedAt)}</td>
           <td className="px-4 py-3 text-sm text-slate-500">{issuance.notes || '-'}</td>
         </tr>
       ))}
-    </TableWrap>
-  );
-}
-
-function TableWrap({
-  children,
-  empty,
-  emptyText,
-  headerLabels,
-}: {
-  children: React.ReactNode;
-  empty: boolean;
-  emptyText: string;
-  headerLabels?: string[];
-}) {
-  if (empty) {
-    return <div className="p-12 text-center text-sm font-medium text-slate-500">{emptyText}</div>;
-  }
-
-  const headers = headerLabels ?? [
-    'Item',
-    'Party / Unit',
-    'Qty / Stock',
-    'Rate / Status',
-    'Total / Notes',
-    'Status',
-    'Date',
-    'Actions',
-  ];
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
-        <thead className="theme-table-header">
-          <tr>
-            {headers.map((label, index) => (
-              <th key={label} className={`px-4 py-3 ${index === headers.length - 1 ? 'text-right' : ''}`}>
-                {label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">{children}</tbody>
-      </table>
-    </div>
+    </DataTable>
   );
 }
 

@@ -443,14 +443,6 @@ export default function RolesPage() {
             {canCreate && (
               <div className="mt-3 space-y-2">
                 <button
-                  onClick={handleSeedOwnerRoles}
-                  disabled={isSeeding}
-                  className="theme-secondary-btn flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-bold transition disabled:opacity-60"
-                >
-                  {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-                  Seed Owner Roles
-                </button>
-                <button
                   onClick={handleCreateRole}
                   className="theme-secondary-btn flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-bold transition"
                 >
