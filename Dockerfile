@@ -15,6 +15,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Install ALL dependencies
+RUN pnpm config set unsafe-perm true
 RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the source code
