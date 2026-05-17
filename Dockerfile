@@ -14,9 +14,9 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Copy dependency manifests first (layer cache)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install ALL dependencies
-RUN pnpm config set unsafe-perm true
-RUN pnpm install --frozen-lockfile
+# Install ALL dependencies (skip build scripts, then rebuild sharp explicitly)
+RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm rebuild sharp
 
 # Copy the rest of the source code
 COPY . .
