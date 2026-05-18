@@ -1,7 +1,4 @@
-const BACKEND_API_URL = (process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL) as string;
-if (!BACKEND_API_URL) {
-  throw new Error('BACKEND_API_URL or NEXT_PUBLIC_API_URL environment variable is not defined');
-}
+import { getApiUrl } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +43,7 @@ function splitSetCookieHeader(header: string) {
 async function proxy(request: Request, context: RouteParams) {
   const { path = [] } = await context.params;
   const inboundUrl = new URL(request.url);
-  const targetUrl = new URL(`${BACKEND_API_URL.replace(/\/$/, '')}/${path.join('/')}`);
+  const targetUrl = new URL(getApiUrl(path.join('/')), inboundUrl.origin);
   targetUrl.search = inboundUrl.search;
 
   const headers = new Headers(request.headers);
