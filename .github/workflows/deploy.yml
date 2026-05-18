@@ -49,7 +49,7 @@ jobs:
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 
-            cd /home/ubuntu/flowoid
+            cd /home/deploy/flowoid
 
             # Save current commit for rollback
             PREV_COMMIT=$(git rev-parse HEAD)
