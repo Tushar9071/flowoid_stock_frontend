@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { AlertTriangle, Plus, Search, Package, Layers, RefreshCw, Gem, Bell, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,12 +17,24 @@ import {
   responseItems,
   SupplementaryService,
 } from '@/lib/services/business-modules.service';
-import { SampleSeedService } from '@/lib/services/sample-seed.service';
 import { RawMaterialService } from '@/lib/services/raw-material.service';
 import { BackendTenant, RawMaterialStockSummary } from '@/lib/types';
 
 type Tab = 'unpackaged' | 'packaged' | 'alerts' | 'supplementary';
 type ModalMode = 'adjustment' | 'packaging' | 'alert' | 'view' | null;
+type InventoryLoadingKey = 'stock' | 'rawStock' | 'packagingBatches' | 'alerts' | 'supplementary' | 'designs';
+type InventoryLoadingState = Record<InventoryLoadingKey, boolean>;
+
+function createLoadingState(value: boolean): InventoryLoadingState {
+  return {
+    stock: value,
+    rawStock: value,
+    packagingBatches: value,
+    alerts: value,
+    supplementary: value,
+    designs: value,
+  };
+}
 
 function prettyDate(value?: string | null) {
   if (!value) return '-';
@@ -39,12 +51,13 @@ function designName(item: BackendRecord) {
 
 export default function InventoryPage() {
   const { hasPermission } = useAuth();
+  const loadRunRef = useRef(0);
   const [tenant, setTenant] = useState<BackendTenant | null>(null);
   const [tab, setTab] = useState<Tab>('unpackaged');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<InventoryLoadingState>(() => createLoadingState(true));
   const [stock, setStock] = useState<BackendRecord[]>([]);
   const [designs, setDesigns] = useState<BackendRecord[]>([]);
   const [rawStock, setRawStock] = useState<RawMaterialStockSummary[]>([]);
@@ -59,36 +72,70 @@ export default function InventoryPage() {
 
   const canCreate = hasPermission('stock_items.create') || hasPermission('inventory.create');
   const canUpdate = hasPermission('inventory.update');
+  const isLoading = Object.values(loading).some(Boolean);
+  const tabLoading =
+    tab === 'unpackaged'
+      ? loading.stock
+      : tab === 'packaged'
+        ? loading.packagingBatches
+        : tab === 'alerts'
+          ? loading.alerts || loading.rawStock
+          : loading.supplementary;
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    const runId = loadRunRef.current + 1;
+    loadRunRef.current = runId;
+    setLoading(createLoadingState(true));
+
+    const finishLoading = (key: InventoryLoadingKey) => {
+      if (loadRunRef.current !== runId) return;
+      setLoading(current => ({ ...current, [key]: false }));
+    };
+
+    const loadSection = async <T,>(
+      key: InventoryLoadingKey,
+      request: Promise<{ success: boolean; data: T; error?: { message?: string } }>,
+      apply: (data: T) => void
+    ) => {
+      try {
+        const response = await request;
+        if (loadRunRef.current !== runId) return;
+        if (response.success) apply(response.data);
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`Failed to load inventory section "${key}"`, error);
+        }
+      } finally {
+        finishLoading(key);
+      }
+    };
+
     try {
       const tenantRes = await CurrentTenantService.getCurrentTenant();
       if (!tenantRes.success || !tenantRes.data) {
         toast.error(tenantRes.error?.message || 'No business tenant found');
+        if (loadRunRef.current === runId) {
+          setLoading(createLoadingState(false));
+        }
         return;
       }
 
       setTenant(tenantRes.data);
-      const [stockRes, rawStockRes, batchesRes, alertsRes, supplementaryRes, designsRes] = await Promise.all([
-        InventoryService.listStock(tenantRes.data.id, { page: 1, limit: 100 }),
-        RawMaterialService.stock(tenantRes.data.id),
-        InventoryService.listPackagingBatches(tenantRes.data.id, { page: 1, limit: 100 }),
-        InventoryService.listLowStockAlerts(tenantRes.data.id, { page: 1, limit: 100 }),
-        SupplementaryService.list(tenantRes.data.id, { page: 1, limit: 100 }),
-        DesignService.list(tenantRes.data.id, { page: 1, limit: 100 }),
-      ]);
+      const tenantId = tenantRes.data.id;
 
-      if (stockRes.success) setStock(responseItems(stockRes.data));
-      if (rawStockRes.success) setRawStock(rawStockRes.data || []);
-      if (batchesRes.success) setPackagingBatches(responseItems(batchesRes.data));
-      if (alertsRes.success) setAlerts(responseItems(alertsRes.data));
-      if (supplementaryRes.success) setSupplementary(responseItems(supplementaryRes.data));
-      if (designsRes.success) setDesigns(responseItems(designsRes.data));
+      await Promise.all([
+        loadSection('stock', InventoryService.listStock(tenantId, { page: 1, limit: 100 }), data => setStock(responseItems(data))),
+        loadSection('rawStock', RawMaterialService.stock(tenantId), data => setRawStock(data || [])),
+        loadSection('packagingBatches', InventoryService.listPackagingBatches(tenantId, { page: 1, limit: 100 }), data => setPackagingBatches(responseItems(data))),
+        loadSection('alerts', InventoryService.listLowStockAlerts(tenantId, { page: 1, limit: 100 }), data => setAlerts(responseItems(data))),
+        loadSection('supplementary', SupplementaryService.list(tenantId, { page: 1, limit: 100 }), data => setSupplementary(responseItems(data))),
+        loadSection('designs', DesignService.list(tenantId, { page: 1, limit: 100 }), data => setDesigns(responseItems(data))),
+      ]);
     } catch {
       toast.error('Failed to load inventory data');
-    } finally {
-      setLoading(false);
+      if (loadRunRef.current === runId) {
+        setLoading(createLoadingState(false));
+      }
     }
   }, []);
 
@@ -100,21 +147,7 @@ export default function InventoryPage() {
     setPage(1);
   }, [tab, search]);
 
-  const seedData = async () => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
-    if (!currentTenant?.id) return toast.error('Tenant not found. Please login again or create a business tenant.');
 
-    setSeeding(true);
-    try {
-      await SampleSeedService.seedInventoryModule(currentTenant.id);
-      toast.success('Seed inventory data added');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to seed inventory data');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const filteredStock = useMemo(() => {
     const term = search.toLowerCase();
@@ -359,24 +392,24 @@ export default function InventoryPage() {
             value={search}
             onChange={event => setSearch(event.target.value)}
             placeholder="Search design..."
-            className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-9 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
+            className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
           />
         </div>
-        <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold">
-          <RefreshCw className="h-4 w-4" />
+        <button onClick={loadData} disabled={isLoading} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-70">
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
 
-      {loading && tab === 'unpackaged' && <SkeletonTable rows={8} cols={6} />}
-      {loading && tab === 'packaged' && <SkeletonCard count={6} />}
-      {loading && tab === 'alerts' && <SkeletonTable rows={6} cols={5} />}
-      {loading && tab === 'supplementary' && <SkeletonForm fields={4} />}
+      {tabLoading && tab === 'unpackaged' && <SkeletonTable rows={8} cols={6} />}
+      {tabLoading && tab === 'packaged' && <SkeletonCard count={6} />}
+      {tabLoading && tab === 'alerts' && <SkeletonTable rows={6} cols={5} />}
+      {tabLoading && tab === 'supplementary' && <SkeletonForm fields={4} />}
 
-      {!loading && tab === 'unpackaged' && (
+      {!tabLoading && tab === 'unpackaged' && (
         <DataTable
           headers={['Design Code', 'Design Name', 'Unpackaged', 'Packaged', 'Threshold', 'Last Updated', 'Actions']}
-          loading={loading}
+          loading={loading.stock}
           page={page}
           totalPages={Math.ceil(filteredStock.length / itemsPerPage)}
           totalItems={filteredStock.length}
@@ -411,10 +444,10 @@ export default function InventoryPage() {
         </DataTable>
       )}
 
-      {!loading && tab === 'packaged' && (
+      {!tabLoading && tab === 'packaged' && (
         <DataTable
           headers={['Batch No', 'Design', 'Packaged (Dozens)', 'Date']}
-          loading={loading}
+          loading={loading.packagingBatches}
           page={page}
           totalPages={Math.ceil(filteredBatches.length / itemsPerPage)}
           totalItems={filteredBatches.length}
@@ -440,10 +473,10 @@ export default function InventoryPage() {
         </DataTable>
       )}
 
-      {!loading && tab === 'alerts' && (
+      {!tabLoading && tab === 'alerts' && (
         <DataTable
           headers={['Item', 'Module', 'Current', 'Threshold', 'Status', 'Action']}
-          loading={loading}
+          loading={loading.alerts || loading.rawStock}
           page={page}
           totalPages={Math.ceil(filteredAlerts.length / itemsPerPage)}
           totalItems={filteredAlerts.length}
@@ -465,10 +498,10 @@ export default function InventoryPage() {
         </DataTable>
       )}
 
-      {!loading && tab === 'supplementary' && (
+      {!tabLoading && tab === 'supplementary' && (
         <DataTable
           headers={['Item', 'Unit', 'Current Stock', 'Status', 'Updated']}
-          loading={loading}
+          loading={loading.supplementary}
           page={page}
           totalPages={Math.ceil(filteredSupplementary.length / itemsPerPage)}
           totalItems={filteredSupplementary.length}

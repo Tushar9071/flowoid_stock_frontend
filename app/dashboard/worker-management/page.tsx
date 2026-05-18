@@ -20,7 +20,6 @@ import {
   responseItems,
   WorkerService,
 } from '@/lib/services/business-modules.service';
-import { SampleSeedService } from '@/lib/services/sample-seed.service';
 import { RawMaterialService } from '@/lib/services/raw-material.service';
 import { BackendTenant } from '@/lib/types';
 
@@ -159,7 +158,7 @@ export default function WorkerManagementPage() {
   const [tab, setTab] = useState<Tab>('workers');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const itemsPerPage = 12;
+  const [itemsPerPage, setItemsPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
   const [workers, setWorkers] = useState<BackendRecord[]>([]);
   const [assignments, setAssignments] = useState<BackendRecord[]>([]);
@@ -235,21 +234,7 @@ export default function WorkerManagementPage() {
     setPage(1);
   }, [tab, search]);
 
-  const seedData = async () => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
-    if (!currentTenant?.id) return toast.error('Tenant not found. Please login again or create a business tenant.');
 
-    setSeeding(true);
-    try {
-      await SampleSeedService.seedWorkerModule(currentTenant.id);
-      toast.success('Seed worker data added');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to seed worker data');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const workerFields: SimpleField[] = [
     { name: 'name', label: 'Name', required: true },
@@ -698,7 +683,7 @@ export default function WorkerManagementPage() {
             value={search}
             onChange={event => setSearch(event.target.value)}
             placeholder="Search workers..."
-            className="theme-focus-ring h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-9 pr-3 text-sm outline-none transition-all focus:bg-white"
+            className="theme-focus-ring h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:bg-white"
           />
         </div>
         <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold">
@@ -717,6 +702,8 @@ export default function WorkerManagementPage() {
           totalPages={Math.ceil(filteredWorkers.length / itemsPerPage)}
           totalItems={filteredWorkers.length}
           onPageChange={setPage}
+          limit={itemsPerPage}
+          onLimitChange={setItemsPerPage}
           emptyIcon={<Users className="h-6 w-6 text-slate-400" />}
           emptyTitle="No workers found"
           emptySubtitle="Add a worker or adjust your search."
@@ -765,6 +752,8 @@ export default function WorkerManagementPage() {
             totalPages={Math.ceil(filteredAssignments.length / itemsPerPage)}
             totalItems={filteredAssignments.length}
             onPageChange={setPage}
+            limit={itemsPerPage}
+            onLimitChange={setItemsPerPage}
             emptyIcon={<ClipboardList className="h-6 w-6 text-slate-400" />}
             emptyTitle="No assignments found"
           >

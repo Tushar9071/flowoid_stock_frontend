@@ -229,13 +229,13 @@ export default function RegisterPage() {
 
       <div className="relative flex h-full w-full flex-col overflow-y-auto bg-[#F8F9FC] md:w-[55%]">
         <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col justify-center px-6 py-12 sm:px-12">
-          <div className="mb-10 flex justify-center md:hidden">
+          <div className="mb-6 flex justify-center md:hidden">
             <Image
-              src="/brand/StockFlow_horizontal_blue.svg"
+              src="/Appicon_blue.png"
               alt="StockFlow"
-              width={136}
-              height={34}
-              className="h-8 w-auto object-contain"
+              width={64}
+              height={64}
+              className="h-16 w-16 object-contain"
               priority
             />
           </div>
@@ -246,10 +246,10 @@ export default function RegisterPage() {
               <div className="h-px flex-1 bg-[#E2E8F0]" />
               <StepDot active={step === "business"} done={success} label="Business" />
             </div>
-            <h2 className="text-[32px] font-extrabold tracking-tight text-[#0F1C2E]">
+            <h2 className="text-[32px] font-extrabold tracking-tight text-[#0F1C2E] text-center">
               {step === "account" ? "Create account" : "Business details"}
             </h2>
-            <p className="mt-2 text-[15px] text-[#4B5C72]">
+            <p className="mt-2 text-[15px] text-[#4B5C72] text-center">
               {step === "account" ? "Start your Flowoid workspace" : "Set up your tenant before opening the dashboard"}
             </p>
           </div>

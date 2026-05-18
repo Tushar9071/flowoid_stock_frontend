@@ -180,7 +180,6 @@ export default function RawMaterialsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [seedLoading, setSeedLoading] = useState(false);
-  const [checkingApis, setCheckingApis] = useState(false);
   const [typeModalMode, setTypeModalMode] = useState<TypeModalMode | null>(null);
   const [purchaseModalMode, setPurchaseModalMode] = useState<PurchaseModalMode | null>(null);
   const [selectedType, setSelectedType] = useState<RawMaterialType | null>(null);
@@ -509,49 +508,6 @@ export default function RawMaterialsPage() {
     }
   };
 
-  const checkRawMaterialApis = async () => {
-    const currentTenant = tenant || await loadTenant();
-    if (!currentTenant) return;
-
-    setCheckingApis(true);
-    try {
-      const [typesRes, purchasesRes, stockRes, issuancesRes, suppliersRes] = await Promise.all([
-        RawMaterialService.listTypes(currentTenant.id, { page: 1, limit: 5 }),
-        RawMaterialService.listPurchases(currentTenant.id, { page: 1, limit: 5 }),
-        RawMaterialService.stock(currentTenant.id),
-        RawMaterialService.listIssuances(currentTenant.id, { page: 1, limit: 5 }),
-        PartyService.dropdown(currentTenant.id, { type: 'SUPPLIER', isActive: true, limit: 5 }),
-      ]);
-
-      const detailChecks: Array<Promise<unknown>> = [];
-      if (typesRes.success && typesRes.data.items[0]) {
-        detailChecks.push(RawMaterialService.getType(currentTenant.id, typesRes.data.items[0].id));
-      }
-      if (purchasesRes.success && purchasesRes.data.items[0]) {
-        detailChecks.push(RawMaterialService.getPurchase(currentTenant.id, purchasesRes.data.items[0].id));
-      }
-      if (issuancesRes.success && issuancesRes.data.items[0]) {
-        detailChecks.push(RawMaterialService.getIssuance(currentTenant.id, issuancesRes.data.items[0].id));
-      }
-
-      const detailResults = await Promise.all(detailChecks);
-      const allOk = [typesRes, purchasesRes, stockRes, issuancesRes, suppliersRes, ...detailResults]
-        .every((result: any) => result?.success !== false);
-
-      if (allOk) {
-        toast.success('Raw material APIs checked successfully');
-      } else {
-        toast.error('One or more raw material APIs returned an error');
-      }
-
-      await loadData();
-    } catch {
-      toast.error('Raw material API check failed');
-    } finally {
-      setCheckingApis(false);
-    }
-  };
-
   const tabs = [
     { id: 'stock' as Tab, label: 'Stock', icon: Boxes },
     { id: 'types' as Tab, label: 'Types', icon: Package },
@@ -566,14 +522,6 @@ export default function RawMaterialsPage() {
       action={
         canCreate ? (
           <div className="flex flex-wrap justify-end gap-2">
-            <button
-              onClick={checkRawMaterialApis}
-              disabled={checkingApis}
-              className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
-            >
-              {checkingApis ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Check APIs
-            </button>
             <button
               onClick={() => tab === 'purchases' ? openPurchaseModal() : openTypeModal()}
               className="theme-accent-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold"
@@ -639,7 +587,7 @@ export default function RawMaterialsPage() {
                       value={search}
                       onChange={event => setSearch(event.target.value)}
                       placeholder="Search material types..."
-                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none"
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none"
                     />
                   </div>
                   <select value={status} onChange={event => setStatus(event.target.value as typeof status)} className="h-10 rounded-lg text-sm font-semibold">

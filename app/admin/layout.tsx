@@ -41,6 +41,14 @@ const ADMIN_PAGE_META: Record<string, {
     title: 'Approval Workflows',
     subtitle: 'Create and monitor multi-step approval chains',
   },
+  '/admin/logs': {
+    title: 'System Logs',
+    subtitle: 'View and filter platform activities and system errors',
+  },
+  '/admin/backup': {
+    title: 'Database Backups',
+    subtitle: 'Manage and trigger database snapshots',
+  },
   '/admin/audit-logs': {
     title: 'Audit Logs',
     subtitle: 'Track platform activities and administrative changes',
@@ -73,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex-1 flex flex-col overflow-hidden">
           <AdminHeader />
           <div className="shrink-0 bg-white border-b border-[#e5e7eb] px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-[26px] font-bold theme-text-primary leading-tight">{pageMeta.title}</h1>
                 <p className="text-sm text-[#6b7280] mt-0.5">{pageMeta.subtitle}</p>

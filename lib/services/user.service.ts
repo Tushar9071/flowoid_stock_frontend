@@ -42,12 +42,4 @@ export const UserService = {
     return api.delete<ManagedUser | { message: string }>(`/users/${id}`);
   },
 
-  async getDashboardStats() {
-    return api.get<{
-      totalTenants: number;
-      activeUsers: number;
-      totalOrders: number;
-      revenue: number;
-    }>('/admin/stats');
-  }
 };

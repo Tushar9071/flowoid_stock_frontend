@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, LogOut, User, Search, Settings } from 'lucide-react';
+import { Bell, LogOut, User, Search, Settings, Loader2 } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { normalizeRole } from '@/lib/roles';
 
@@ -18,11 +18,12 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
   const { user, role, logout } = useAuth();
   const router = useRouter();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const roleKey = normalizeRole(role);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logout();
   };
 
   return (
@@ -113,8 +114,9 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
                     <button 
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-bold text-[#cc2200] rounded-lg hover:bg-[#fff0f0] transition-colors"
+                      disabled={isLoggingOut}
                     >
-                      <LogOut className="w-4 h-4" />
+                      {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
                       Sign Out
                     </button>
                   </div>

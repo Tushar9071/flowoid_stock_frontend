@@ -202,12 +202,14 @@ export async function apiFetch<T>(
       }
     }
 
-    // Debug log to help identify the token location (Development only)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[API Response] ${endpoint}:`, { 
-        status: response.status, 
-        body: result,
-        headers: Object.fromEntries(response.headers.entries())
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.NEXT_PUBLIC_API_DEBUG === 'true'
+    ) {
+      console.debug(`[API Response] ${endpoint}`, {
+        status: response.status,
+        ok: response.ok,
+        bytes: responseText.length,
       });
     }
 

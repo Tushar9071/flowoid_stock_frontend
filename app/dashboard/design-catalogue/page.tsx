@@ -16,7 +16,6 @@ import {
   responseItems,
   SupplementaryService,
 } from '@/lib/services/business-modules.service';
-import { SampleSeedService } from '@/lib/services/sample-seed.service';
 import { BackendTenant } from '@/lib/types';
 
 type ViewMode = 'grid' | 'list';
@@ -49,7 +48,7 @@ export default function DesignCataloguePage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [page, setPage] = useState(1);
-  const itemsPerPage = 12;
+  const [itemsPerPage, setItemsPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
   const [designs, setDesigns] = useState<BackendRecord[]>([]);
   const [categories, setCategories] = useState<BackendRecord[]>([]);
@@ -120,21 +119,7 @@ export default function DesignCataloguePage() {
     setPage(1);
   }, [searchTerm, selectedCategory]);
 
-  const seedData = async () => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
-    if (!currentTenant?.id) return toast.error('Tenant not found. Please login again or create a business tenant.');
 
-    setSeeding(true);
-    try {
-      await SampleSeedService.seedDesignModule(currentTenant.id);
-      toast.success('Seed design data added');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to seed design data');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const designFields: SimpleField[] = [
     { name: 'categoryId', label: 'Category', type: 'select', required: true, options: categories.map(category => ({ label: category.name || category.title || 'Category', value: category.id })) },
@@ -403,7 +388,7 @@ export default function DesignCataloguePage() {
                 placeholder="Search designs..."
                 value={searchTerm}
                 onChange={event => setSearchTerm(event.target.value)}
-                className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-9 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
+                className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
               />
             </div>
             <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold">
@@ -492,9 +477,27 @@ export default function DesignCataloguePage() {
 
         {paginatedDesigns.length > 0 && viewMode === 'grid' && (
           <div className="flex flex-col gap-3 border-t border-[#f3f4f6] pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-[#6b7280]">
-              Page {page} of {Math.max(Math.ceil(filteredDesigns.length / itemsPerPage), 1)} / {filteredDesigns.length} total
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-[#6b7280]">
+                Page {page} of {Math.max(Math.ceil(filteredDesigns.length / itemsPerPage), 1)} / {filteredDesigns.length} total
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#6b7280]">Rows:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={e => {
+                    setItemsPerPage(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-8 rounded-lg border border-[#e5e7eb] bg-white px-2 text-sm font-semibold text-[#374151] outline-none transition"
+                >
+                  <option value="6">6</option>
+                  <option value="12">12</option>
+                  <option value="18">18</option>
+                  <option value="24">24</option>
+                </select>
+              </div>
+            </div>
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
@@ -522,6 +525,8 @@ export default function DesignCataloguePage() {
             totalPages={Math.ceil(filteredDesigns.length / itemsPerPage)}
             totalItems={filteredDesigns.length}
             onPageChange={setPage}
+            limit={itemsPerPage}
+            onLimitChange={setItemsPerPage}
             emptyIcon={<Gem className="h-6 w-6 text-slate-400" />}
             emptyTitle="No designs found"
             emptySubtitle={tenant ? 'Try adjusting search or filters.' : 'A tenant is required before designs can be loaded.'}

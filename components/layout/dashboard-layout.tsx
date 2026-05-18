@@ -35,7 +35,7 @@ export function DashboardLayout({ children, title, subtitle, action, breadcrumb 
         {/* Page header banner */}
         {(title || action) && (
           <div className="shrink-0 bg-white border-b border-[#e5e7eb] px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 {title && (
                   <h1 className="text-[26px] font-bold theme-text-primary leading-tight">{title}</h1>

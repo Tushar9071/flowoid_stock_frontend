@@ -7,6 +7,7 @@ import { PermissionService, RoleService } from '@/lib/services/role-permission.s
 import { Permission } from '@/lib/types';
 import toast from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type PermissionForm = {
   code: string;
@@ -238,76 +239,13 @@ export default function PermissionsPage() {
     }
   };
 
-  // ── Seed buttons ────────────────────────────────────────────────────────────
-  const seedTemplates = async (templates: typeof defaultPermissionTemplates) => {
-    const existingCodes = new Set(permissions.map(p => p.code));
-    const missing = templates.filter(t => !existingCodes.has(t.code));
-    let created = 0;
-    for (const t of missing) {
-      const r = await PermissionService.create(t);
-      if (r.success) created++;
-    }
-    return created;
-  };
 
-  const assignToOwnerRole = async (allPermissions: Permission[], permCodes: string[]) => {
-    const rolesRes = await RoleService.list();
-    if (!rolesRes.success) return false;
-    const role = (rolesRes.data || []).find(r => OWNER_ROLE_NAMES.has(r.name.toUpperCase()));
-    if (!role) { toast.error('Owner role not found — run "Seed Owner Roles" in Roles page first'); return false; }
 
-    const existing = new Set(role.permissions?.map((rp: any) => rp.permission?.id || rp.id) || []);
-    const newIds = permCodes
-      .map(code => allPermissions.find(p => p.code === code)?.id)
-      .filter((id): id is string => Boolean(id));
-    const merged = Array.from(new Set([...existing, ...newIds]));
 
-    const res = await RoleService.update(role.id, {
-      name: role.name,
-      description: role.description || undefined,
-      isActive: role.isActive,
-      permissionIds: merged,
-    });
-    if (res.success) toast.success(`Assigned to ${role.name}`);
-    else toast.error(res.error?.message || 'Failed to assign permissions');
-    return res.success;
-  };
 
-  const handleSeedDefaults = async () => {
-    setIsSaving(true);
-    try {
-      const created = await seedTemplates(defaultPermissionTemplates);
-      if (created === 0) toast.success('Default permissions already exist');
-      else toast.success(`${created} default permissions created`);
-      await fetchPermissions();
-    } catch { toast.error('Failed to seed default permissions'); }
-    finally { setIsSaving(false); }
-  };
 
-  const handleSeedFreeOwner = async () => {
-    setIsSaving(true);
-    try {
-      await seedTemplates(defaultPermissionTemplates);
-      const permsRes = await PermissionService.list();
-      if (!permsRes.success) { toast.error('Failed to reload permissions'); return; }
-      await assignToOwnerRole(permsRes.data || [], defaultPermissionTemplates.map(t => t.code));
-      setPermissions(permsRes.data || []);
-    } catch { toast.error('Failed to seed & assign free owner permissions'); }
-    finally { setIsSaving(false); }
-  };
 
-  const handleSeedWorkerAssignments = async () => {
-    setIsSaving(true);
-    try {
-      const created = await seedTemplates(workerAssignmentTemplates);
-      const permsRes = await PermissionService.list();
-      if (!permsRes.success) { toast.error('Seeded but failed to reload'); return; }
-      await assignToOwnerRole(permsRes.data || [], workerAssignmentTemplates.map(t => t.code));
-      setPermissions(permsRes.data || []);
-      if (created > 0) toast.success(`${created} worker assignment permissions seeded`);
-    } catch { toast.error('Failed to seed worker assignment permissions'); }
-    finally { setIsSaving(false); }
-  };
+
 
   const handleDeletePermission = async (perm: Permission) => {
     if (!window.confirm(`Delete permission "${perm.name}"? Roles using it may lose access.`)) return;
@@ -331,8 +269,18 @@ export default function PermissionsPage() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center p-12">
-        <Loader2 className="theme-text-accent w-8 h-8 animate-spin" />
+      <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+        <div className="flex justify-end">
+          <Skeleton className="h-10 w-40 rounded-xl" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-xl w-full" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -89,6 +89,9 @@ export function SalesChart({ data = [] }: { data?: SalesDataPoint[] }) {
               strokeWidth={3}
               fillOpacity={1}
               fill="url(#colorSales)"
+              isAnimationActive={true}
+              animationDuration={2000}
+              animationEasing="ease-in-out"
             />
           </AreaChart>
         </ResponsiveContainer>
