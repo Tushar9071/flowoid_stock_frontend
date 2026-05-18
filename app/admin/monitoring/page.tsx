@@ -17,6 +17,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const MONITORING_SOCKET_URL = process.env.NEXT_PUBLIC_MONITORING_SOCKET_URL as string;
 
@@ -108,8 +109,19 @@ export default function MonitoringPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center p-12">
-        <Loader2 className="h-9 w-9 animate-spin text-[#0D7377]" />
+      <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <div className="flex justify-between">
+          <Skeleton className="h-6 w-48 rounded-full" />
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[120px] rounded-xl w-full" />
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Skeleton className="h-[400px] rounded-xl w-full lg:col-span-2" />
+          <Skeleton className="h-[400px] rounded-xl w-full" />
+        </div>
       </div>
     );
   }

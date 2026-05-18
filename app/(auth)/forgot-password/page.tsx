@@ -75,13 +75,13 @@ export default function ForgotPasswordPage() {
 
       <div className="w-full md:w-[55%] h-full flex flex-col bg-[#F8F9FC] relative overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 py-12 w-full max-w-[460px] mx-auto">
-          <div className="md:hidden flex items-center mb-10 justify-center">
+          <div className="md:hidden flex items-center mb-6 justify-center">
             <Image
-              src="/brand/StockFlow_horizontal_blue.svg"
+              src="/Appicon_blue.png"
               alt="StockFlow"
-              width={136}
-              height={34}
-              className="h-8 w-auto object-contain"
+              width={64}
+              height={64}
+              className="h-16 w-16 object-contain"
               priority
             />
           </div>
@@ -92,8 +92,8 @@ export default function ForgotPasswordPage() {
           </Link>
 
           <div>
-            <h2 className="text-[#0F1C2E] font-extrabold text-[32px] tracking-tight">Reset password</h2>
-            <p className="text-[#4B5C72] text-[15px] mt-2">Enter your email or phone number</p>
+            <h2 className="text-[#0F1C2E] font-extrabold text-[32px] tracking-tight text-center">Reset password</h2>
+            <p className="text-[#4B5C72] text-[15px] mt-2 text-center">Enter your email or phone number</p>
           </div>
 
           <motion.form

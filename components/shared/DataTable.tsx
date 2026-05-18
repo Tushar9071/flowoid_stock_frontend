@@ -50,6 +50,10 @@ interface DataTableProps {
   children?: React.ReactNode;
   /** Extra className for the outer card wrapper */
   className?: string;
+  /** Current rows per page limit */
+  limit?: number;
+  /** Called when the user changes the rows per page limit */
+  onLimitChange?: (limit: number) => void;
 }
 
 export function DataTable({
@@ -65,6 +69,8 @@ export function DataTable({
   skeletonRows = 6,
   children,
   className = '',
+  limit = 10,
+  onLimitChange,
 }: DataTableProps) {
   const isEmpty = !loading && React.Children.count(children) === 0;
 
@@ -108,11 +114,29 @@ export function DataTable({
       {/* Pagination footer — always visible */}
       {onPageChange && (
         <div className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500">
-            {loading
-              ? 'Loading…'
-              : `Page ${page} of ${Math.max(totalPages, 1)} · ${totalItems} total`}
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <p className="text-sm text-slate-500">
+              {loading
+                ? 'Loading…'
+                : `Page ${page} of ${Math.max(totalPages, 1)} · ${totalItems} total`}
+            </p>
+            
+            {onLimitChange && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">Rows:</span>
+                <select
+                  value={limit}
+                  onChange={e => onLimitChange(Number(e.target.value))}
+                  className="h-7 rounded-lg border border-slate-200 bg-white px-1.5 text-xs font-semibold text-slate-700 outline-none transition"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               disabled={page <= 1 || loading}

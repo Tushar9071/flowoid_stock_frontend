@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type RoleForm = {
   name: string;
@@ -324,78 +325,18 @@ export default function RolesPage() {
     }
   };
 
-  const handleSeedOwnerRoles = async () => {
-    if (!canCreate || !canUpdate) {
-      toast.error('You need role create and update permission to seed owner roles');
-      return;
-    }
 
-    setIsSeeding(true);
-    try {
-      const permissionsRes = await PermissionService.list();
-      let allPermissions = permissionsRes.success ? permissionsRes.data || [] : permissions;
-      const existingCodes = new Set(allPermissions.map(permission => permission.code));
-
-      for (const template of seededPermissionTemplates) {
-        if (existingCodes.has(template.code)) continue;
-        const created = await PermissionService.create(template);
-        if (created.success && created.data) {
-          allPermissions = [...allPermissions, created.data];
-          existingCodes.add(created.data.code);
-        }
-      }
-
-      const rolesRes = await RoleService.list();
-      let allRoles = rolesRes.success ? rolesRes.data || [] : roles;
-      let seededCount = 0;
-
-      for (const roleTemplate of ownerRoleSeedTemplates) {
-        const permissionIds = roleTemplate.permissionCodes
-          .map(code => allPermissions.find(permission => permission.code === code)?.id)
-          .filter((id): id is string => Boolean(id));
-        const existingRole = allRoles.find(role => role.name.toUpperCase() === roleTemplate.name);
-
-        const response = existingRole
-          ? await RoleService.update(existingRole.id, {
-              name: existingRole.name,
-              description: roleTemplate.description,
-              isActive: true,
-              permissionIds,
-            })
-          : await RoleService.create({
-              name: roleTemplate.name,
-              description: roleTemplate.description,
-              isActive: true,
-              permissionIds,
-            });
-
-        if (response.success) {
-          seededCount += 1;
-          allRoles = existingRole
-            ? allRoles.map(role => (role.id === response.data.id ? response.data : role))
-            : [response.data, ...allRoles];
-        } else {
-          toast.error(response.error?.message || `Failed to seed ${roleTemplate.name}`);
-        }
-      }
-
-      setPermissions(allPermissions);
-      setRoles(allRoles);
-      setSelectedRole(allRoles.find(role => role.name.toUpperCase() === 'TENANT_OWNER') || allRoles[0] || null);
-      toast.success(`Owner role seed complete: ${seededCount} roles ready`);
-    } catch {
-      toast.error('Failed to seed owner roles and permissions');
-    } finally {
-      setIsSeeding(false);
-    }
-  };
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center p-12">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="theme-text-accent h-10 w-10 animate-spin" />
-          <p className="font-medium text-gray-500">Loading role management...</p>
+      <div className="flex flex-col space-y-6 p-6 mx-auto max-w-[1500px]">
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <Skeleton className="h-10 w-64 rounded-xl" />
+          <Skeleton className="h-10 w-32 rounded-xl" />
+        </div>
+        <div className="grid lg:grid-cols-[320px_minmax(0,1fr)] gap-5">
+          <Skeleton className="h-[420px] w-full rounded-xl" />
+          <Skeleton className="h-[600px] w-full rounded-xl" />
         </div>
       </div>
     );

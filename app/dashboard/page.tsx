@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { KPICards } from '@/components/dashboard/kpi-cards';
 import { SalesChart, SalesDataPoint } from '@/components/dashboard/sales-chart';
@@ -16,9 +17,14 @@ import {
 } from '@/lib/services/business-modules.service';
 import { PartyService } from '@/lib/services/party.service';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Loader2 } from 'lucide-react';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   // KPI States
   const [totalSales, setTotalSales] = useState(0);
@@ -43,129 +49,111 @@ export default function DashboardPage() {
       try {
         const tenantRes = await CurrentTenantService.getCurrentTenant();
         if (!tenantRes.success || !tenantRes.data) {
+          setLoading(false);
           return; // No tenant yet
         }
         const tenantId = tenantRes.data.id;
 
-        const [
-          ordersRes,
-          agingRes,
-          alertsRes,
-          stockRes,
-          designsRes,
-          workersRes,
-          dealersRes
-        ] = await Promise.all([
-          OrderService.list(tenantId, { page: 1, limit: 100 }),
-          PaymentService.agingReport(tenantId),
-          InventoryService.listLowStockAlerts(tenantId, { page: 1, limit: 100 }),
-          InventoryService.listStock(tenantId, { page: 1, limit: 100 }),
-          DesignService.list(tenantId, { page: 1, limit: 100 }),
-          WorkerService.list(tenantId, { page: 1, limit: 100 }),
-          PartyService.list(tenantId, { type: 'DEALER', page: 1, limit: 100 })
-        ]);
-
-        // Process Orders -> Total Sales, Active Orders, and Sales Chart
-        if (ordersRes.success) {
-          const orders = responseItems(ordersRes.data);
-          let sumSales = 0;
-          let sumActive = 0;
-          
-          const monthMap: Record<string, number> = {};
-          
-          orders.forEach((o: any) => {
-            const amount = Number(o.totalAmount || o.total || 0);
+        // Fetch critical data first (Orders for Chart and Table)
+        OrderService.list(tenantId, { page: 1, limit: 20 }).then(ordersRes => {
+          if (ordersRes.success) {
+            const orders = responseItems(ordersRes.data);
+            let sumSales = 0;
+            let sumActive = 0;
             
-            const status = String(o.status || '').toUpperCase();
-            if (status !== 'CANCELLED') {
-              sumSales += amount;
-            }
+            const monthMap: Record<string, number> = {};
             
-            if (['DRAFT', 'CONFIRMED', 'PACKED', 'PARTIALLY_DISPATCHED'].includes(status)) {
-              sumActive++;
-            }
+            orders.forEach((o: any) => {
+              const amount = Number(o.totalAmount || o.total || 0);
+              
+              const status = String(o.status || '').toUpperCase();
+              if (status !== 'CANCELLED') {
+                sumSales += amount;
+              }
+              
+              if (['DRAFT', 'CONFIRMED', 'PACKED', 'PARTIALLY_DISPATCHED'].includes(status)) {
+                sumActive++;
+              }
 
-            // Sales Chart logic
-            const dateStr = o.orderDate || o.createdAt;
-            const date = dateStr ? new Date(dateStr) : null;
-            if (date && !isNaN(date.getTime()) && status !== 'CANCELLED') {
-              const month = date.toLocaleString('en-US', { month: 'short' });
-              monthMap[month] = (monthMap[month] || 0) + amount;
-            }
-          });
-          
-          setTotalSales(sumSales);
-          setActiveOrders(sumActive);
-          
-          // Sort by date descending and take top 5 for Recent Orders
-          const sorted = [...orders].sort((a, b) => new Date(b.orderDate || b.createdAt || 0).getTime() - new Date(a.orderDate || a.createdAt || 0).getTime());
-          setRecentOrders(sorted.slice(0, 5));
+              // Sales Chart logic
+              const dateStr = o.orderDate || o.createdAt;
+              const date = dateStr ? new Date(dateStr) : null;
+              if (date && !isNaN(date.getTime()) && status !== 'CANCELLED') {
+                const month = date.toLocaleString('en-US', { month: 'short' });
+                monthMap[month] = (monthMap[month] || 0) + amount;
+              }
+            });
+            
+            setTotalSales(sumSales);
+            setActiveOrders(sumActive);
+            
+            // Sort by date descending and take top 5 for Recent Orders
+            const sorted = [...orders].sort((a, b) => new Date(b.orderDate || b.createdAt || 0).getTime() - new Date(a.orderDate || a.createdAt || 0).getTime());
+            setRecentOrders(sorted.slice(0, 5));
 
-          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          setSalesData(months.map(m => ({ month: m, sales: monthMap[m] || 0 })));
-        }
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            setSalesData(months.map(m => ({ month: m, sales: monthMap[m] || 0 })));
+          }
+          // Set loading to false as soon as orders load to make it feel fast!
+          setLoading(false);
+        });
 
-        // Process Payments -> Pending Payments
-        if (agingRes.success) {
-          const agingItems = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.items || [agingRes.data].filter(Boolean));
-          const totalPending = agingItems.reduce((acc: number, item: any) => acc + Number(item.totalOutstanding || 0), 0);
-          setPendingPayments(totalPending);
-        }
+        // Fetch non-critical data independently in background
+        PaymentService.agingReport(tenantId).then(agingRes => {
+          if (agingRes.success) {
+            const agingItems = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.items || [agingRes.data].filter(Boolean));
+            const totalPending = agingItems.reduce((acc: number, item: any) => acc + Number(item.totalOutstanding || 0), 0);
+            setPendingPayments(totalPending);
+          }
+        });
 
-        // Process Inventory & Alerts
-        if (alertsRes.success) {
-          const rawAlerts = responseItems(alertsRes.data);
-          setLowStockCount(rawAlerts.length);
-          setAlerts(rawAlerts.map((a: any) => ({
-            id: a.id || Math.random().toString(),
-            title: `Low Stock: ${a.designName || a.design?.name || 'Unknown Design'}`,
-            message: `Current stock is ${a.currentStock} ${a.unit || 'dozens'} (Threshold: ${a.threshold})`,
-            severity: 'warning',
-            timestamp: new Date(a.createdAt || new Date()),
-            type: 'low_stock'
-          })));
-        }
+        InventoryService.listLowStockAlerts(tenantId, { page: 1, limit: 10 }).then(alertsRes => {
+          if (alertsRes.success) {
+            const rawAlerts = responseItems(alertsRes.data);
+            setLowStockCount(rawAlerts.length);
+            setAlerts(rawAlerts.map((a: any) => ({
+              id: a.id || Math.random().toString(),
+              title: `Low Stock: ${a.designName || a.design?.name || 'Unknown Design'}`,
+              message: `Current stock is ${a.currentStock} ${a.unit || 'dozens'} (Threshold: ${a.threshold})`,
+              severity: 'warning',
+              timestamp: new Date(a.createdAt || new Date()),
+              type: 'low_stock'
+            })));
+          }
+        });
 
-        if (stockRes.success) {
-          setTotalInventoryItems(responseItems(stockRes.data).length);
-        }
-        
-        if (designsRes.success) {
-          const designs = responseItems(designsRes.data);
-          setActiveDesigns(designs.filter((d: any) => d.isActive !== false).length);
-        }
+        InventoryService.listStock(tenantId, { page: 1, limit: 1 }).then(stockRes => {
+          if (stockRes.success) {
+            const total = (stockRes.data as any).total || (stockRes.data as any).count || responseItems(stockRes.data).length;
+            setTotalInventoryItems(total);
+          }
+        });
 
-        if (workersRes.success) {
-          const workers = responseItems(workersRes.data);
-          const active = workers.filter((w: any) => w.isActive !== false).length;
-          setActiveWorkers(active);
-          setInactiveWorkers(workers.length - active);
-        }
+        DesignService.list(tenantId, { page: 1, limit: 1 }).then(designsRes => {
+          if (designsRes.success) {
+            const total = (designsRes.data as any).total || (designsRes.data as any).count || responseItems(designsRes.data).length;
+            setActiveDesigns(total);
+          }
+        });
 
-        if (dealersRes.success) {
-          const dealers = responseItems(dealersRes.data);
-          setActiveDealers(dealers.filter((d: any) => d.isActive !== false).length);
-        }
+        WorkerService.list(tenantId, { page: 1, limit: 100 }).then(workersRes => {
+          if (workersRes.success) {
+            const workers = responseItems(workersRes.data);
+            const active = workers.filter((w: any) => w.isActive !== false).length;
+            setActiveWorkers(active);
+            setInactiveWorkers(workers.length - active);
+          }
+        });
 
-        // Debugging failures
-        const failed = [
-          { name: 'Orders', res: ordersRes },
-          { name: 'Aging', res: agingRes },
-          { name: 'Alerts', res: alertsRes },
-          { name: 'Stock', res: stockRes },
-          { name: 'Designs', res: designsRes },
-          { name: 'Workers', res: workersRes },
-          { name: 'Dealers', res: dealersRes },
-        ].filter(x => !x.res.success);
-
-        if (failed.length > 0) {
-          console.error('Dashboard APIs Failed:', failed.map(x => `${x.name}: ${x.res.error?.message}`).join(', '));
-          toast.error(`Dashboard data partially loaded. Check console.`);
-        }
+        PartyService.list(tenantId, { type: 'DEALER', page: 1, limit: 1 }).then(dealersRes => {
+          if (dealersRes.success) {
+            const total = (dealersRes.data as any).total || (dealersRes.data as any).count || responseItems(dealersRes.data).length;
+            setActiveDealers(total);
+          }
+        });
 
       } catch (error) {
         console.error('Error loading dashboard:', error);
-      } finally {
         setLoading(false);
       }
     };
@@ -173,19 +161,61 @@ export default function DashboardPage() {
     loadDashboardData();
   }, []);
 
+  if (loading) {
+    return (
+      <DashboardLayout title="Dashboard">
+        <div className="space-y-8 p-4 sm:p-6 lg:p-8">
+          {/* KPI Cards Skeleton */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-[120px] rounded-xl" />
+            ))}
+          </div>
+
+          {/* Charts and Alerts Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Skeleton className="h-[400px] rounded-xl lg:col-span-2" />
+            <Skeleton className="h-[400px] rounded-xl" />
+          </div>
+
+          {/* Quick Stats Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-[100px] rounded-xl" />
+            ))}
+          </div>
+
+          {/* Table Skeleton */}
+          <Skeleton className="h-[300px] rounded-xl w-full" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout title="Dashboard">
       <div className="space-y-8">
         {/* KPI Cards */}
-        <KPICards
-          totalSales={totalSales}
-          activeOrders={activeOrders}
-          pendingPayments={pendingPayments}
-          lowStockItems={lowStockCount}
-        />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <KPICards
+            totalSales={totalSales}
+            activeOrders={activeOrders}
+            pendingPayments={pendingPayments}
+            lowStockItems={lowStockCount}
+          />
+        </motion.div>
 
         {/* Charts and Alerts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        >
           {/* Sales Chart - Spans 2 columns */}
           <div className="lg:col-span-2">
             <SalesChart data={salesData} />
@@ -195,10 +225,15 @@ export default function DashboardPage() {
           <div>
             <AlertsWidget alerts={alerts} />
           </div>
-        </div>
+        </motion.div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
           <div className="bg-white rounded-xl p-4 theme-card-accent border border-border">
             <p className="text-sm text-muted-foreground mb-2">Total Designs</p>
             <p className="text-2xl font-bold theme-text-primary">{activeDesigns}</p>
@@ -219,18 +254,31 @@ export default function DashboardPage() {
             <p className="text-2xl font-bold theme-text-primary">{totalInventoryItems}</p>
             <p className="text-xs text-danger mt-2">{lowStockCount} low stock</p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Recent Orders Table */}
-        <div className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          className="bg-white rounded-2xl border border-[#e5e7eb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
+        >
           <div className="p-6 border-b border-[#e5e7eb] flex items-center justify-between">
             <div>
               <h3 className="text-[18px] font-bold theme-text-primary">Recent Orders</h3>
               <p className="text-sm text-[#6b7280] mt-1">Latest 5 sales entries from your dispatch ledger</p>
             </div>
-            <a href="/dashboard/orders-dispatch" className="text-sm font-semibold text-indigo-600 hover:text-indigo-800">
+            <button 
+              onClick={() => {
+                setIsRedirecting(true);
+                router.push('/dashboard/orders-dispatch');
+              }} 
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-2"
+              disabled={isRedirecting}
+            >
+              {isRedirecting && <Loader2 className="h-4 w-4 animate-spin" />}
               View All
-            </a>
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-[#374151]">
@@ -252,7 +300,11 @@ export default function DashboardPage() {
                   </tr>
                 ) : (
                   recentOrders.map((order) => (
-                    <tr key={order.id || order.orderNumber} className="hover:bg-[#f9fafb]/50 transition-colors">
+                    <tr 
+                      key={order.id || order.orderNumber} 
+                      className="hover:bg-[#f9fafb]/50 transition-colors cursor-pointer"
+                      onClick={() => router.push('/dashboard/orders-dispatch')}
+                    >
                       <td className="px-6 py-4 font-medium theme-text-primary">
                         {order.orderNumber || order.orderNo || order.id?.slice(0,8)}
                       </td>
@@ -282,7 +334,7 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
       </div>
     </DashboardLayout>
   );

@@ -698,7 +698,7 @@ export default function PartyManagementPage() {
                   value={search}
                   onChange={event => setSearch(event.target.value)}
                   placeholder="Search name, code, phone..."
-                  className="h-10 w-full pl-9 text-sm"
+                  className="h-10 w-full pl-10 text-sm"
                 />
               </div>
               <select

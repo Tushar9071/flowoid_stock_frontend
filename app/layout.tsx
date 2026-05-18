@@ -32,8 +32,23 @@ export default function RootLayout({
       <head>
         {/* ── Theme initializer: reads localStorage and applies class BEFORE first paint ── */}
         <script src="/init-theme.js" />
-        <link rel="icon" sizes="32x32" href="/icon-light-32x32.png" />
-        <link rel="shortcut icon" href="/Appicon_blue.png" />
+        <title>StockFlow - Inventory & Stock Management</title>
+        <meta name="description" content="StockFlow is a modern inventory and stock management system for businesses." />
+        
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="StockFlow" />
+        <meta property="og:description" content="Advanced Stock & Inventory Management" />
+        <meta property="og:image" content="/Appicon_blue.png" />
+
+        {/* Twitter */}
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:title" content="StockFlow" />
+        <meta property="twitter:description" content="Advanced Stock & Inventory Management" />
+        <meta property="twitter:image" content="/Appicon_blue.png" />
+
+        <link rel="icon" type="image/svg+xml" href="/brand/Favicon_app.svg" sizes="any" />
+        <link rel="shortcut icon" href="/brand/Favicon_app.svg" />
       </head>
       <body className="font-inter antialiased" suppressHydrationWarning>
         <AuthProvider>

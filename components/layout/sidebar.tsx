@@ -21,6 +21,7 @@ import {
   Shield,
   Settings,
   LogOut,
+  Loader2,
   Gem,
   ChevronRight,
 } from 'lucide-react';
@@ -52,10 +53,11 @@ export function Sidebar() {
   const router = useRouter();
   const { role, user, logout, hasPermission, isFullAccess } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logout();
   };
 
   const roleKey = normalizeRole(role);
@@ -188,8 +190,9 @@ export function Sidebar() {
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all text-[13px] font-bold border border-transparent hover:border-white/10"
+            disabled={isLoggingOut}
           >
-            <LogOut className="w-4 h-4" />
+            {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
             Sign Out
           </button>
         </div>

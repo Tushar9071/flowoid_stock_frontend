@@ -30,7 +30,6 @@ import {
   responseItems,
 } from '@/lib/services/business-modules.service';
 import { PartyService } from '@/lib/services/party.service';
-import { SampleSeedService } from '@/lib/services/sample-seed.service';
 import { BackendTenant } from '@/lib/types';
 
 type Tab = 'orders' | 'dispatch' | 'overdue';
@@ -192,21 +191,7 @@ export default function OrdersDispatchPage() {
     setPage(1);
   }, [tab, search]);
 
-  const seedData = async () => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
-    if (!currentTenant?.id) return toast.error('Tenant not found. Please login again or create a business tenant.');
 
-    setSeeding(true);
-    try {
-      await SampleSeedService.seedOrderModule(currentTenant.id);
-      toast.success('Seed order added');
-      await loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to seed order data');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const filteredOrders = useMemo(() => {
     const term = search.toLowerCase();
@@ -508,7 +493,7 @@ export default function OrdersDispatchPage() {
             value={search}
             onChange={event => setSearch(event.target.value)}
             placeholder={`Search ${tab}...`}
-            className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-9 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
+            className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
           />
         </div>
         <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold">

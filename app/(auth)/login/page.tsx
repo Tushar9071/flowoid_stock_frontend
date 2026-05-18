@@ -191,21 +191,21 @@ export default function LoginPage() {
         <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 py-12 w-full max-w-[460px] mx-auto">
           
           {/* Mobile Logo (hidden on desktop) */}
-          <div className="md:hidden flex items-center mb-10 justify-center">
+          <div className="md:hidden flex items-center mb-6 justify-center">
             <Image
-              src="/brand/StockFlow_horizontal_blue.svg"
+              src="/Appicon_blue.png"
               alt="StockFlow"
-              width={136}
-              height={34}
-              className="h-8 w-auto object-contain"
+              width={64}
+              height={64}
+              className="h-16 w-16 object-contain"
               priority
             />
           </div>
           
           {/* Top greeting */}
           <div>
-            <h2 className="text-[#0F1C2E] font-extrabold text-[32px] tracking-tight">Welcome back</h2>
-            <p className="text-[#4B5C72] text-[15px] mt-2">Sign in to your Flowoid workspace</p>
+            <h2 className="text-[#0F1C2E] font-extrabold text-[32px] tracking-tight text-center">Welcome back</h2>
+            <p className="text-[#4B5C72] text-[15px] mt-2 text-center">Sign in to your Flowoid workspace</p>
           </div>
           
           <motion.form 

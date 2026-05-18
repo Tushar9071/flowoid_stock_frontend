@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { CurrentTenantService } from '@/lib/services/current-tenant.service';
 import { RoleService } from '@/lib/services/role-permission.service';
@@ -76,6 +78,9 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
   const [tenants, setTenants] = useState<BackendTenant[]>([]);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -166,10 +171,24 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
         (user.email || '').toLowerCase().includes(normalizedSearch) ||
         user.phone.toLowerCase().includes(normalizedSearch) ||
         getRoleName(user).toLowerCase().includes(normalizedSearch);
+      
+      const userRoleId = user.roleId || (typeof user.role === 'object' ? user.role?.id : '');
+      const matchesRole = !roleFilter || userRoleId === roleFilter;
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesSearch && matchesRole;
     });
-  }, [activeFilter, search, tenantScopedUsers]);
+  }, [activeFilter, search, tenantScopedUsers, roleFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activeFilter, roleFilter]);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredUsers.slice(start, start + itemsPerPage);
+  }, [filteredUsers, currentPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage));
 
   const openCreateModal = () => {
     if (!canCreate) {
@@ -325,6 +344,17 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
               </button>
             ))}
           </div>
+
+          <select
+            value={roleFilter}
+            onChange={event => setRoleFilter(event.target.value)}
+            className="theme-focus-ring h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 outline-none transition"
+          >
+            <option value="">All Roles</option>
+            {roles.map(role => (
+              <option key={role.id} value={role.id}>{role.name}</option>
+            ))}
+          </select>
         </div>
 
         {showLocalAction && canCreate && (
@@ -344,48 +374,51 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
             You do not have permission to view users.
           </div>
         ) : isLoading ? (
-          <div className="flex items-center justify-center p-16">
-            <Loader2 className="theme-text-accent h-8 w-8 animate-spin" />
+          <div className="overflow-x-auto p-4 space-y-4">
+            <Skeleton className="h-10 w-full rounded-lg" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px]">
-              <thead>
-                <tr className="theme-table-header border-b border-gray-200">
-                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">User</th>
-                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">Phone</th>
-                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">Role</th>
-                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">Tenants</th>
-                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">Status</th>
-                  <th className="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wide text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredUsers.map(user => (
-                  <tr key={user.id} className="theme-table-row">
-                    <td className="px-6 py-4">
+            <Table className="min-w-[920px]">
+              <TableHeader>
+                <TableRow className="theme-table-header">
+                  <TableHead className="text-[11px] font-bold uppercase tracking-wide text-gray-500">User</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Phone</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Role</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Tenants</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Status</TableHead>
+                  <TableHead className="text-right text-[11px] font-bold uppercase tracking-wide text-gray-500">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedUsers.map(user => (
+                  <TableRow key={user.id} className="theme-table-row">
+                    <TableCell>
                       <p className="theme-text-primary font-bold">{user.name}</p>
                       <p className="text-sm text-gray-500">{user.email || 'No email'}</p>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-700">{user.phone}</td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-gray-700">{user.phone}</TableCell>
+                    <TableCell>
                       <span className="theme-badge-soft inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold">
                         <Shield className="h-3.5 w-3.5" />
                         {getRoleName(user)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">
                       {tenantNamesForUser(user, tenants)}
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell>
                       <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${
                         user.isActive ? 'theme-badge-soft' : 'bg-gray-100 text-gray-600'
                       }`}>
                         <CheckCircle className="h-3.5 w-3.5" />
                         {user.isActive ? 'Active' : 'Inactive'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openViewModal(user)}
@@ -426,11 +459,53 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
+
+            {filteredUsers.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between border-t border-gray-100 px-6 py-4 gap-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">Rows:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={e => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-sm font-semibold text-gray-700 outline-none transition"
+                    >
+                      <option value="5">5</option>
+                      <option value="10">10</option>
+                      <option value="15">15</option>
+                      <option value="20">20</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
 
             {filteredUsers.length === 0 && (
               <div className="p-12 text-center text-sm font-medium text-gray-500">
