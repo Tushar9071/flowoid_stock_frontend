@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Bell, Shield, Search, LogOut, Settings, User } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
+import Image from 'next/image';
 
 const notifications = [
   { id: 1, title: 'New Tenant Signup',    message: 'Sharma Jewellers signed up for a trial', time: '1 hour ago',  read: false },
@@ -24,9 +26,19 @@ export function AdminHeader() {
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb] shadow-sm">
-      <div className="flex items-center justify-between px-6 py-4 pl-16 md:pl-6 gap-6">
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-3 md:gap-6">
         
         {/* Title Area removed to prevent duplication with AdminLayout banner */}
+        <div className="flex sm:hidden items-center w-36 shrink-0">
+          <Image
+            src="/brand/StockFlow_horizontal_blue.svg"
+            alt="StockFlow"
+            width={2400}
+            height={600}
+            className="h-auto w-full object-contain object-left"
+            priority
+          />
+        </div>
 
         {/* Global Search Bar */}
         <div className="flex-1 max-w-2xl hidden md:block">
@@ -41,7 +53,7 @@ export function AdminHeader() {
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3 shrink-0 ml-auto">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">
           {/* Platform Online pill */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#e6f9f0] border border-[#1a7a4a]/20">
             <span className="w-2 h-2 rounded-full bg-[#1a7a4a] animate-pulse" />
@@ -49,6 +61,7 @@ export function AdminHeader() {
           </div>
 
           {/* Theme Switcher */}
+          <PWAInstallButton compact />
           <ThemeSwitcher />
 
           {/* Notifications */}

@@ -36,7 +36,7 @@ export function AdminSidebar() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed md:hidden top-4 left-4 z-50 p-2 bg-white shadow-md rounded-lg border border-[#e5e7eb] transition-opacity duration-200 ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`hidden top-4 left-4 z-50 p-2 bg-white shadow-md rounded-lg border border-[#e5e7eb] transition-opacity duration-200 ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       >
         <Menu className="w-5 h-5 theme-text-primary" />
       </button>

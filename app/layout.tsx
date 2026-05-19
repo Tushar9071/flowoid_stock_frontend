@@ -14,6 +14,8 @@ import { Toaster as HotToaster } from 'react-hot-toast'
 import { LoaderProvider } from '@/context/LoaderContext'
 import AppLoader from '@/components/loader/AppLoader'
 import PageLoader from '@/components/loader/PageLoader'
+import { MobileBottomNav } from '@/components/MobileNav/MobileBottomNav'
+import { PWAInstallBanner } from '@/components/PWAInstallBanner'
 import './globals.css'
 import '../styles/theme.css'
 
@@ -34,6 +36,16 @@ export default function RootLayout({
         <script src="/init-theme.js" />
         <title>StockFlow - Inventory & Stock Management</title>
         <meta name="description" content="StockFlow is a modern inventory and stock management system for businesses." />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#0F2A4A" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="StockFlow" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+        <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" />
         
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="website" />
@@ -51,12 +63,14 @@ export default function RootLayout({
         <link rel="shortcut icon" href="/brand/Favicon_app.svg" />
       </head>
       <body className="font-inter antialiased" suppressHydrationWarning>
+        <PWAInstallBanner />
         <AuthProvider>
           <LoaderProvider>
             {!appReady && <AppLoader onComplete={() => setAppReady(true)} />}
-            <div className={!appReady ? 'hidden' : 'block'}>
+            <div className={!appReady ? 'hidden' : 'block landing-animate'}>
               <PageLoader />
               {children}
+              <MobileBottomNav />
             </div>
           </LoaderProvider>
           <Toaster position="top-right" />

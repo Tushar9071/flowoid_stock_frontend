@@ -5,7 +5,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Bell, LogOut, User, Search, Settings, Loader2 } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { normalizeRole } from '@/lib/roles';
+import Image from 'next/image';
 
 const ROLE_LABELS: Record<string, string> = {
   flowoid_admin: 'Flowoid Admin',
@@ -28,9 +30,19 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb] shadow-sm">
-      <div className="flex items-center justify-between px-6 py-4 pl-16 md:pl-6 gap-6">
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-3 md:gap-6">
         
         {/* Breadcrumb / Title Area */}
+        <div className="flex sm:hidden items-center w-36 shrink-0">
+          <Image
+            src="/brand/StockFlow_horizontal_blue.svg"
+            alt="StockFlow"
+            width={2400}
+            height={600}
+            className="h-auto w-full object-contain object-left"
+            priority
+          />
+        </div>
         <div className="hidden sm:block shrink-0">
           {breadcrumb ? (
             <div className="text-sm font-semibold text-[#6b7280]">{breadcrumb}</div>
@@ -52,7 +64,9 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3 shrink-0 ml-auto">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">
+          <PWAInstallButton compact />
+
           {/* Theme Switcher — palette icon only, no label */}
           <ThemeSwitcher />
 
