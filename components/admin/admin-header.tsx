@@ -3,10 +3,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, Shield, Search, LogOut, Settings, User } from 'lucide-react';
+import { Bell, Shield, LogOut, Settings, User } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import Image from 'next/image';
+import { SearchInput } from '@/components/shared/search-input';
 
 const notifications = [
   { id: 1, title: 'New Tenant Signup',    message: 'Sharma Jewellers signed up for a trial', time: '1 hour ago',  read: false },
@@ -41,16 +42,10 @@ export function AdminHeader() {
         </div>
 
         {/* Global Search Bar */}
-        <div className="flex-1 max-w-2xl hidden md:block">
-          <div className="relative w-full">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" />
-            <input
-              type="text"
-              placeholder="Search tenants, subscriptions..."
-              className="w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[var(--color-accent)] outline-none transition-all text-sm theme-text-primary placeholder:text-[#9ca3af]"
-            />
-          </div>
-        </div>
+        <SearchInput
+          containerClassName="flex-1 max-w-2xl hidden md:flex"
+          placeholder="Search tenants, subscriptions..."
+        />
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">

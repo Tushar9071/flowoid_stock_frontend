@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { SkeletonTable, SkeletonCard } from '@/components/skeleton/Skeletons';
 import { DataTable } from '@/components/shared/DataTable';
@@ -16,8 +17,6 @@ import {
   Loader2,
   Package,
   Plus,
-  RefreshCw,
-  Search,
   Trash2,
   Truck,
   X,
@@ -28,6 +27,7 @@ import { useAuth } from '@/lib/auth-context';
 import { PartyService } from '@/lib/services/party.service';
 import { RawMaterialService } from '@/lib/services/raw-material.service';
 import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { SearchInput } from '@/components/shared/search-input';
 import {
   BackendTenant,
   CreateRawMaterialPurchasePayload,
@@ -287,9 +287,11 @@ export default function RawMaterialsPage() {
     }
   }, [loadReferenceData, loadTenant, page, purchaseStatus, search, status, tab, tenant]);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, pathname]);
 
   useEffect(() => {
     setPage(1);
@@ -581,15 +583,13 @@ export default function RawMaterialsPage() {
             <div className="flex flex-col gap-2 sm:flex-row">
               {tab === 'types' && (
                 <>
-                  <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={search}
-                      onChange={event => setSearch(event.target.value)}
-                      placeholder="Search material types..."
-                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none"
-                    />
-                  </div>
+                  <SearchInput
+                    containerClassName="w-full sm:w-72"
+                    inputClassName="border-slate-200 bg-white"
+                    placeholder="Search material types..."
+                    value={search}
+                    onChange={event => setSearch(event.target.value)}
+                  />
                   <select value={status} onChange={event => setStatus(event.target.value as typeof status)} className="h-10 rounded-lg text-sm font-semibold">
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
@@ -603,10 +603,7 @@ export default function RawMaterialsPage() {
                   {PURCHASE_STATUSES.map(item => <option key={item} value={item}>{item}</option>)}
                 </select>
               )}
-              <button onClick={loadData} className="theme-secondary-btn inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold">
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </button>
+              {/* Refresh button removed — auto-refresh on route change */}
             </div>
           </div>
 

@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Download, FileText, Package, RefreshCw, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Download, FileText, Package, TrendingUp, Users, Wallet } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { formatCurrency } from '@/lib/constants';
@@ -130,9 +131,11 @@ export default function ReportsPage() {
     }
   }, []);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, pathname]);
 
   const salesRows = useMemo(() => orders.map(order => ({
     order: order.orderNo || order.orderNumber || order.id,
@@ -209,12 +212,7 @@ export default function ReportsPage() {
     <DashboardLayout
       title="Reports & Analytics"
       subtitle="Live backend analysis from orders, inventory, workers, payments, and designs"
-      action={
-        <button onClick={loadData} className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold">
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
-      }
+      action={null}
     >
       <div className="space-y-6">
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">

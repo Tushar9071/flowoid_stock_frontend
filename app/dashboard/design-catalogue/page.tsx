@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { Plus, Search, Grid2X2, List, RefreshCw, Layers, Gem, Edit3, Trash2, Settings2 } from 'lucide-react';
+import { Plus, Grid2X2, List, Layers, Gem, Edit3, Trash2, Settings2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { DataTable } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
+import { SearchInput } from '@/components/shared/search-input';
 import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
 import { CurrentTenantService } from '@/lib/services/current-tenant.service';
@@ -111,9 +113,11 @@ export default function DesignCataloguePage() {
     }
   }, []);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, pathname]);
 
   useEffect(() => {
     setPage(1);
@@ -381,20 +385,14 @@ export default function DesignCataloguePage() {
 
         <div className="flex flex-col justify-between gap-4 sm:flex-row">
           <div className="flex w-full flex-1 gap-2 sm:w-auto">
-            <div className="relative max-w-md flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-              <input
-                type="text"
-                placeholder="Search designs..."
-                value={searchTerm}
-                onChange={event => setSearchTerm(event.target.value)}
-                className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
-              />
-            </div>
-            <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold">
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
+            <SearchInput
+              containerClassName="max-w-md flex-1"
+              inputClassName="h-9 rounded-lg border-[#e5e7eb] bg-[#f9fafb] focus:border-[#0F2A4A]"
+              placeholder="Search designs..."
+              value={searchTerm}
+              onChange={event => setSearchTerm(event.target.value)}
+            />
+            {/* Refresh button removed — auto-refresh on route change */}
           </div>
 
           <div className="flex shrink-0 gap-2">

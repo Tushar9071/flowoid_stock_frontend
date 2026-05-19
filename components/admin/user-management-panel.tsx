@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { SearchInput } from '@/components/shared/search-input';
 
 type UserForm = {
   name: string;
@@ -321,15 +322,13 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              placeholder="Search users, phone, role..."
-              className="theme-focus-ring h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none transition"
-            />
-          </div>
+          <SearchInput
+            containerClassName="w-full sm:w-80"
+            inputClassName="theme-focus-ring rounded-lg border-gray-200 bg-white"
+            placeholder="Search users, phone, role..."
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+          />
 
           <div className="flex rounded-lg border border-gray-200 bg-white p-1">
             {(['all', 'active', 'inactive'] as const).map(status => (

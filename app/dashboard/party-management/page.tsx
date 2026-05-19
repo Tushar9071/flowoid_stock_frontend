@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { SkeletonTable, SkeletonCard } from '@/components/skeleton/Skeletons';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
@@ -23,8 +24,6 @@ import {
   Phone,
   Plus,
   Power,
-  RefreshCw,
-  Search,
   Trash2,
   Truck,
   WalletCards,
@@ -35,6 +34,7 @@ import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
 import { CurrentTenantService } from '@/lib/services/current-tenant.service';
 import { PartyService } from '@/lib/services/party.service';
+import { SearchInput } from '@/components/shared/search-input';
 import {
   BackendParty,
   BackendTenant,
@@ -365,9 +365,11 @@ export default function PartyManagementPage() {
     }
   }, [loadDropdownCounts, loadTenant, page, search, status, tab, tenant]);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadParties();
-  }, [page, search, status, tab, tenant?.id]); // Re-fetch when dependencies change, but ensure loadParties uses useCallback properly
+  }, [page, search, status, tab, tenant?.id, pathname]); // Re-fetch when dependencies change and when route changes
 
   useEffect(() => {
     setPage(1);
@@ -692,15 +694,13 @@ export default function PartyManagementPage() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative min-w-[240px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={event => setSearch(event.target.value)}
-                  placeholder="Search name, code, phone..."
-                  className="h-10 w-full pl-10 text-sm"
-                />
-              </div>
+              <SearchInput
+                containerClassName="min-w-[240px]"
+                inputClassName="text-sm"
+                placeholder="Search name, code, phone..."
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+              />
               <select
                 value={status}
                 onChange={event => setStatus(event.target.value as typeof status)}
@@ -710,13 +710,7 @@ export default function PartyManagementPage() {
                 <option value="inactive">Inactive</option>
                 <option value="all">All Status</option>
               </select>
-              <button
-                onClick={loadParties}
-                className="theme-secondary-btn inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </button>
+              {/* Refresh button removed — auto-refresh on route change */}
             </div>
           </div>
 
@@ -1158,8 +1152,7 @@ function LedgerPanel({
           />
           Opening
         </label>
-        <button onClick={onReload} className="theme-accent-btn mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold">
-          <RefreshCw className="h-4 w-4" />
+        <button onClick={onReload} className="theme-accent-btn mt-5 inline-flex h-10 items-center justify-center rounded-lg px-3 text-sm font-semibold">
           Apply
         </button>
       </div>
