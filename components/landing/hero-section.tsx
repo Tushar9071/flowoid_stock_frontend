@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { TimeDisplay } from "@/components/landing/time-display";
 import { Sparkles, PlayCircle, BarChart3, Users, Box, ShoppingCart, IndianRupee, PieChart, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 export function HeroSection() {
@@ -32,6 +33,10 @@ export function HeroSection() {
               order dispatch, and dealer payment collection — all in one platform. 
               Built for imitation jewellery manufacturers across India.
             </p>
+
+            <div className="mb-6">
+              <TimeDisplay />
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-4 mb-10">
               <Link href="/register">
@@ -46,6 +51,7 @@ export function HeroSection() {
                 </Button>
               </Link>
             </div>
+
             
             <div className="flex flex-wrap gap-y-3 gap-x-4 text-sm font-medium text-[#4B5C72]">
               <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-md border border-[#E2E8F0] shadow-sm"><CheckCircle2 className="w-4 h-4 text-[#D4A843]" /> Raw Material & Lot Tracking</div>

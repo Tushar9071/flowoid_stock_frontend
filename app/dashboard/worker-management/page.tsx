@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { Plus, Search, Users, ClipboardList, Package, Wallet, RefreshCw, Edit3, Trash2, PlayCircle, XCircle, BookOpen, RotateCcw } from 'lucide-react';
+import { Plus, Users, ClipboardList, Package, Wallet, Edit3, Trash2, PlayCircle, XCircle, BookOpen, RotateCcw, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { DataTable } from '@/components/shared/DataTable';
@@ -10,6 +11,7 @@ import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-recor
 import { AssignmentModal } from '@/components/workers/AssignmentModal';
 import { GoodsReturnModal } from '@/components/workers/GoodsReturnModal';
 import { PaymentModal } from '@/components/workers/PaymentModal';
+import { SearchInput } from '@/components/shared/search-input';
 import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
 import { CurrentTenantService } from '@/lib/services/current-tenant.service';
@@ -226,9 +228,11 @@ export default function WorkerManagementPage() {
     }
   }, []);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, pathname]);
 
   useEffect(() => {
     setPage(1);
@@ -676,20 +680,14 @@ export default function WorkerManagementPage() {
       </div>
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-          <input
-            type="text"
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search workers..."
-            className="theme-focus-ring h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:bg-white"
-          />
-        </div>
-        <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold">
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
+        <SearchInput
+          containerClassName="max-w-sm flex-1"
+          inputClassName="theme-focus-ring h-9 rounded-lg border-[#e5e7eb] bg-[#f9fafb] focus:bg-white"
+          placeholder="Search workers..."
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+        />
+        {/* Refresh button removed — auto-refresh on route change */}
       </div>
 
       {loading && (tab === 'payments' ? <SkeletonCard count={6} /> : <SkeletonTable rows={8} cols={7} />)}
@@ -891,7 +889,7 @@ export default function WorkerManagementPage() {
         </DataTable>
       )}
       {modalMode === 'worker' && Object.keys(workerForm).length > 0 && (
-        <SimpleRecordModal
+        <WorkerFormModal
           title={editingWorker ? 'Edit Worker' : 'Add Worker'}
           subtitle="Fields follow the Swagger worker request contract"
           fields={workerFields}
@@ -978,6 +976,118 @@ function StatusPill({ active }: { active: boolean }) {
 
 function TextPill({ text }: { text: string }) {
   return <span className="rounded-full bg-[#f3f4f6] px-2.5 py-1 text-xs font-semibold uppercase text-[#6b7280]">{text}</span>;
+}
+
+function WorkerFormModal({
+  title,
+  subtitle,
+  fields,
+  values,
+  saving,
+  submitLabel = 'Save',
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  subtitle?: string;
+  fields: SimpleField[];
+  values: Record<string, any>;
+  saving?: boolean;
+  submitLabel?: string;
+  onChange: (name: string, value: any) => void;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
+      <form
+        onSubmit={onSubmit}
+        className="theme-modal-panel w-full max-w-2xl overflow-hidden"
+        style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-bold theme-text-primary">{title}</h2>
+            {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close worker form"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            {fields.map(field => (
+              <label key={field.name} className={`block ${field.type === 'textarea' ? 'md:col-span-2' : ''}`}>
+                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </span>
+                {field.type === 'select' ? (
+                  <select
+                    value={values[field.name] ?? ''}
+                    required={field.required}
+                    onChange={event => onChange(field.name, event.target.value)}
+                    className="h-10 w-full text-sm font-semibold"
+                  >
+                    <option value="">Select {field.label.toLowerCase()}</option>
+                    {(field.options || []).map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : field.type === 'textarea' ? (
+                  <textarea
+                    value={values[field.name] ?? ''}
+                    required={field.required}
+                    placeholder={field.placeholder}
+                    onChange={event => onChange(field.name, event.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)]"
+                  />
+                ) : field.type === 'checkbox' ? (
+                  <input
+                    type="checkbox"
+                    checked={Boolean(values[field.name])}
+                    onChange={event => onChange(field.name, event.target.checked)}
+                    className="h-5 w-5 rounded border-slate-300"
+                  />
+                ) : (
+                  <input
+                    type={field.type || 'text'}
+                    value={values[field.name] ?? ''}
+                    required={field.required}
+                    placeholder={field.placeholder}
+                    min={field.min}
+                    max={field.max}
+                    onChange={event => onChange(field.name, event.target.value)}
+                    className="h-10 w-full text-sm"
+                  />
+                )}
+                {field.hint && (
+                  <p className="mt-1 text-[11px] font-semibold text-slate-500">{field.hint}</p>
+                )}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg px-4 py-2 text-sm font-semibold">
+            Cancel
+          </button>
+          <button disabled={saving} className="theme-accent-btn rounded-lg px-5 py-2 text-sm font-semibold disabled:opacity-60">
+            {saving ? 'Saving...' : submitLabel}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

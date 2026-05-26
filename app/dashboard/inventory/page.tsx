@@ -2,11 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { AlertTriangle, Plus, Search, Package, Layers, RefreshCw, Gem, Bell, XCircle } from 'lucide-react';
+import { AlertTriangle, Plus, Package, Layers, Gem, Bell, XCircle } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonForm, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { DataTable } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
+import { SearchInput } from '@/components/shared/search-input';
 import { formatDate } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
 import { CurrentTenantService } from '@/lib/services/current-tenant.service';
@@ -139,9 +141,11 @@ export default function InventoryPage() {
     }
   }, []);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, pathname]);
 
   useEffect(() => {
     setPage(1);
@@ -385,20 +389,14 @@ export default function InventoryPage() {
       </div>
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-          <input
-            type="text"
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search design..."
-            className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
-          />
-        </div>
-        <button onClick={loadData} disabled={isLoading} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-70">
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <SearchInput
+          containerClassName="max-w-sm flex-1"
+          inputClassName="h-9 rounded-lg border-[#e5e7eb] bg-[#f9fafb] focus:border-[#0F2A4A]"
+          placeholder="Search design..."
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+        />
+        {/* Refresh button removed — auto-refresh on route change */}
       </div>
 
       {tabLoading && tab === 'unpackaged' && <SkeletonTable rows={8} cols={6} />}

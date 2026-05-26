@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LogFilters } from '@/lib/api/logs';
-import { Search, X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
+import { SearchInput } from '@/components/shared/search-input';
 
 interface LogsFiltersProps {
   filters: LogFilters;
@@ -51,15 +52,13 @@ export function LogsFilters({ filters, setFilters, totalLogs, autoRefresh, setAu
   return (
     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-4 space-y-4">
       <div className="flex flex-col md:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input 
-            placeholder="Search log messages..." 
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-9 bg-gray-50 border-gray-200 w-full"
-          />
-        </div>
+        <SearchInput
+          containerClassName="flex-1 w-full"
+          inputClassName="bg-gray-50 border-gray-200"
+          placeholder="Search log messages..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
         
         <div className="flex items-center gap-3 w-full md:w-auto">
           <Select value={filters.level || 'All'} onValueChange={(val) => setFilters({ ...filters, level: val, page: 1 })}>

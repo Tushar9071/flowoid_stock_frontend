@@ -3,8 +3,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, Shield, Search, LogOut, Settings, User } from 'lucide-react';
+import { Bell, Shield, LogOut, Settings, User } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
+import Image from 'next/image';
+import { SearchInput } from '@/components/shared/search-input';
 
 const notifications = [
   { id: 1, title: 'New Tenant Signup',    message: 'Sharma Jewellers signed up for a trial', time: '1 hour ago',  read: false },
@@ -24,24 +27,28 @@ export function AdminHeader() {
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb] shadow-sm">
-      <div className="flex items-center justify-between px-6 py-4 pl-16 md:pl-6 gap-6">
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-3 md:gap-6">
         
         {/* Title Area removed to prevent duplication with AdminLayout banner */}
-
-        {/* Global Search Bar */}
-        <div className="flex-1 max-w-2xl hidden md:block">
-          <div className="relative w-full">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9ca3af]" />
-            <input
-              type="text"
-              placeholder="Search tenants, subscriptions..."
-              className="w-full h-10 pl-10 pr-4 rounded-full border border-[#e5e7eb] bg-[#f9fafb] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10 focus:border-[var(--color-accent)] outline-none transition-all text-sm theme-text-primary placeholder:text-[#9ca3af]"
-            />
-          </div>
+        <div className="flex sm:hidden items-center w-36 shrink-0">
+          <Image
+            src="/brand/StockFlow_horizontal_blue.svg"
+            alt="StockFlow"
+            width={2400}
+            height={600}
+            className="h-auto w-full object-contain object-left"
+            priority
+          />
         </div>
 
+        {/* Global Search Bar */}
+        <SearchInput
+          containerClassName="flex-1 max-w-2xl hidden md:flex"
+          placeholder="Search tenants, subscriptions..."
+        />
+
         {/* Right Actions */}
-        <div className="flex items-center gap-3 shrink-0 ml-auto">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">
           {/* Platform Online pill */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#e6f9f0] border border-[#1a7a4a]/20">
             <span className="w-2 h-2 rounded-full bg-[#1a7a4a] animate-pulse" />
@@ -49,6 +56,7 @@ export function AdminHeader() {
           </div>
 
           {/* Theme Switcher */}
+          <PWAInstallButton compact />
           <ThemeSwitcher />
 
           {/* Notifications */}

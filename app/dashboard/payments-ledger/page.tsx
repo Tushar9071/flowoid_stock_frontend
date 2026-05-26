@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { formatCurrency } from '@/lib/constants';
-import { Plus, Download, FileText, Wallet, BookOpen, Clock, Search, RefreshCw, Edit3, Info, LayoutGrid, List, Filter, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Plus, Download, FileText, Wallet, BookOpen, Clock, Edit3, Info, LayoutGrid, List, Filter, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { DataTable } from '@/components/shared/DataTable';
@@ -18,6 +19,7 @@ import {
 } from '@/lib/services/business-modules.service';
 import { PartyService } from '@/lib/services/party.service';
 import { BackendTenant } from '@/lib/types';
+import { SearchInput } from '@/components/shared/search-input';
 
 type Tab = 'payments' | 'ledger' | 'ageing' | 'cashflow';
 
@@ -142,9 +144,11 @@ export default function PaymentsLedgerPage() {
     }
   }, [filterParty, filterNature, filterMethod, filterStatus, dateFrom, dateTo]);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, pathname]);
 
   useEffect(() => {
     setPage(1);
@@ -320,25 +324,19 @@ export default function PaymentsLedgerPage() {
 
       {(tab === 'payments' || tab === 'ledger') && (
         <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-            <input
-              type="text"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              placeholder={`Search ${tab}...`}
-              className="h-9 w-full rounded-lg border border-[#e5e7eb] bg-[#f9fafb] pl-10 pr-3 text-sm outline-none transition-all focus:border-[#0F2A4A] focus:bg-white focus:ring-2 focus:ring-[#0F2A4A]/10"
-            />
-          </div>
+          <SearchInput
+            containerClassName="max-w-sm flex-1"
+            inputClassName="h-9 rounded-lg border-[#e5e7eb] bg-[#f9fafb] focus:border-[#0F2A4A]"
+            placeholder={`Search ${tab}...`}
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+          />
           <button onClick={() => setShowFilters(!showFilters)} className={`theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${showFilters ? 'bg-[#0F2A4A] text-white hover:bg-[#1a3a6a] border-transparent' : ''}`}>
             <Filter className="h-4 w-4" />
             Filter
             {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
-          <button onClick={loadData} className="theme-secondary-btn inline-flex h-9 w-fit items-center gap-2 rounded-lg px-3 text-sm font-semibold">
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
+          {/* Refresh button removed — auto-refresh on route change */}
           {tab === 'payments' && (
             <div className="flex h-9 w-fit gap-1 rounded-xl bg-white p-1 ring-1 ring-[#e5e7eb]">
               <button

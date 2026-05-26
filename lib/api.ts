@@ -16,5 +16,7 @@ export function getApiBaseUrl() {
 
 export function getApiUrl(path = '') {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${getApiBaseUrl()}${API_PATH_PREFIX}${normalizedPath}`;
+  const baseUrl = getApiBaseUrl();
+  const apiBaseUrl = baseUrl.endsWith(API_PATH_PREFIX) ? baseUrl : `${baseUrl}${API_PATH_PREFIX}`;
+  return `${apiBaseUrl}${normalizedPath}`;
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import Image from "next/image";
+import { PWAInstallButton } from "@/components/PWAInstallButton";
 
 export function LandingHeader() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -63,6 +64,7 @@ export function LandingHeader() {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
+            <PWAInstallButton />
             <Link href="/login">
               <Button
                 variant="outline"
@@ -79,12 +81,15 @@ export function LandingHeader() {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 text-[#0F1C2E]"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="md:hidden flex items-center gap-2">
+            <PWAInstallButton compact />
+            <button
+              className="p-2 text-[#0F1C2E]"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
