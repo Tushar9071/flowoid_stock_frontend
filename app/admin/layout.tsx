@@ -1,0 +1,114 @@
+'use client';
+
+import React from 'react';
+import { usePathname } from 'next/navigation';
+import { AdminSidebar } from '@/components/admin/admin-sidebar';
+import { AdminHeader } from '@/components/admin/admin-header';
+import { AuthGuard } from '@/components/shared/auth-guard';
+
+const ADMIN_PAGE_META: Record<string, { 
+  title: string; 
+  subtitle: string; 
+  action?: { label: string; icon: string } 
+}> = {
+  '/admin': {
+    title: 'Platform Overview',
+    subtitle: 'Manage all tenants, subscriptions, and platform health',
+  },
+  '/admin/tenants': {
+    title: 'Tenant Management',
+    subtitle: 'Overview of all business tenants and their system status',
+  },
+  '/admin/users': {
+    title: 'Owner Management',
+    subtitle: 'Create and manage OWNER accounts supported by the backend',
+    action: { label: 'Create Owner', icon: 'Plus' }
+  },
+  '/admin/roles': {
+    title: 'Owner Permissions',
+    subtitle: 'Assign backend-defined permissions to owner accounts',
+  },
+  '/admin/permissions': {
+    title: 'Permission Catalog',
+    subtitle: 'View backend-defined permission modules and actions',
+  },
+  '/admin/monitoring': {
+    title: 'Platform Monitoring',
+    subtitle: 'Watch service, system, API, and database health',
+  },
+  '/admin/workflows': {
+    title: 'Approval Workflows',
+    subtitle: 'Create and monitor multi-step approval chains',
+  },
+  '/admin/logs': {
+    title: 'System Logs',
+    subtitle: 'View and filter platform activities and system errors',
+  },
+  '/admin/backup': {
+    title: 'Database Backups',
+    subtitle: 'Manage and trigger database snapshots',
+  },
+  '/admin/audit-logs': {
+    title: 'Audit Logs',
+    subtitle: 'Track platform activities and administrative changes',
+  },
+  '/admin/settings': {
+    title: 'System Settings',
+    subtitle: 'Configure platform-wide preferences and security controls',
+  },
+  '/admin/profile': {
+    title: 'My Profile',
+    subtitle: 'Your account, role, and platform access details',
+  },
+};
+
+import { Mail, Plus } from 'lucide-react';
+const ICON_MAP = { Mail, Plus };
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const mainRef = React.useRef<HTMLElement>(null);
+
+  React.useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [pathname]);
+
+  const pageMeta = ADMIN_PAGE_META[pathname] ?? {
+    title: 'Administration',
+    subtitle: 'Manage platform modules and configuration',
+  };
+
+  return (
+    <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+      {/* Same structure as DashboardLayout */}
+      <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
+        <AdminSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <AdminHeader />
+          <div className="shrink-0 bg-white border-b border-[#e5e7eb] px-4 sm:px-6 py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-[26px] font-bold theme-text-primary leading-tight">{pageMeta.title}</h1>
+                <p className="text-sm text-[#6b7280] mt-0.5">{pageMeta.subtitle}</p>
+              </div>
+              {pageMeta.action && (
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('admin-action-click'))}
+                  className="theme-accent-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm hover:shadow-md"
+                >
+                  {pageMeta.action.icon && React.createElement(ICON_MAP[pageMeta.action.icon as keyof typeof ICON_MAP] || Plus, { className: 'w-4 h-4' })}
+                  {pageMeta.action.label}
+                </button>
+              )}
+            </div>
+          </div>
+          <main ref={mainRef} className="flex-1 overflow-y-auto pb-24 md:pb-0">
+            {children}
+          </main>
+        </div>
+      </div>
+    </AuthGuard>
+  );
+}
