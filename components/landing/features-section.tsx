@@ -6,64 +6,64 @@ import {
   Gem, 
   Palette, 
   Users, 
-  Boxes, 
+  BellRing, 
   Building2, 
-  ShoppingCart, 
-  CreditCard, 
-  FileText 
+  Truck, 
+  Receipt, 
+  LineChart 
 } from "lucide-react";
 
 export function FeaturesSection() {
   const modules = [
     {
       icon: BarChart3,
-      title: "Dashboard & Analytics",
-      description: "Today's sales, low stock alerts, overdue payments, worker activity — all on one screen.",
+      title: "Real-Time Dashboard",
+      description: "Today's sales, low stock alerts, overdue payments, and worker activity — the complete business picture at a glance.",
     },
     {
       icon: Database,
-      title: "Raw Material Management",
-      description: "Track purchases by supplier, material type, quantity and cost. Supplier ledger with outstanding balance.",
+      title: "Raw Material Control",
+      description: "Track every gram of gold, silver, and brass purchased. Manage supplier ledgers with purity levels and gross/net weights.",
     },
     {
       icon: Gem,
-      title: "Supplementary Materials",
-      description: "Manage stones, diamonds, fittings, coatings. Track issuance per assignment and consumption per design.",
+      title: "Component Tracking",
+      description: "Manage stones, diamonds, and fittings with precision. Every supplementary item tied to its lot and worker assignment.",
     },
     {
       icon: Palette,
-      title: "Product Design Catalogue",
-      description: "Maintain your full design library with SKU, diamond count, piece rate, sale price per dozen, and reference images.",
+      title: "Digital Design Library",
+      description: "Maintain your complete design catalogue with reference images, Bill of Materials, and specific piece-rate labour costs.",
     },
     {
       icon: Users,
-      title: "Worker Management",
-      description: "Register workers, issue lots, collect finished goods, calculate earnings, settle payments with advance support.",
+      title: "Worker & Lot Management",
+      description: "Issue raw materials securely to workers. Automatically calculate piece-rate wages and track advances in real time.",
     },
     {
-      icon: Boxes,
-      title: "Inventory Management",
-      description: "Two-stage stock: unpackaged pieces → packaged dozens. Low stock alerts, packaging batch records.",
+      icon: BellRing,
+      title: "Smart Stock Alerts",
+      description: "Automatic alerts before you run out of raw materials or fast-moving components. Production never halts on your watch.",
     },
     {
       icon: Building2,
-      title: "Party Management",
-      description: "Manage dealers and suppliers in one place. Credit limits, credit periods, full ledger, overdue alerts.",
+      title: "Dealer & Party Directory",
+      description: "Centralised dealer information with credit limits, udhaar balances, and overdue alerts — all dealers, one view.",
     },
     {
-      icon: ShoppingCart,
+      icon: Truck,
       title: "Orders & Dispatch",
-      description: "Create orders, validate stock, generate invoices, record dispatch. Partial dispatch supported.",
+      description: "Turn orders into delivery challans in one click. Validate stock before dispatch. Track every parcel sent to dealers.",
     },
     {
-      icon: CreditCard,
-      title: "Payment & Ledger",
-      description: "Cash, UPI, bank transfer. Aging report: 0–30, 31–60, 61–90, 90+ days. Daily cash flow summary.",
+      icon: Receipt,
+      title: "Ledger & Udhaar",
+      description: "Manage dealer credit with complete transparency. Every transaction recorded, every outstanding balance visible in real time.",
     },
     {
-      icon: FileText,
-      title: "Reports & Analytics",
-      description: "Sales, stock, worker, outstanding, purchase, profit reports. Export to PDF and Excel.",
+      icon: LineChart,
+      title: "Business Reports",
+      description: "Automatic reports on sales performance, top designs, worker output, and full P&L statements. Export to Excel or PDF.",
     }
   ];
 
@@ -71,11 +71,14 @@ export function FeaturesSection() {
     <section id="modules" className="py-24 bg-white">
       <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#0F1C2E] font-jakarta mb-4">
-            Everything Your Business Needs
+          <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-[#1B2D4F]/5 border border-[#1B2D4F]/10 text-[#1B2D4F] text-xs font-bold uppercase tracking-wider mb-6">
+            Modules
+          </div>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-[#0F1C2E] to-[#4B5C72] font-jakarta mb-6 leading-tight drop-shadow-sm">
+            Ten modules. Fully integrated.
           </h2>
-          <p className="text-lg text-[#4B5C72]">
-            10 integrated modules, purpose-built for jewellery manufacturing
+          <p className="text-lg text-[#4B5C72] leading-relaxed">
+            Every capability your jewellery manufacturing business needs — purpose-built, not adapted from generic software.
           </p>
         </div>
 
@@ -88,15 +91,15 @@ export function FeaturesSection() {
                 className="border-[#E2E8F0] shadow-sm hover:shadow-md hover:border-[#1B2D4F]/30 transition-all duration-300 group"
               >
                 <CardHeader className="pb-3">
-                  <div className="w-12 h-12 rounded-lg bg-[#F8F9FC] border border-[#E2E8F0] flex items-center justify-center mb-4 group-hover:bg-[#1B2D4F] transition-colors">
-                    <ModuleIcon className="w-6 h-6 text-[#1B2D4F] group-hover:text-[#D4A843] transition-colors" />
+                  <div className="w-12 h-12 rounded-xl bg-[#F8F9FC] border border-[#E2E8F0] flex items-center justify-center mb-4 group-hover:bg-[#1B2D4F] transition-colors duration-300">
+                    <ModuleIcon className="w-6 h-6 text-[#1B2D4F] group-hover:text-[#D4A843] transition-colors duration-300" />
                   </div>
                   <CardTitle className="text-xl font-bold text-[#0F1C2E]">
                     {module.title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-[#4B5C72] text-sm leading-relaxed">
+                  <p className="text-[#4B5C72] text-base leading-relaxed">
                     {module.description}
                   </p>
                 </CardContent>

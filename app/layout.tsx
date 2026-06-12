@@ -13,6 +13,7 @@ import { AuthProvider } from '@/lib/auth-context'
 import { Toaster } from 'sonner'
 import { Toaster as HotToaster } from 'react-hot-toast'
 import { LoaderProvider, useLoader } from '@/context/LoaderContext'
+import { ViewModeProvider } from '@/context/ViewModeContext'
 import AppLoader from '@/components/loader/AppLoader'
 import PageLoader from '@/components/loader/PageLoader'
 import { MobileBottomNav } from '@/components/MobileNav/MobileBottomNav'
@@ -20,18 +21,22 @@ import { PWAInstallBanner } from '@/components/PWAInstallBanner'
 import './globals.css'
 import '../styles/theme.css'
 
-const sora = Sora({ subsets: ['latin'], variable: '--font-sora' })
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const sora = Sora({ subsets: ['latin'], variable: '--font-sora', preload: false })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', preload: false })
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { appLoading, hideAppLoader } = useLoader();
   const pathname = usePathname();
-  const skipLoader =
-    pathname === '/login' ||
-    pathname === '/register' ||
-    pathname === '/forgot-password' ||
-    pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/admin');
+  
+  // Only evaluate skipLoader ONCE on mount so the loader isn't abruptly 
+  // destroyed if a redirect happens during the animation.
+  const [skipLoader] = React.useState(() => {
+    return pathname === '/login' ||
+      pathname === '/register' ||
+      pathname === '/forgot-password' ||
+      pathname.startsWith('/dashboard') ||
+      pathname.startsWith('/admin');
+  });
 
   return (
     <>
@@ -50,6 +55,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '-' && e.target instanceof HTMLInputElement && e.target.type === 'number') {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <html lang="en" className={`${sora.variable} ${inter.variable} bg-background`}>
       <head>
@@ -87,7 +102,9 @@ export default function RootLayout({
         <PWAInstallBanner />
         <AuthProvider>
           <LoaderProvider>
-            <AppShell>{children}</AppShell>
+            <ViewModeProvider>
+              <AppShell>{children}</AppShell>
+            </ViewModeProvider>
           </LoaderProvider>
           <Toaster position="top-right" />
           <HotToaster position="top-right" />

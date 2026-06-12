@@ -1,7 +1,7 @@
 'use client';
 
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { SkeletonTable, SkeletonCard } from '@/components/skeleton/Skeletons';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
@@ -32,9 +32,12 @@ import {
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+
 import { PartyService } from '@/lib/services/party.service';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { SearchInput } from '@/components/shared/search-input';
+import { AdvancedDataTable } from '@/components/shared/DataTable';
+import { PremiumSelect } from '@/components/ui/PremiumSelect';
 import {
   BackendParty,
   BackendTenant,
@@ -79,7 +82,14 @@ export type PartyManagementPageProps = {
   subtitle?: string;
 };
 
-const PAGE_LIMIT = 12;
+const PAGE_LIMIT = 100;
+const LEDGER_SUMMARY_DEFAULT = {
+  balanceBeforePeriod: 0,
+  totalDebit: 0,
+  totalCredit: 0,
+  closingBalance: 0,
+  balanceNature: 'RECEIVABLE' as OpeningBalanceType,
+};
 
 const SAMPLE_PARTIES: CreatePartyPayload[] = [
   {
@@ -211,9 +221,21 @@ function prettyDate(date?: string | null) {
   }).format(new Date(date));
 }
 
+function generatePartyCode(type: PartyType, parties: BackendParty[], fallbackCount: number) {
+  const prefix = type === 'DEALER' ? 'DEL' : 'SUP';
+  const maxExisting = parties
+    .filter(party => (party.type || party.partyType) === type)
+    .map(party => {
+      const match = String(party.code || '').match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
+      return match ? Number(match[1]) : 0;
+    })
+    .reduce((max, value) => Math.max(max, value), 0);
+  return `${prefix}${String(Math.max(maxExisting, fallbackCount) + 1).padStart(3, '0')}`;
+}
+
 function formFromParty(party: BackendParty): PartyFormState {
   return {
-    type: party.type,
+    type: party.type || party.partyType || 'DEALER',
     name: party.name || '',
     code: party.code || '',
     contactPerson: party.contactPerson || '',
@@ -222,7 +244,7 @@ function formFromParty(party: BackendParty): PartyFormState {
     email: party.email || '',
     gstin: party.gstin || '',
     pan: party.pan || '',
-    addressLine1: party.addressLine1 || '',
+    addressLine1: party.addressLine1 || party.address || '',
     addressLine2: party.addressLine2 || '',
     city: party.city || '',
     state: party.state || '',
@@ -241,14 +263,16 @@ function payloadFromForm(form: PartyFormState): CreatePartyPayload {
   const openingBalance = numberOrUndefined(form.openingBalance);
   return {
     type: form.type,
+    partyType: form.type,
     name: form.name.trim(),
-    code: form.code.trim().toUpperCase() || undefined,
+    code: form.code.trim().toUpperCase(),
     contactPerson: form.contactPerson.trim() || undefined,
     phone: form.phone.trim() || undefined,
     alternatePhone: form.alternatePhone.trim() || undefined,
     email: form.email.trim() || undefined,
     gstin: form.gstin.trim().toUpperCase() || undefined,
     pan: form.pan.trim().toUpperCase() || undefined,
+    address: [form.addressLine1.trim(), form.addressLine2.trim()].filter(Boolean).join(', ') || undefined,
     addressLine1: form.addressLine1.trim() || undefined,
     addressLine2: form.addressLine2.trim() || undefined,
     city: form.city.trim() || undefined,
@@ -259,7 +283,6 @@ function payloadFromForm(form: PartyFormState): CreatePartyPayload {
     creditLimit: numberOrUndefined(form.creditLimit),
     openingBalance,
     openingBalanceType: openingBalance && openingBalance > 0 ? form.openingBalanceType : undefined,
-    openingBalanceDate: openingBalance && openingBalance > 0 ? dateInputToIso(form.openingBalanceDate) : undefined,
     notes: form.notes.trim() || undefined,
   };
 }
@@ -291,8 +314,8 @@ export function PartyManagementPage({
   const resolvedInitialTab = fixedTab ?? initialTab;
   const [tenant, setTenant] = useState<BackendTenant | null>(null);
   const [tab, setTab] = useState<Tab>(resolvedInitialTab);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [page, setPage] = useState(1);
   const [parties, setParties] = useState<BackendParty[]>([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalItems: 0 });
@@ -315,12 +338,13 @@ export function PartyManagementPage({
     includeOpeningEntry: true,
   });
 
-  const canCreate = hasPermission('parties.create');
-  const canUpdate = hasPermission('parties.update');
-  const canDelete = hasPermission('parties.delete');
+  const permissionModule = tab === 'DEALER' ? 'dealer_management' : 'supplier_management';
+  const canCreate = hasPermission(`${permissionModule}.create`);
+  const canUpdate = hasPermission(`${permissionModule}.update`);
+  const canDelete = hasPermission(`${permissionModule}.delete`);
 
   const loadTenant = useCallback(async () => {
-    const response = await CurrentTenantService.getCurrentTenant();
+    const response = await CurrentOwnerService.getCurrentOwner();
     if (response.success && response.data) {
       setTenant(response.data);
       return response.data;
@@ -356,7 +380,6 @@ export function PartyManagementPage({
         limit: PAGE_LIMIT,
         search: search.trim() || undefined,
         type: tab,
-        isActive: status === 'all' ? undefined : status === 'active',
       });
 
       if (response.success) {
@@ -376,17 +399,17 @@ export function PartyManagementPage({
     } finally {
       setLoading(false);
     }
-  }, [loadDropdownCounts, loadTenant, page, search, status, tab, tenant]);
+  }, [loadDropdownCounts, loadTenant, page, search, tab, tenant]);
 
   const pathname = usePathname();
 
   useEffect(() => {
     loadParties();
-  }, [page, search, status, tab, tenant?.id, pathname]);
+  }, [page, search, tab, tenant?.id, pathname]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, status, tab]);
+  }, [search, tab]);
 
   useEffect(() => {
     if (fixedTab && tab !== fixedTab) {
@@ -395,16 +418,11 @@ export function PartyManagementPage({
     }
   }, [fixedTab, tab]);
 
-  const stats = useMemo(() => {
-    const active = parties.filter(party => party.isActive).length;
-    const totalOpening = parties.reduce((sum, party) => sum + Number(party.openingBalance || 0), 0);
-    return { active, totalOpening };
-  }, [parties]);
-
   const openCreate = () => {
     if (!canCreate) return toast.error('You do not have permission to create parties');
+    const type = fixedTab ?? tab;
     setSelectedParty(null);
-    setForm(emptyForm(tab));
+    setForm({ ...emptyForm(type), code: generatePartyCode(type, parties, dropdownCounts[type === 'DEALER' ? 'dealers' : 'suppliers']) });
     setFormErrors({});
     setModalMode('create');
   };
@@ -429,6 +447,8 @@ export function PartyManagementPage({
     event.preventDefault();
     if (!tenant) return toast.error('Tenant is required');
     if (!form.name.trim() || form.name.trim().length < 2) return toast.error('Party name must be at least 2 characters');
+    if (!selectedParty && !form.code.trim()) return toast.error('Party code is required');
+    if (Number(form.openingBalance || 0) > 0 && !form.openingBalanceType) return toast.error('Opening balance type is required');
 
     setSaving(true);
     try {
@@ -651,50 +671,6 @@ export function PartyManagementPage({
       }
     >
       <div className="space-y-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {loading && parties.length === 0 ? (
-            <div className="col-span-1 lg:col-span-3">
-              <SkeletonCard count={3} />
-            </div>
-          ) : (
-            <>
-              <div className="theme-surface-card p-4">
-                <div className="flex items-center gap-3">
-                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                    <ClipboardList className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Visible Records</p>
-                    <p className="text-2xl font-bold theme-text-primary">{pagination.totalItems}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="theme-surface-card p-4">
-                <div className="flex items-center gap-3">
-                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Active On Page</p>
-                    <p className="text-2xl font-bold theme-text-primary">{stats.active}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="theme-surface-card p-4">
-                <div className="flex items-center gap-3">
-                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                    <BadgeIndianRupee className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Opening Balance</p>
-                    <p className="text-2xl font-bold theme-text-primary">{formatCurrency(stats.totalOpening)}</p>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
         <div className="theme-surface-card overflow-hidden">
           <div className="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1">
@@ -718,23 +694,14 @@ export function PartyManagementPage({
               })}
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <SearchInput
-                containerClassName="min-w-[240px]"
-                inputClassName="text-sm"
+                containerClassName="h-14 min-w-[280px]"
+                inputClassName="text-base"
                 placeholder="Search name, code, phone..."
                 value={search}
                 onChange={event => setSearch(event.target.value)}
               />
-              <select
-                value={status}
-                onChange={event => setStatus(event.target.value as typeof status)}
-                className="h-10 min-w-[140px] text-sm font-semibold"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="all">All Status</option>
-              </select>
             </div>
           </div>
 
@@ -751,127 +718,98 @@ export function PartyManagementPage({
               <p className="mt-1 text-sm text-slate-500">Create one or adjust your filters.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="theme-table-header">
-                  <tr>
-                    <th className="px-4 py-3 font-bold">Party</th>
-                    <th className="px-4 py-3 font-bold">Contact</th>
-                    <th className="px-4 py-3 font-bold">Credit</th>
-                    <th className="px-4 py-3 font-bold">Opening Balance</th>
-                    <th className="px-4 py-3 font-bold">Status</th>
-                    <th className="px-4 py-3 text-right font-bold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {parties.map(party => (
-                    <tr key={party.id} className="theme-table-row">
-                      <td className="px-4 py-4">
-                        <div className="flex items-start gap-3">
-                          <span className="theme-icon-chip mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg">
-                            {party.type === 'DEALER' ? <Building2 className="h-4 w-4" /> : <Truck className="h-4 w-4" />}
-                          </span>
-                          <div>
-                            <button
-                              onClick={() => openParty(party, 'view')}
-                              className="text-left font-bold theme-text-primary hover:underline"
-                            >
-                              {party.name}
-                            </button>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              {party.code || 'No code'} {party.gstin ? ` / GST ${party.gstin}` : ''}
-                            </p>
-                            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {[party.city, party.state].filter(Boolean).join(', ') || 'Address not added'}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <p className="font-semibold text-slate-800">{party.contactPerson || '-'}</p>
-                        <p className="flex items-center gap-1 text-xs text-slate-500">
-                          <Phone className="h-3.5 w-3.5" />
-                          {party.phone || '-'}
+            <AdvancedDataTable
+              data={parties}
+              searchable={false}
+              emptyIcon={tab === 'DEALER' ? <Building2 className="h-7 w-7" /> : <Truck className="h-7 w-7" />}
+              emptyTitle={`No ${tab === 'DEALER' ? 'dealers' : 'suppliers'} found`}
+              columns={[
+                {
+                  field: 'party',
+                  header: 'Party',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'text',
+                  getValue: party => `${party.name || ''} ${party.code || ''} ${party.gstin || ''}`,
+                  render: party => (
+                    <div className="flex items-start gap-3">
+                      <span className="theme-icon-chip mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg">
+                        {party.type === 'DEALER' ? <Building2 className="h-4 w-4" /> : <Truck className="h-4 w-4" />}
+                      </span>
+                      <div>
+                        <button onClick={() => openParty(party, 'view')} className="text-left font-bold theme-text-primary hover:underline">
+                          {party.name}
+                        </button>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {party.code || 'No code'} {party.gstin ? ` / GST ${party.gstin}` : ''}
                         </p>
-                        <p className="text-xs text-slate-500">{party.email || ''}</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <p className="font-bold theme-text-primary">{money(party.creditLimit)}</p>
-                        <p className="text-xs text-slate-500">{party.creditPeriodDays || 0} days</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <p className="font-bold theme-text-primary">{money(party.openingBalance)}</p>
-                        <p className="text-xs text-slate-500">{party.openingBalanceType || '-'} / {prettyDate(party.openingBalanceDate)}</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusPill(party.isActive)}`}>
-                          {party.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <button title="View" onClick={() => openParty(party, 'view')} className="theme-secondary-btn rounded-lg p-2">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                          <button title="Statement" onClick={() => openLedger(party, 'statement')} className="theme-secondary-btn rounded-lg p-2">
-                            <FileText className="h-4 w-4" />
-                          </button>
-                          <button title="Ledger" onClick={() => openLedger(party, 'ledger')} className="theme-secondary-btn rounded-lg p-2">
-                            <BookOpen className="h-4 w-4" />
-                          </button>
-                          {(canCreate || canUpdate) && (
-                            <button title="Opening balance" onClick={() => openBalance(party)} className="theme-secondary-btn rounded-lg p-2">
-                              <WalletCards className="h-4 w-4" />
-                            </button>
-                          )}
-                          {canUpdate && (
-                            <>
-                              <button title="Edit" onClick={() => openParty(party, 'edit')} className="theme-secondary-btn rounded-lg p-2">
-                                <Edit3 className="h-4 w-4" />
-                              </button>
-                              <button title="Activate or deactivate" onClick={() => toggleStatus(party)} className="theme-secondary-btn rounded-lg p-2">
-                                <Power className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
-                          {canDelete && (
-                            <button title="Delete" onClick={() => deleteParty(party)} className="theme-danger-btn rounded-lg p-2">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {[party.city, party.state].filter(Boolean).join(', ') || 'Address not added'}
+                        </p>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  field: 'contact',
+                  header: 'Contact',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'text',
+                  getValue: party => `${party.contactPerson || ''} ${party.phone || ''} ${party.email || ''}`,
+                  render: party => (
+                    <div>
+                      <p className="font-semibold text-slate-800">{party.contactPerson || '-'}</p>
+                      <p className="flex items-center gap-1 text-xs text-slate-500"><Phone className="h-3.5 w-3.5" />{party.phone || '-'}</p>
+                      <p className="text-xs text-slate-500">{party.email || ''}</p>
+                    </div>
+                  ),
+                },
+                {
+                  field: 'creditLimit',
+                  header: 'Credit',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'number',
+                  getValue: party => Number(party.creditLimit || 0),
+                  render: party => <div><p className="font-bold theme-text-primary">{money(party.creditLimit)}</p><p className="text-xs text-slate-500">{party.creditPeriodDays || 0} days</p></div>,
+                },
+                {
+                  field: 'openingBalance',
+                  header: 'Opening Balance',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'number',
+                  getValue: party => Number(party.openingBalance || 0),
+                  render: party => <div><p className="font-bold theme-text-primary">{money(party.openingBalance)}</p><p className="text-xs text-slate-500">{party.openingBalanceType || '-'}</p></div>,
+                },
+                {
+                  field: 'isActive',
+                  header: 'Status',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'boolean',
+                  getValue: party => Boolean(party.isActive),
+                  render: party => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusPill(party.isActive)}`}>{party.isActive ? 'Active' : 'Inactive'}</span>,
+                },
+                {
+                  field: 'actions',
+                  header: 'Actions',
+                  render: party => (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button title="View" onClick={() => openParty(party, 'view')} className="theme-secondary-btn rounded-lg p-2"><MoreHorizontal className="h-4 w-4" /></button>
+                      <button title="Statement" onClick={() => openLedger(party, 'statement')} className="theme-secondary-btn rounded-lg p-2"><FileText className="h-4 w-4" /></button>
+                      <button title="Ledger" onClick={() => openLedger(party, 'ledger')} className="theme-secondary-btn rounded-lg p-2"><BookOpen className="h-4 w-4" /></button>
+                      {(canCreate || canUpdate) && <button title="Opening balance" onClick={() => openBalance(party)} className="theme-secondary-btn rounded-lg p-2"><WalletCards className="h-4 w-4" /></button>}
+                      {canUpdate && <button title="Edit" onClick={() => openParty(party, 'edit')} className="theme-secondary-btn rounded-lg p-2"><Edit3 className="h-4 w-4" /></button>}
+                      {canDelete && party.isActive && <button title="Deactivate" onClick={() => deleteParty(party)} className="theme-danger-btn rounded-lg p-2"><Trash2 className="h-4 w-4" /></button>}
+                    </div>
+                  ),
+                },
+              ]}
+            />
           )}
-
-          <div className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-500">
-              Page {pagination.page} of {Math.max(pagination.totalPages, 1)} / {pagination.totalItems} total
-            </p>
-            <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(value => Math.max(1, value - 1))}
-                className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <button
-                disabled={page >= pagination.totalPages}
-                onClick={() => setPage(value => value + 1)}
-                className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -882,6 +820,7 @@ export function PartyManagementPage({
           form={form}
           errors={formErrors}
           setForm={setForm}
+          codeForType={(type) => generatePartyCode(type, parties, dropdownCounts[type === 'DEALER' ? 'dealers' : 'suppliers'])}
           saving={saving}
           onClose={() => setModalMode(null)}
           onSubmit={handleSubmit}
@@ -965,6 +904,7 @@ function PartyModal({
   form,
   errors,
   setForm,
+  codeForType,
   saving,
   onClose,
   onSubmit,
@@ -974,6 +914,7 @@ function PartyModal({
   form: PartyFormState;
   errors: Record<string, string>;
   setForm: React.Dispatch<React.SetStateAction<PartyFormState>>;
+  codeForType: (type: PartyType) => string;
   saving: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -984,7 +925,7 @@ function PartyModal({
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
       <form onSubmit={onSubmit} className="theme-modal-panel flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <div>
@@ -999,23 +940,28 @@ function PartyModal({
         <div className="grid gap-4 overflow-y-auto p-4 md:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Party Type <span className="text-red-500">*</span></span>
-            <select
+            <PremiumSelect
               disabled={disabled || Boolean(lockedType)}
               value={lockedValue}
-              onChange={event => {
+              onChange={(event: any) => {
                 if (lockedType) return;
-                setForm(value => ({ ...value, type: event.target.value as PartyType }));
+                const nextType = event.target.value as PartyType;
+                setForm(value => ({
+                  ...value,
+                  type: nextType,
+                  code: codeForType(nextType),
+                }));
               }}
-              className={`h-10 w-full text-sm font-semibold ${errors.type ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+              className={`h-10 w-full text-sm font-semibold disabled:bg-slate-100 ${errors.type ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
             >
-              <option value="DEALER">Dealer</option>
-              <option value="SUPPLIER">Supplier</option>
-            </select>
+              <option value="DEALER">Dealer (Customer)</option>
+              <option value="SUPPLIER">Supplier (Vendor)</option>
+            </PremiumSelect>
             {errors.type && <p className="mt-1 text-xs text-red-500">{errors.type}</p>}
           </label>
 
           <Field label="Party Name" value={form.name} onChange={(value) => setForm(current => ({ ...current, name: value }))} required error={errors.name} />
-          <Field label="Party Code" value={form.code} onChange={(value) => setForm(current => ({ ...current, code: value }))} error={errors.code} />
+          <Field label="Party Code" value={form.code} disabled={disabled || mode !== 'create'} onChange={(value) => setForm(current => ({ ...current, code: value.toUpperCase() }))} required={mode === 'create'} error={errors.code} />
           <Field label="Contact Person" value={form.contactPerson} onChange={(value) => setForm(current => ({ ...current, contactPerson: value }))} error={errors.contactPerson} />
           <Field label="Phone" value={form.phone} onChange={(value) => setForm(current => ({ ...current, phone: value }))} error={errors.phone} />
           <Field label="Alternate Phone" value={form.alternatePhone} onChange={(value) => setForm(current => ({ ...current, alternatePhone: value }))} error={errors.alternatePhone} />
@@ -1033,15 +979,15 @@ function PartyModal({
           <Field label="Opening Balance" type="number" value={form.openingBalance} onChange={(value) => setForm(current => ({ ...current, openingBalance: value }))} error={errors.openingBalance} />
           <label className="block">
             <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Opening Balance Type</span>
-            <select
+            <PremiumSelect
               disabled={disabled}
               value={form.openingBalanceType}
-              onChange={(event) => setForm(current => ({ ...current, openingBalanceType: event.target.value as OpeningBalanceType }))}
+              onChange={(event: any) => setForm(current => ({ ...current, openingBalanceType: event.target.value as OpeningBalanceType }))}
               className="h-10 w-full text-sm font-semibold"
             >
               <option value="RECEIVABLE">Receivable</option>
               <option value="PAYABLE">Payable</option>
-            </select>
+            </PremiumSelect>
           </label>
           <Field label="Opening Balance Date" type="date" value={form.openingBalanceDate} onChange={(value) => setForm(current => ({ ...current, openingBalanceDate: value }))} />
           <label className="block md:col-span-2">
@@ -1094,7 +1040,7 @@ function BalanceModal({
 }) {
   return (
     <Portal>
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
       <form onSubmit={onSubmit} className="theme-modal-panel flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <div>
@@ -1110,14 +1056,14 @@ function BalanceModal({
           <Field label="Opening Balance" type="number" value={form.openingBalance} onChange={(value) => setForm(current => ({ ...current, openingBalance: value }))} error={errors.openingBalance} />
           <label className="block">
             <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Opening Balance Type</span>
-            <select
+            <PremiumSelect
               value={form.openingBalanceType}
-              onChange={(event) => setForm(current => ({ ...current, openingBalanceType: event.target.value as OpeningBalanceType }))}
+              onChange={(event: any) => setForm(current => ({ ...current, openingBalanceType: event.target.value as OpeningBalanceType }))}
               className="h-10 w-full text-sm font-semibold"
             >
               <option value="RECEIVABLE">Receivable</option>
               <option value="PAYABLE">Payable</option>
-            </select>
+            </PremiumSelect>
           </label>
           <Field label="Opening Balance Date" type="date" value={form.openingBalanceDate} onChange={(value) => setForm(current => ({ ...current, openingBalanceDate: value }))} />
           <label className="block md:col-span-2">
@@ -1171,10 +1117,13 @@ function LedgerPanel({
   onReload: () => void;
   setMode: (mode: LedgerMode) => void;
 }) {
+  const summary = data?.summary || LEDGER_SUMMARY_DEFAULT;
+  const entries = data?.entries || [];
+
   return (
     <Portal>
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
-      <div className="theme-modal-panel flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[120] flex justify-end bg-slate-950/45">
+      <div className="theme-modal-panel flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-none sm:rounded-l-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
           <div>
             <h2 className="text-xl font-bold theme-text-primary">{party.name}</h2>
@@ -1220,42 +1169,76 @@ function LedgerPanel({
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="theme-surface-card p-4">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Opening Balance</p>
-                  <p className="text-xl font-bold theme-text-primary">{money(data.summary.balanceBeforePeriod)}</p>
+                  <p className="text-xl font-bold theme-text-primary">{money(summary.balanceBeforePeriod)}</p>
                 </div>
                 <div className="theme-surface-card p-4">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total Debit</p>
-                  <p className="text-xl font-bold theme-text-primary">{money(data.summary.totalDebit)}</p>
+                  <p className="text-xl font-bold theme-text-primary">{money(summary.totalDebit)}</p>
                 </div>
                 <div className="theme-surface-card p-4">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total Credit</p>
-                  <p className="text-xl font-bold theme-text-primary">{money(data.summary.totalCredit)}</p>
+                  <p className="text-xl font-bold theme-text-primary">{money(summary.totalCredit)}</p>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="theme-table-header">
-                    <tr>
-                      <th className="px-4 py-3 font-bold">Date</th>
-                      <th className="px-4 py-3 font-bold">Description</th>
-                      <th className="px-4 py-3 font-bold">Debit</th>
-                      <th className="px-4 py-3 font-bold">Credit</th>
-                      <th className="px-4 py-3 font-bold">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data.entries.map((entry, index) => (
-                      <tr key={index} className="theme-table-row">
-                        <td className="px-4 py-3 text-sm text-slate-600">{prettyDate(entry.entryDate)}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{entry.description || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{money(entry.debitAmount)}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{money(entry.creditAmount)}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-700">{money(entry.runningBalance)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <AdvancedDataTable
+                data={entries as any[]}
+                searchable={false}
+                emptyIcon={<BookOpen className="h-6 w-6 text-slate-400" />}
+                emptyTitle="No ledger entries found"
+                columns={[
+                  {
+                    field: 'entryDate',
+                    header: 'Date',
+                    sortable: true,
+                    filterable: true,
+                    filterType: 'date',
+                    getValue: entry => entry.entryDate,
+                    render: entry => <span className="text-slate-600">{prettyDate(entry.entryDate)}</span>,
+                  },
+                  {
+                    field: 'description',
+                    header: 'Description',
+                    sortable: true,
+                    filterable: true,
+                    filterType: 'text',
+                    getValue: entry => `${entry.description || ''} ${entry.entryType || ''} ${entry.referenceNo || ''}`,
+                    render: entry => (
+                      <div>
+                        <p className="font-semibold text-slate-700">{entry.description || '-'}</p>
+                        <p className="text-xs text-slate-500">{entry.entryType || entry.voucherType || '-'}</p>
+                      </div>
+                    ),
+                  },
+                  {
+                    field: 'debitAmount',
+                    header: 'Debit',
+                    sortable: true,
+                    filterable: true,
+                    filterType: 'number',
+                    getValue: entry => Number(entry.debitAmount || 0),
+                    render: entry => <span>{money(entry.debitAmount)}</span>,
+                  },
+                  {
+                    field: 'creditAmount',
+                    header: 'Credit',
+                    sortable: true,
+                    filterable: true,
+                    filterType: 'number',
+                    getValue: entry => Number(entry.creditAmount || 0),
+                    render: entry => <span>{money(entry.creditAmount)}</span>,
+                  },
+                  {
+                    field: 'runningBalance',
+                    header: 'Balance',
+                    sortable: true,
+                    filterable: true,
+                    filterType: 'number',
+                    getValue: entry => Number(entry.runningBalance || 0),
+                    render: entry => <span className="font-bold text-slate-700">{money(entry.runningBalance)}</span>,
+                  },
+                ]}
+              />
             </div>
           )}
         </div>

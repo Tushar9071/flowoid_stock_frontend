@@ -4,18 +4,20 @@ import React from 'react';
 import { X, Wallet, TrendingUp } from 'lucide-react';
 import { BackendRecord } from '@/lib/services/business-modules.service';
 import { formatCurrency } from '@/lib/constants';
+import { PremiumSelect } from '@/components/ui/PremiumSelect';
 
 interface PaymentModalProps {
   form: Record<string, any>;
   workers: BackendRecord[];
   saving: boolean;
+  apiError?: any;
   onChange: (name: string, value: any) => void;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
 const PAYMENT_TYPES = [
-  { value: 'EARNING_SETTLEMENT', label: 'Earning Settlement', desc: 'Pay out earned balance to worker', color: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
+  { value: 'EARNING', label: 'Earning Settlement', desc: 'Pay out earned balance to worker', color: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
   { value: 'ADVANCE', label: 'Advance', desc: 'Give advance payment to worker', color: 'border-blue-300 bg-blue-50 text-blue-700' },
   { value: 'ADVANCE_RECOVERY', label: 'Advance Recovery', desc: 'Recover advance from worker earnings', color: 'border-amber-300 bg-amber-50 text-amber-700' },
 ];
@@ -31,10 +33,51 @@ export function PaymentModal({
   form,
   workers,
   saving,
+  apiError,
   onChange,
   onClose,
   onSubmit,
 }: PaymentModalProps) {
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+  const [globalError, setGlobalError] = React.useState<string | null>(null);
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  React.useEffect(() => {
+    if (apiError) {
+      import('@/lib/utils').then(({ parseValidationErrors }) => {
+        const parsed = parseValidationErrors(apiError);
+        setFieldErrors(parsed.fields);
+        setGlobalError(parsed.global);
+        setTimeout(() => {
+          if (formRef.current) {
+            const firstInvalid = formRef.current.querySelector('[data-invalid="true"]') as HTMLElement;
+            if (firstInvalid) {
+              firstInvalid.focus();
+              firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }, 50);
+      });
+    } else {
+      setFieldErrors({});
+      setGlobalError(null);
+    }
+  }, [apiError]);
+
+  const handleChange = (name: string, value: any) => {
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      if (Object.keys(fieldErrors).length <= 1 && globalError === 'Please correct the highlighted fields and try again.') {
+        setGlobalError(null);
+      }
+    }
+    onChange(name, value);
+  };
+
   const selectedWorker = workers.find(w => w.id === form.workerId);
   const summary = selectedWorker?.summary;
   const outstanding = moneyNumber(summary?.outstandingBalance);
@@ -44,8 +87,9 @@ export function PaymentModal({
   const selectedType = PAYMENT_TYPES.find(t => t.value === form.paymentType);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
       <form
+        ref={formRef}
         onSubmit={onSubmit}
         className="theme-modal-panel w-full max-w-lg overflow-hidden"
         style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
@@ -66,23 +110,31 @@ export function PaymentModal({
           </button>
         </div>
 
+        {globalError && (
+          <div className="mx-6 mt-4 whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {globalError}
+          </div>
+        )}
+
         <div className="overflow-y-auto flex-1 p-6 space-y-5">
           {/* Worker selector */}
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
               Worker <span className="text-red-500">*</span>
             </span>
-            <select
+            <PremiumSelect
               value={form.workerId || ''}
               required
-              onChange={e => onChange('workerId', e.target.value)}
-              className="h-10 w-full text-sm"
+              onChange={(e: any) => handleChange('workerId', e.target.value)}
+              className={`h-10 w-full rounded-lg border ${fieldErrors.workerId ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+              data-invalid={!!fieldErrors.workerId}
             >
               <option value="">Select worker</option>
               {workers.map(w => (
                 <option key={w.id} value={w.id}>{w.name}{w.city ? ` · ${w.city}` : ''}</option>
               ))}
-            </select>
+            </PremiumSelect>
+            {fieldErrors.workerId && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.workerId}</p>}
           </label>
 
           {/* Worker balance context */}
@@ -113,7 +165,7 @@ export function PaymentModal({
                 <button
                   key={type.value}
                   type="button"
-                  onClick={() => onChange('paymentType', type.value)}
+                  onClick={() => handleChange('paymentType', type.value)}
                   className={`flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
                     form.paymentType === type.value
                       ? type.color + ' border-opacity-100'
@@ -143,25 +195,29 @@ export function PaymentModal({
                 value={form.amount || ''}
                 required
                 placeholder="0.00"
-                onChange={e => onChange('amount', e.target.value)}
-                className="h-10 w-full text-sm"
+                onChange={e => handleChange('amount', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.amount ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.amount}
               />
+              {fieldErrors.amount && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.amount}</p>}
               {/* Show warning if over outstanding */}
-              {form.paymentType === 'EARNING_SETTLEMENT' && amount > outstanding && outstanding > 0 && (
+              {form.paymentType === 'EARNING' && amount > outstanding && outstanding > 0 && (
                 <p className="mt-1 text-[11px] text-amber-600">⚠ Exceeds outstanding balance</p>
               )}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Payment Mode</span>
-              <select
+              <PremiumSelect
                 value={form.paymentMode || 'CASH'}
-                onChange={e => onChange('paymentMode', e.target.value)}
-                className="h-10 w-full text-sm"
+                onChange={(e: any) => handleChange('paymentMode', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.paymentMode ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.paymentMode}
               >
                 {PAYMENT_MODES.map(m => (
                   <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
                 ))}
-              </select>
+              </PremiumSelect>
+              {fieldErrors.paymentMode && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.paymentMode}</p>}
             </label>
           </div>
 
@@ -171,10 +227,12 @@ export function PaymentModal({
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Paid At</span>
               <input
                 type="date"
-                value={form.paidAt || ''}
-                onChange={e => onChange('paidAt', e.target.value)}
-                className="h-10 w-full text-sm"
+                value={form.paidAt ? new Date(form.paidAt).toISOString().slice(0, 10) : ''}
+                onChange={e => handleChange('paidAt', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.paidAt ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.paidAt}
               />
+              {fieldErrors.paidAt && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.paidAt}</p>}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Notes</span>
@@ -182,9 +240,11 @@ export function PaymentModal({
                 type="text"
                 value={form.notes || ''}
                 placeholder="Optional"
-                onChange={e => onChange('notes', e.target.value)}
-                className="h-10 w-full text-sm"
+                onChange={e => handleChange('notes', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.notes ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.notes}
               />
+              {fieldErrors.notes && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.notes}</p>}
             </label>
           </div>
 

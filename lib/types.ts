@@ -416,6 +416,7 @@ export interface BackendParty {
   id: string;
   tenantId: string;
   type: PartyType;
+  partyType?: PartyType;
   name: string;
   code?: string | null;
   contactPerson?: string | null;
@@ -424,6 +425,7 @@ export interface BackendParty {
   email?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  address?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
   city?: string | null;
@@ -444,14 +446,16 @@ export interface BackendParty {
 
 export interface CreatePartyPayload {
   type: PartyType;
+  partyType?: PartyType;
   name: string;
-  code?: string;
+  code: string;
   contactPerson?: string;
   phone?: string;
   alternatePhone?: string;
   email?: string;
   gstin?: string;
   pan?: string;
+  address?: string;
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
@@ -494,6 +498,7 @@ export interface PartyDropdownItem {
   id: string;
   tenantId: string;
   type: PartyType;
+  partyType?: PartyType;
   name: string;
   code?: string | null;
   phone?: string | null;
@@ -569,8 +574,8 @@ export interface PartyStatementResponse {
 }
 
 // Raw Material Types
-export type RawMaterialUnit = 'KG' | 'GRAM' | 'PIECE' | 'METER' | 'DOZEN';
-export type RawMaterialPurchaseStatus = 'PENDING' | 'RECEIVED' | 'CANCELLED';
+export type RawMaterialUnit = 'KG' | 'GRAM' | 'PIECE' | 'METER' | 'DOZEN' | 'OTHER';
+export type RawMaterialPurchaseStatus = 'DRAFT' | 'FINAL' | 'CANCELLED';
 
 export interface RawMaterialType {
   id: string;
@@ -589,7 +594,9 @@ export interface RawMaterialPurchase {
   id: string;
   tenantId: string;
   materialTypeId: string;
+  materialId?: string;
   supplierId: string;
+  supplierPartyId?: string | null;
   quantity: string;
   costPerUnit: string;
   totalCost: string;
@@ -602,13 +609,16 @@ export interface RawMaterialPurchase {
   createdAt: string;
   updatedAt: string;
   materialType?: RawMaterialType;
+  material?: RawMaterialType;
   supplier?: BackendParty;
+  supplierParty?: BackendParty;
 }
 
 export interface RawMaterialIssuance {
   id: string;
   tenantId: string;
   materialTypeId: string;
+  materialId?: string;
   assignmentId: string;
   quantity: string;
   issuedAt: string;
@@ -617,6 +627,8 @@ export interface RawMaterialIssuance {
   createdAt: string;
   updatedAt: string;
   materialType?: RawMaterialType;
+  material?: RawMaterialType;
+  unit?: RawMaterialUnit;
 }
 
 export interface RawMaterialStockSummary {
@@ -639,6 +651,7 @@ export interface RawMaterialTypeQuery {
   limit?: number;
   search?: string;
   isActive?: boolean;
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface CreateRawMaterialTypePayload {
@@ -664,11 +677,12 @@ export interface RawMaterialPurchaseQuery {
 
 export interface CreateRawMaterialPurchasePayload {
   materialTypeId: string;
-  supplierId: string;
+  materialId?: string;
+  supplierId?: string;
+  supplierPartyId?: string;
   quantity: number;
   costPerUnit: number;
   purchaseDate: string;
-  status?: RawMaterialPurchaseStatus;
   invoiceNumber?: string;
   notes?: string;
 }
@@ -677,7 +691,6 @@ export interface UpdateRawMaterialPurchasePayload {
   quantity?: number;
   costPerUnit?: number;
   purchaseDate?: string;
-  status?: RawMaterialPurchaseStatus;
   invoiceNumber?: string;
   notes?: string;
 }

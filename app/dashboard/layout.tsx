@@ -3,6 +3,8 @@
 import React from 'react';
 import { AuthGuard } from '@/components/shared/auth-guard';
 
+import { ActivityProvider } from '@/lib/hooks/use-activity-context';
+
 export default function DashboardRootLayout({
   children,
 }: {
@@ -10,7 +12,9 @@ export default function DashboardRootLayout({
 }) {
   return (
     <AuthGuard>
-      {children}
+      <ActivityProvider>
+        {children}
+      </ActivityProvider>
     </AuthGuard>
   );
 }

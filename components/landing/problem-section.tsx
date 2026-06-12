@@ -1,61 +1,68 @@
 import React from "react";
-import { XCircle, CheckCircle2, ArrowRight } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 export function ProblemSection() {
   const problems = [
     {
-      pain: "Lost track of which worker has which material",
-      solution: "Worker assignments with lot tracking & status lifecycle",
+      pain: "No idea which worker is holding which material or lot right now.",
+      solution: "Complete lot tracking with worker assignments, issue dates, expected return dates, and full status lifecycle — Active, Overdue, or Completed.",
     },
     {
-      pain: "Don't know how much a dealer owes you",
-      solution: "Real-time dealer ledger with udhaar & overdue alerts",
+      pain: "Dealer balances tracked in a notebook — or worse, only in memory.",
+      solution: "Real-time dealer ledger with udhaar tracking, payment history, aging reports, and automated overdue alerts. Every rupee, always accounted for.",
     },
     {
-      pain: "Can't tell what's in stock without checking physically",
-      solution: "Two-stage inventory: unpackaged pieces + packaged dozens",
+      pain: "I have to physically check every shelf to know what's actually in stock.",
+      solution: "Two-stage digital inventory: unpackaged finished pieces and packaged dozens — always reconciled, always accurate, accessible from any device.",
     },
   ];
 
   return (
-    <section className="py-24 bg-white relative">
+    <section className="py-24 bg-[#F8F9FC] border-b border-[#E2E8F0]" id="problem">
       <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#0F1C2E] font-jakarta mb-4">
-            Running a Jewellery Business on WhatsApp & Paper?
+          <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-[#ef4444]/10 border border-[#ef4444]/20 text-[#ef4444] text-xs font-bold uppercase tracking-wider mb-6">
+            The Problem
+          </div>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-[#0F1C2E] to-[#4B5C72] font-jakarta leading-tight mb-6 drop-shadow-sm">
+            Most jewellery factories still run on paper and WhatsApp.
           </h2>
-          <p className="text-lg text-[#4B5C72]">
-            Most manufacturers still track workers in notebooks, orders on WhatsApp, 
-            and payments in memory. That's where things go wrong.
+          <p className="text-lg text-[#4B5C72] leading-relaxed">
+            When your entire operation depends on notebooks, phone calls, and memory — one bad day means lost materials, missed payments, and unhappy dealers.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
           {problems.map((item, index) => (
-            <Card key={index} className="border-[#E2E8F0] shadow-sm hover:shadow-md transition-shadow duration-300">
-              <CardContent className="p-8 flex flex-col h-full justify-between">
-                <div>
-                  <div className="flex items-start gap-3 mb-6">
-                    <XCircle className="w-6 h-6 text-[#ef4444] shrink-0 mt-0.5" />
-                    <p className="text-base font-medium text-[#4B5C72] leading-snug">
-                      "{item.pain}"
-                    </p>
-                  </div>
-                  
-                  <div className="flex justify-center mb-6 opacity-30">
-                    <ArrowRight className="w-5 h-5 text-[#4B5C72]" />
-                  </div>
+            <div 
+              key={index} 
+              className="bg-white rounded-2xl p-8 shadow-sm border border-[#E2E8F0] hover:shadow-md transition-shadow duration-300 flex flex-col"
+            >
+              {/* Pain Section */}
+              <div className="mb-8">
+                <div className="flex items-center gap-2 text-[#ef4444] font-bold text-sm uppercase tracking-wide mb-3">
+                  <AlertCircle className="w-4 h-4" strokeWidth={2.5} />
+                  The Pain
                 </div>
-                
-                <div className="flex items-start gap-3 bg-[#F8F9FC] p-4 rounded-lg border border-[#E2E8F0]/50">
-                  <CheckCircle2 className="w-6 h-6 text-[#22C55E] shrink-0 mt-0.5" />
-                  <p className="text-sm font-semibold text-[#0F1C2E] leading-snug">
-                    {item.solution}
-                  </p>
+                <p className="text-lg font-medium text-[#0F1C2E] leading-snug italic">
+                  "{item.pain}"
+                </p>
+              </div>
+
+              {/* Decorative Divider */}
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-[#E2E8F0] to-transparent my-6 opacity-60"></div>
+
+              {/* Solution Section */}
+              <div className="mt-auto">
+                <div className="flex items-center gap-2 text-[#22c55e] font-bold text-sm uppercase tracking-wide mb-3">
+                  <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
+                  StockFlow's Fix
                 </div>
-              </CardContent>
-            </Card>
+                <p className="text-base text-[#4B5C72] leading-relaxed font-medium">
+                  {item.solution}
+                </p>
+              </div>
+            </div>
           ))}
         </div>
       </div>

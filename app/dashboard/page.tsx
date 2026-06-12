@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { KPICards } from '@/components/dashboard/kpi-cards';
 import { SalesChart, SalesDataPoint } from '@/components/dashboard/sales-chart';
-import { AlertsWidget } from '@/components/dashboard/alerts-widget';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { RecentActivityWidget } from '@/components/dashboard/recent-activity-widget';
+import { useRecentActivity } from '@/lib/hooks/use-activity-context';
+
 import {
   OrderService,
   PaymentService,
+  ReportService,
   InventoryService,
   DesignService,
   WorkerService,
@@ -23,7 +25,7 @@ import { Loader2 } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
   
   // KPI States
@@ -34,8 +36,8 @@ export default function DashboardPage() {
 
   // Widget States
   const [salesData, setSalesData] = useState<SalesDataPoint[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const { activities, loading: activitiesLoading } = useRecentActivity();
 
   // Quick Stats States
   const [activeDesigns, setActiveDesigns] = useState(0);
@@ -45,123 +47,140 @@ export default function DashboardPage() {
   const [totalInventoryItems, setTotalInventoryItems] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadDashboardData = async () => {
       try {
-        const tenantRes = await CurrentTenantService.getCurrentTenant();
-        if (!tenantRes.success || !tenantRes.data) {
-          setLoading(false);
-          return; // No tenant yet
+        const tenantId = "owner";
+
+        const apiPromises = [
+          OrderService.list(tenantId, { page: 1, limit: 5 }), // exactly 5 for recent orders table
+          ReportService.ledgerAging(tenantId, { 
+            fromDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0], 
+            toDate: new Date().toISOString().split('T')[0], 
+            partyType: 'DEALER' 
+          }),
+          InventoryService.listLowStockAlerts(tenantId, { page: 1, limit: 1 }),
+          InventoryService.listStock(tenantId, { page: 1, limit: 1 }),
+          DesignService.list(tenantId, { page: 1, limit: 1 }),
+          WorkerService.list(tenantId, { page: 1, limit: 1 }),
+          PartyService.list(tenantId, { type: 'DEALER', page: 1, limit: 1 }),
+          ReportService.salesSummary(tenantId, { 
+            fromDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0], 
+            toDate: new Date().toISOString().split('T')[0],
+            groupBy: 'month'
+          }),
+          // 4 explicit calls to get precise active order counts without backend modifications
+          OrderService.list(tenantId, { limit: 1, status: 'DRAFT' }),
+          OrderService.list(tenantId, { limit: 1, status: 'CONFIRMED' }),
+          OrderService.list(tenantId, { limit: 1, status: 'PACKED' }),
+          OrderService.list(tenantId, { limit: 1, status: 'PARTIALLY_DISPATCHED' })
+        ];
+
+        const [
+          ordersRes,
+          agingRes,
+          alertsRes,
+          stockRes,
+          designsRes,
+          workersRes,
+          dealersRes,
+          salesSummaryRes,
+          draftRes,
+          confirmedRes,
+          packedRes,
+          partDispatchedRes
+        ] = await Promise.all(apiPromises) as any[];
+
+        if (!isMounted) return;
+
+        // --- Process Recent Orders ---
+        if (ordersRes?.success) {
+          const orders = responseItems(ordersRes.data);
+          const sorted = [...orders].sort((a, b) => new Date(b.orderDate || b.createdAt || 0).getTime() - new Date(a.orderDate || a.createdAt || 0).getTime());
+          setRecentOrders(sorted.slice(0, 5));
         }
-        const tenantId = tenantRes.data.id;
 
-        // Fetch critical data first (Orders for Chart and Table)
-        OrderService.list(tenantId, { page: 1, limit: 20 }).then(ordersRes => {
-          if (ordersRes.success) {
-            const orders = responseItems(ordersRes.data);
-            let sumSales = 0;
-            let sumActive = 0;
-            
-            const monthMap: Record<string, number> = {};
-            
-            orders.forEach((o: any) => {
-              const amount = Number(o.totalAmount || o.total || 0);
-              
-              const status = String(o.status || '').toUpperCase();
-              if (status !== 'CANCELLED') {
-                sumSales += amount;
-              }
-              
-              if (['DRAFT', 'CONFIRMED', 'PACKED', 'PARTIALLY_DISPATCHED'].includes(status)) {
-                sumActive++;
-              }
-
-              // Sales Chart logic
-              const dateStr = o.orderDate || o.createdAt;
-              const date = dateStr ? new Date(dateStr) : null;
-              if (date && !isNaN(date.getTime()) && status !== 'CANCELLED') {
-                const month = date.toLocaleString('en-US', { month: 'short' });
-                monthMap[month] = (monthMap[month] || 0) + amount;
-              }
-            });
-            
-            setTotalSales(sumSales);
-            setActiveOrders(sumActive);
-            
-            // Sort by date descending and take top 5 for Recent Orders
-            const sorted = [...orders].sort((a, b) => new Date(b.orderDate || b.createdAt || 0).getTime() - new Date(a.orderDate || a.createdAt || 0).getTime());
-            setRecentOrders(sorted.slice(0, 5));
-
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            setSalesData(months.map(m => ({ month: m, sales: monthMap[m] || 0 })));
-          }
-          // Set loading to false as soon as orders load to make it feel fast!
-          setLoading(false);
-        });
-
-        // Fetch non-critical data independently in background
-        PaymentService.agingReport(tenantId).then(agingRes => {
-          if (agingRes.success) {
-            const agingItems = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.items || [agingRes.data].filter(Boolean));
-            const totalPending = agingItems.reduce((acc: number, item: any) => acc + Number(item.totalOutstanding || 0), 0);
-            setPendingPayments(totalPending);
+        // --- Process Active Orders ---
+        let exactActiveOrders = 0;
+        [draftRes, confirmedRes, packedRes, partDispatchedRes].forEach(res => {
+          if (res?.success) {
+            exactActiveOrders += res.data?.pagination?.totalItems || (res.data as any).total || (res.data as any).count || responseItems(res.data).length || 0;
           }
         });
+        setActiveOrders(exactActiveOrders);
 
-        InventoryService.listLowStockAlerts(tenantId, { page: 1, limit: 10 }).then(alertsRes => {
-          if (alertsRes.success) {
-            const rawAlerts = responseItems(alertsRes.data);
-            setLowStockCount(rawAlerts.length);
-            setAlerts(rawAlerts.map((a: any) => ({
-              id: a.id || Math.random().toString(),
-              title: `Low Stock: ${a.designName || a.design?.name || 'Unknown Design'}`,
-              message: `Current stock is ${a.currentStock} ${a.unit || 'dozens'} (Threshold: ${a.threshold})`,
-              severity: 'warning',
-              timestamp: new Date(a.createdAt || new Date()),
-              type: 'low_stock'
-            })));
-          }
-        });
+        // --- Process Sales Summary ---
+        if (salesSummaryRes?.success) {
+          const data = salesSummaryRes.data?.report || salesSummaryRes.data || {};
+          setTotalSales(Number(data.totalRevenue || data.totalSales || data.amount || 0));
+          
+          const timeline = data.timeline || data.items || [];
+          const monthMap: Record<string, number> = {};
+          timeline.forEach((item: any) => {
+             const month = new Date(item.period || item.date || item.month).toLocaleString('en-US', { month: 'short' });
+             if (month !== 'Invalid Date') {
+               monthMap[month] = (monthMap[month] || 0) + Number(item.revenue || item.sales || item.amount || 0);
+             }
+          });
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          setSalesData(months.map(m => ({ month: m, sales: monthMap[m] || 0 })));
+        }
 
-        InventoryService.listStock(tenantId, { page: 1, limit: 1 }).then(stockRes => {
-          if (stockRes.success) {
-            const total = (stockRes.data as any).total || (stockRes.data as any).count || responseItems(stockRes.data).length;
-            setTotalInventoryItems(total);
-          }
-        });
+        // --- Process Ledger Aging (Pending Payments) ---
+        if (agingRes?.success) {
+          const agingItems = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.report || agingRes.data?.items || [agingRes.data].filter(Boolean));
+          const totalPending = agingItems.reduce((acc: number, item: any) => acc + Number(item.currentBalance || item.totalOutstanding || 0), 0);
+          setPendingPayments(totalPending);
+        }
 
-        DesignService.list(tenantId, { page: 1, limit: 1 }).then(designsRes => {
-          if (designsRes.success) {
-            const total = (designsRes.data as any).total || (designsRes.data as any).count || responseItems(designsRes.data).length;
-            setActiveDesigns(total);
-          }
-        });
+        // --- Process Low Stock Alerts ---
+        if (alertsRes?.success) {
+          setLowStockCount(responseItems(alertsRes.data).length);
+        }
 
-        WorkerService.list(tenantId, { page: 1, limit: 100 }).then(workersRes => {
-          if (workersRes.success) {
-            const workers = responseItems(workersRes.data);
-            const active = workers.filter((w: any) => w.isActive !== false).length;
-            setActiveWorkers(active);
-            setInactiveWorkers(workers.length - active);
-          }
-        });
+        // --- Process Inventory Items ---
+        if (stockRes?.success) {
+          setTotalInventoryItems(stockRes.data?.pagination?.totalItems || (stockRes.data as any).total || (stockRes.data as any).count || responseItems(stockRes.data).length);
+        }
 
-        PartyService.list(tenantId, { type: 'DEALER', page: 1, limit: 1 }).then(dealersRes => {
-          if (dealersRes.success) {
-            const total = (dealersRes.data as any).total || (dealersRes.data as any).count || responseItems(dealersRes.data).length;
-            setActiveDealers(total);
-          }
-        });
+        // --- Process Designs ---
+        if (designsRes?.success) {
+          setActiveDesigns(designsRes.data?.pagination?.totalItems || (designsRes.data as any).total || (designsRes.data as any).count || responseItems(designsRes.data).length);
+        }
+
+        // --- Process Workers ---
+        if (workersRes?.success) {
+          const workers = responseItems(workersRes.data);
+          const active = workers.filter((w: any) => w.isActive !== false).length;
+          setActiveWorkers(active);
+          setInactiveWorkers(workers.length - active);
+        }
+
+        // --- Process Dealers ---
+        if (dealersRes?.success) {
+          setActiveDealers(dealersRes.data?.pagination?.totalItems || (dealersRes.data as any).total || (dealersRes.data as any).count || responseItems(dealersRes.data).length);
+        }
 
       } catch (error) {
         console.error('Error loading dashboard:', error);
-        setLoading(false);
+      } finally {
+        if (isMounted) {
+          setIsDashboardLoading(false);
+        }
       }
     };
 
+    setIsDashboardLoading(true);
     loadDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  if (loading) {
+  // Show skeleton if dashboard explicitly loading OR recent activities context is still loading
+  if (isDashboardLoading || activitiesLoading) {
     return (
       <DashboardLayout title="Dashboard">
         <div className="space-y-8 p-4 sm:p-6 lg:p-8">
@@ -221,9 +240,9 @@ export default function DashboardPage() {
             <SalesChart data={salesData} />
           </div>
 
-          {/* Alerts Widget */}
+          {/* Recent Activity Widget */}
           <div>
-            <AlertsWidget alerts={alerts} />
+            <RecentActivityWidget activities={activities} loading={activitiesLoading} />
           </div>
         </motion.div>
 

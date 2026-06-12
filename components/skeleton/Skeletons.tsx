@@ -171,6 +171,41 @@ export function SkeletonAdminPage() {
   );
 }
 
+export function SkeletonAppLayout() {
+  return (
+    <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
+      <aside className="hidden md:flex flex-col w-[260px] h-full bg-white shrink-0 border-r border-[#e5e7eb] z-40">
+        <div className="px-5 py-4 border-b border-[#e5e7eb] shrink-0 flex items-center h-[73px]">
+          <Box w={150} h={28} radius={8} />
+        </div>
+        <div className="flex-1 p-5 flex flex-col gap-3 mt-4">
+          <Box w="30%" h={10} style={{ marginBottom: 12 }} />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Box key={`nav-${i}`} w="80%" h={36} radius={12} />
+          ))}
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Skeleton Header */}
+        <header className="h-[73px] bg-white border-b border-[#e5e7eb] px-6 flex items-center justify-between shrink-0">
+          <Box w={200} h={36} radius={12} />
+          <div className="flex items-center gap-4">
+            <Box w={40} h={40} radius={12} />
+            <Box w={40} h={40} radius="50%" />
+          </div>
+        </header>
+
+        {/* Skeleton Page */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <SkeletonDashboardPage />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default {
   SkeletonTable,
   SkeletonCard,
@@ -179,4 +214,5 @@ export default {
   SkeletonForm,
   SkeletonDashboardPage,
   SkeletonAdminPage,
+  SkeletonAppLayout,
 };

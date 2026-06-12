@@ -3,7 +3,7 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { AuthService } from '@/lib/services/auth.service';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { useAuth } from '@/lib/auth-context';
 import { BackendTenant } from '@/lib/types';
 import { normalizeRole } from '@/lib/roles';
@@ -36,7 +36,7 @@ export function AccountDetailsPage({ mode, shell }: { mode: Mode; shell: Shell }
 
     const loadTenant = async () => {
       setLoadingTenant(true);
-      const response = await CurrentTenantService.getCurrentTenant();
+      const response = await CurrentOwnerService.getCurrentOwner();
       if (response.success && response.data) {
         setTenant(response.data);
       }

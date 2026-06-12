@@ -20,6 +20,7 @@ export type ApiResponse<T> = {
     per_page: number;
     total: number;
     total_pages: number;
+    [key: string]: any;
   };
   error?: ApiError;
 };

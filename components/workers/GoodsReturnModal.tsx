@@ -9,6 +9,7 @@ interface GoodsReturnModalProps {
   assignment: BackendRecord;
   form: Record<string, any>;
   saving: boolean;
+  apiError?: any;
   onChange: (name: string, value: any) => void;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -23,13 +24,53 @@ export function GoodsReturnModal({
   assignment,
   form,
   saving,
+  apiError,
   onChange,
   onClose,
   onSubmit,
 }: GoodsReturnModalProps) {
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+  const [globalError, setGlobalError] = React.useState<string | null>(null);
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  React.useEffect(() => {
+    if (apiError) {
+      import('@/lib/utils').then(({ parseValidationErrors }) => {
+        const parsed = parseValidationErrors(apiError);
+        setFieldErrors(parsed.fields);
+        setGlobalError(parsed.global);
+        setTimeout(() => {
+          if (formRef.current) {
+            const firstInvalid = formRef.current.querySelector('[data-invalid="true"]') as HTMLElement;
+            if (firstInvalid) {
+              firstInvalid.focus();
+              firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }, 50);
+      });
+    } else {
+      setFieldErrors({});
+      setGlobalError(null);
+    }
+  }, [apiError]);
+
+  const handleChange = (name: string, value: any) => {
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      if (Object.keys(fieldErrors).length <= 1 && globalError === 'Please correct the highlighted fields and try again.') {
+        setGlobalError(null);
+      }
+    }
+    onChange(name, value);
+  };
   const expected = Number(assignment.expectedPieces ?? 0);
-  const alreadyReturned = Number(assignment.returnedPieces ?? 0);
-  const alreadyRejected = Number(assignment.rejectedPieces ?? 0);
+  const alreadyReturned = Array.isArray(assignment.returns) ? assignment.returns.reduce((acc: number, r: any) => acc + Number(r.piecesReturned || 0), 0) : Number(assignment.returnedPieces ?? 0);
+  const alreadyRejected = Array.isArray(assignment.returns) ? assignment.returns.reduce((acc: number, r: any) => acc + Number(r.piecesRejected || 0), 0) : Number(assignment.rejectedPieces ?? 0);
   const remaining = Math.max(0, expected - alreadyReturned - alreadyRejected);
   const piecesNow = Number(form.piecesReturned || 0);
   const rejectedNow = Number(form.rejectedPieces || 0);
@@ -38,8 +79,7 @@ export function GoodsReturnModal({
   const earnedNow = acceptedNow * pieceRate;
 
   // progress
-  const returnedAfter = alreadyReturned + piecesNow;
-  const pct = expected > 0 ? Math.min(100, Math.round((returnedAfter / expected) * 100)) : 0;
+  // Not calculable without expectedPieces
 
   const statusColor =
     assignment.status === 'COMPLETED' || assignment.status === 'CLOSED'
@@ -70,14 +110,14 @@ export function GoodsReturnModal({
 
   // Soft warnings (shown but do NOT disable submit)
   const rejectedExceedsReturned = piecesNow > 0 && rejectedNow > 0 && rejectedNow >= piecesNow;
-  // Warn if returning more than remaining
-  const overReturn = piecesNow > 0 && remaining > 0 && piecesNow > remaining;
+  // Warn if returning more than remaining - N/A without expected pieces
 
   const hasErrors = validationErrors.length > 0;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
       <form
+        ref={formRef}
         onSubmit={onSubmit}
         className="theme-modal-panel w-full max-w-xl overflow-hidden"
         style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
@@ -101,6 +141,12 @@ export function GoodsReturnModal({
           </button>
         </div>
 
+        {globalError && (
+          <div className="mx-6 mt-4 whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {globalError}
+          </div>
+        )}
+
         <div className="overflow-y-auto flex-1 p-6 space-y-5">
           {/* Assignment summary card */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
@@ -111,33 +157,17 @@ export function GoodsReturnModal({
 
             {/* Piece count stats */}
             <div className="grid grid-cols-3 gap-3">
-              <StatBox label="Expected" value={expected} color="text-slate-700" />
               <StatBox label="Returned" value={alreadyReturned} color="text-green-600" />
-              <StatBox label="Remaining" value={remaining} color="text-amber-600" />
+              <StatBox label="Rejected" value={alreadyRejected} color="text-red-500" />
+              <StatBox label="Total Produced" value={alreadyReturned + alreadyRejected} color="text-slate-700" />
             </div>
 
-            {/* Progress bar */}
-            {expected > 0 && (
-              <div>
-                <div className="mb-1 flex justify-between text-[11px] text-slate-400">
-                  <span>Return progress</span>
-                  <span className="font-bold text-slate-600">{pct}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
             {/* Raw material info */}
-            {assignment.rawMaterialType?.name && (
+            {(assignment.items?.length > 0 || assignment.rawMaterialQty) && (
               <p className="text-xs text-slate-500">
                 Raw material issued:{' '}
                 <span className="font-semibold text-slate-700">
-                  {assignment.rawMaterialQty} {assignment.rawMaterialType.unit || ''} of {assignment.rawMaterialType.name}
+                  {assignment.items?.[0]?.quantityIssued || assignment.rawMaterialQty} {assignment.items?.[0]?.rawMaterial?.unit || assignment.rawMaterialType?.unit || ''} 
                 </span>
               </p>
             )}
@@ -155,16 +185,12 @@ export function GoodsReturnModal({
                 step="1"
                 value={form.piecesReturned || ''}
                 required
-                placeholder={`Max ~${remaining}`}
-                onChange={e => onChange('piecesReturned', e.target.value)}
-                className={`h-10 w-full text-sm ${overReturn ? 'border-amber-400' : ''}`}
+                placeholder="e.g. 50"
+                onChange={e => handleChange('piecesReturned', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.piecesReturned ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.piecesReturned}
               />
-              {overReturn && (
-                <p className="mt-1 text-[11px] text-amber-600 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3 shrink-0" />
-                  Exceeds remaining ({remaining} pcs) — backend may reject this.
-                </p>
-              )}
+              {fieldErrors.piecesReturned && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.piecesReturned}</p>}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -176,9 +202,11 @@ export function GoodsReturnModal({
                 step="1"
                 value={form.rejectedPieces || ''}
                 placeholder="0"
-                onChange={e => onChange('rejectedPieces', e.target.value)}
-                className={`h-10 w-full text-sm ${rejectedExceedsReturned ? 'border-amber-400' : ''}`}
+                onChange={e => handleChange('rejectedPieces', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.rejectedPieces ? 'border-red-500 bg-red-50/30' : rejectedExceedsReturned ? 'border-amber-400' : 'border-slate-200'} px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.rejectedPieces}
               />
+              {fieldErrors.rejectedPieces && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.rejectedPieces}</p>}
               {rejectedExceedsReturned && (
                 <p className="mt-1 text-[11px] text-amber-600 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -192,10 +220,13 @@ export function GoodsReturnModal({
               </span>
               <input
                 type="date"
-                value={form.returnedAt || ''}
-                onChange={e => onChange('returnedAt', e.target.value)}
-                className="h-10 w-full text-sm"
+                required
+                value={form.returnedAt ? new Date(form.returnedAt).toISOString().slice(0, 10) : ''}
+                onChange={e => handleChange('returnedAt', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.returnedAt ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.returnedAt}
               />
+              {fieldErrors.returnedAt && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.returnedAt}</p>}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">

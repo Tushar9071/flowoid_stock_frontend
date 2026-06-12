@@ -1,20 +1,23 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { parseValidationErrors } from '@/lib/utils';
 import { Plus, Users, ClipboardList, Package, Wallet, Edit3, Trash2, PlayCircle, XCircle, BookOpen, RotateCcw, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
+import { PremiumSelect } from '@/components/ui/PremiumSelect';
 import { AssignmentModal } from '@/components/workers/AssignmentModal';
 import { GoodsReturnModal } from '@/components/workers/GoodsReturnModal';
 import { PaymentModal } from '@/components/workers/PaymentModal';
 import { SearchInput } from '@/components/shared/search-input';
+import { formatApiError } from '@/lib/utils';
 import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+
 import {
   AssignmentService,
   BackendRecord,
@@ -24,6 +27,7 @@ import {
 } from '@/lib/services/business-modules.service';
 import { RawMaterialService } from '@/lib/services/raw-material.service';
 import { BackendTenant } from '@/lib/types';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 
 type Tab = 'workers' | 'assignments' | 'finished-goods' | 'payments';
 type ModalMode = 'worker' | 'assignment' | 'assignment-update' | 'assignment-close' | 'return' | 'payment' | 'ledger' | null;
@@ -33,33 +37,7 @@ function prettyDate(value?: string | null) {
   return new Intl.DateTimeFormat('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(value));
 }
 
-/**
- * Formats a backend API error into a human-readable string.
- * Handles both simple message strings and NestJS-style validation
- * error arrays: { message: "Request validation failed", errors: [...] }
- */
-function formatApiError(error?: { message?: string; details?: any } | null, fallback = 'An error occurred'): string {
-  if (!error) return fallback;
-  const base = error.message || fallback;
-  const details = error.details;
-  if (!details) return base;
-  // details may be string[], Record<string, string[]>, or a mixed array
-  const lines: string[] = [];
-  if (Array.isArray(details)) {
-    details.forEach((d: any) => {
-      if (typeof d === 'string') lines.push(d);
-      else if (d?.message) lines.push(d.message);
-      else if (d?.constraints) lines.push(...Object.values(d.constraints as Record<string, string>));
-    });
-  } else if (typeof details === 'object') {
-    Object.values(details).forEach((v: any) => {
-      if (Array.isArray(v)) v.forEach((s: string) => lines.push(s));
-      else if (typeof v === 'string') lines.push(v);
-    });
-  }
-  if (lines.length === 0) return base;
-  return `${base}:\n• ${lines.join('\n• ')}`;
-}
+
 
 function workerCode(worker: BackendRecord) {
   return worker.code || worker.workerCode || worker.id?.slice(0, 8) || '-';
@@ -150,15 +128,23 @@ function toIsoDate(value?: string) {
 }
 
 function dateInput(value?: string | null) {
-  if (!value) return '';
-  return new Date(value).toISOString().slice(0, 10);
+  return value ? new Date(value).toISOString().slice(0, 10) : '';
 }
 
 export default function WorkerManagementPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <WorkerManagementContent />
+    </Suspense>
+  );
+}
+
+function WorkerManagementContent() {
   const { hasPermission } = useAuth();
+  const searchParams = useSearchParams();
   const [tenant, setTenant] = useState<BackendTenant | null>(null);
   const [tab, setTab] = useState<Tab>('workers');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
@@ -180,19 +166,20 @@ export default function WorkerManagementPage() {
   const [returnForm, setReturnForm] = useState<Record<string, any>>({});
   const [paymentForm, setPaymentForm] = useState<Record<string, any>>({});
   const [closeForm, setCloseForm] = useState<Record<string, any>>({});
+  const [formError, setFormError] = useState<any>(null);
 
   const canCreate = hasPermission('workers.create');
   const canUpdate = hasPermission('workers.update');
   const canDelete = hasPermission('workers.delete');
-  const canReadAssignment = hasPermission('assignments.read');
-  const canCreateAssignment = hasPermission('assignments.create');
-  const canUpdateAssignment = hasPermission('assignments.update');
-  const canCreatePayment = hasPermission('worker_payments.create');
+  const canReadAssignment = hasPermission('workers.read');
+  const canCreateAssignment = hasPermission('workers.create');
+  const canUpdateAssignment = hasPermission('workers.update');
+  const canCreatePayment = hasPermission('workers.create'); // Or worker_payments.create, backend uses WORKERS.CREATE
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const tenantRes = await CurrentTenantService.getCurrentTenant();
+      const tenantRes = await CurrentOwnerService.getCurrentOwner();
       if (!tenantRes.success || !tenantRes.data) {
         toast.error(tenantRes.error?.message || 'No business tenant found');
         return;
@@ -214,9 +201,14 @@ export default function WorkerManagementPage() {
       if (workersRes.success) setWorkers(responseItems(workersRes.data));
       else toast.error(workersRes.error?.message || 'Failed to load workers');
       // Assignments: use items if available, silently skip on API error
-      if (assignmentsRes.success) setAssignments(responseItems(assignmentsRes.data));
-      // Goods returns: silently skip on API error
-      if (returnsRes.success) setGoodsReturns(responseItems(returnsRes.data));
+      if (assignmentsRes.success) {
+        const loadedAssignments = responseItems(assignmentsRes.data);
+        setAssignments(loadedAssignments);
+        const extractedReturns = loadedAssignments.flatMap((a: any) => 
+          (a.returns || []).map((r: any) => ({ ...r, assignment: a }))
+        );
+        setGoodsReturns(extractedReturns);
+      }
       if (paymentsRes.success) setPayments(responseItems(paymentsRes.data));
       if (designsRes.success) setDesigns(responseItems(designsRes.data));
       // Use responseItems for consistent extraction from paginated response
@@ -247,9 +239,6 @@ export default function WorkerManagementPage() {
     { name: 'city', label: 'City' },
     { name: 'idProofType', label: 'ID Proof Type' },
     { name: 'idProofNumber', label: 'ID Proof Number' },
-    { name: 'openingBalance', label: 'Opening Balance', type: 'number' },
-    { name: 'openingBalanceType', label: 'Opening Balance Type', type: 'select', options: [{ label: 'Payable', value: 'PAYABLE' }, { label: 'Receivable', value: 'RECEIVABLE' }] },
-    { name: 'openingBalanceDate', label: 'Opening Balance Date', type: 'date' },
     { name: 'address', label: 'Address', type: 'textarea' },
     { name: 'notes', label: 'Notes', type: 'textarea' },
   ];
@@ -260,7 +249,6 @@ export default function WorkerManagementPage() {
     // Raw material is issued to worker with the assignment (raw material thrown to worker)
     { name: 'rawMaterialTypeId', label: 'Raw Material Type', type: 'select', required: true, options: rawMaterials.map(material => ({ label: `${material.name || material.id} (${material.unit || 'unit'})`, value: material.id })) },
     { name: 'rawMaterialQty', label: 'Raw Material Qty Issued', type: 'number', required: true },
-    { name: 'expectedPieces', label: 'Expected Pieces', type: 'number', required: true },
     { name: 'issuedAt', label: 'Issued At', type: 'date' },
     { name: 'expectedReturnDate', label: 'Expected Return Date', type: 'date' },
     { name: 'notes', label: 'Notes', type: 'textarea' },
@@ -294,6 +282,7 @@ export default function WorkerManagementPage() {
 
   const openWorkerForm = (worker?: BackendRecord) => {
     setEditingWorker(worker || null);
+    setFormError(null);
     setModalMode('worker');
     setWorkerForm(worker ? {
       name: worker.name || '',
@@ -302,9 +291,6 @@ export default function WorkerManagementPage() {
       city: worker.city || '',
       idProofType: worker.idProofType || '',
       idProofNumber: worker.idProofNumber || '',
-      openingBalance: worker.openingBalance || 0,
-      openingBalanceType: worker.openingBalanceType || 'PAYABLE',
-      openingBalanceDate: dateInput(worker.openingBalanceDate),
       address: worker.address || '',
       notes: worker.notes || '',
     } : {
@@ -314,9 +300,6 @@ export default function WorkerManagementPage() {
       city: '',
       idProofType: '',
       idProofNumber: '',
-      openingBalance: 0,
-      openingBalanceType: 'PAYABLE',
-      openingBalanceDate: new Date().toISOString().slice(0, 10),
       address: '',
       notes: '',
     });
@@ -333,10 +316,12 @@ export default function WorkerManagementPage() {
     setReturnForm({});
     setPaymentForm({});
     setCloseForm({});
+    setFormError(null);
   };
 
   const openAssignmentForm = (assignment?: BackendRecord, prefilledWorkerId?: string) => {
     setSelectedAssignment(assignment || null);
+    setFormError(null);
     setModalMode(assignment ? 'assignment-update' : 'assignment');
     setAssignmentForm(assignment ? {
       expectedReturnDate: dateInput(assignment.expectedReturnDate),
@@ -346,7 +331,6 @@ export default function WorkerManagementPage() {
       designId: designs[0]?.id || '',
       rawMaterialTypeId: rawMaterials[0]?.id || '',
       rawMaterialQty: '',
-      expectedPieces: '',
       issuedAt: new Date().toISOString().slice(0, 10),
       expectedReturnDate: '',
       notes: '',
@@ -355,6 +339,7 @@ export default function WorkerManagementPage() {
 
   const openReturnForm = (assignment: BackendRecord) => {
     setSelectedAssignment(assignment);
+    setFormError(null);
     setModalMode('return');
     setReturnForm({
       piecesReturned: '',
@@ -367,6 +352,7 @@ export default function WorkerManagementPage() {
 
   const openPaymentForm = (worker?: BackendRecord) => {
     setSelectedWorker(worker || null);
+    setFormError(null);
     setModalMode('payment');
     setPaymentForm({
       workerId: worker?.id || workers[0]?.id || '',
@@ -380,34 +366,30 @@ export default function WorkerManagementPage() {
 
   const openCloseForm = (assignment: BackendRecord) => {
     setSelectedAssignment(assignment);
+    setFormError(null);
     setModalMode('assignment-close');
     setCloseForm({ notes: '' });
   };
 
   const saveWorker = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     setSaving(true);
     try {
       const response = editingWorker?.id
-        ? await WorkerService.update(currentTenant.id, editingWorker.id, {
-            ...workerForm,
-            openingBalance: Number(workerForm.openingBalance || 0),
-            openingBalanceDate: toIsoDate(workerForm.openingBalanceDate),
-          })
-        : await WorkerService.create(currentTenant.id, {
-            ...workerForm,
-            openingBalance: Number(workerForm.openingBalance || 0),
-            openingBalanceDate: toIsoDate(workerForm.openingBalanceDate) || new Date().toISOString(),
-          });
-      if (!response.success) throw new Error(response.error?.message || 'Failed to save worker');
+        ? await WorkerService.update(currentTenant.id, editingWorker.id, workerForm)
+        : await WorkerService.create(currentTenant.id, workerForm);
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success(editingWorker ? 'Worker updated' : 'Worker created');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save worker');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -415,7 +397,7 @@ export default function WorkerManagementPage() {
 
   const saveAssignment = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     setSaving(true);
@@ -428,29 +410,29 @@ export default function WorkerManagementPage() {
         : await AssignmentService.create(currentTenant.id, {
             workerId: assignmentForm.workerId,
             designId: assignmentForm.designId,
-            rawMaterialTypeId: assignmentForm.rawMaterialTypeId || undefined,
-            rawMaterialQty: assignmentForm.rawMaterialQty ? Number(assignmentForm.rawMaterialQty) : undefined,
-            expectedPieces: Number(assignmentForm.expectedPieces || 0),
-            issuedAt: toIsoDate(assignmentForm.issuedAt) || new Date().toISOString(),
-            expectedReturnDate: toIsoDate(assignmentForm.expectedReturnDate) || undefined,
+            assignmentDate: toIsoDate(assignmentForm.issuedAt) || new Date().toISOString(),
             notes: assignmentForm.notes || undefined,
+            items: assignmentForm.rawMaterialTypeId && assignmentForm.rawMaterialQty ? [{
+               rawMaterialId: assignmentForm.rawMaterialTypeId,
+               quantityIssued: Number(assignmentForm.rawMaterialQty)
+            }] : []
           });
       if (!response.success) {
-        toast.error(formatApiError(response.error, 'Failed to save assignment'), { duration: 7000 });
+        setFormError(response.error);
         return;
       }
       toast.success(selectedAssignment ? 'Assignment updated' : 'Assignment created');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save assignment');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
   };
 
   const markInProgress = async (assignment: BackendRecord) => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !assignment.id) return toast.error('Tenant or assignment not found');
 
     // Client-side guard — backend requires ISSUED status
@@ -474,18 +456,21 @@ export default function WorkerManagementPage() {
 
   const closeAssignment = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !selectedAssignment?.id) return toast.error('Tenant or assignment not found');
 
     setSaving(true);
     try {
       const response = await AssignmentService.close(currentTenant.id, selectedAssignment.id, closeForm);
-      if (!response.success) throw new Error(response.error?.message || 'Failed to close assignment');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success('Assignment closed');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to close assignment');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -493,27 +478,26 @@ export default function WorkerManagementPage() {
 
   const saveReturn = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !selectedAssignment?.id) return toast.error('Tenant or assignment not found');
 
     setSaving(true);
     try {
       const response = await AssignmentService.recordReturn(currentTenant.id, selectedAssignment.id, {
-        piecesReturned: Number(returnForm.piecesReturned || 0),
-        rejectedPieces: Number(returnForm.rejectedPieces || 0),
-        returnedAt: toIsoDate(returnForm.returnedAt) || new Date().toISOString(),
-        rejectionNotes: returnForm.rejectionNotes || undefined,
-        notes: returnForm.notes || undefined,
+        piecesReturned: Number(returnForm.goodPieces || returnForm.piecesReturned || 0),
+        piecesRejected: Number(returnForm.rejectedPieces || 0),
+        returnDate: toIsoDate(returnForm.returnedAt) || new Date().toISOString(),
+        notes: returnForm.notes || returnForm.rejectionNotes || undefined,
       });
       if (!response.success) {
-        toast.error(formatApiError(response.error, 'Failed to record goods return'), { duration: 7000 });
+        setFormError(response.error);
         return;
       }
       toast.success('Goods return recorded');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to record goods return');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -521,7 +505,7 @@ export default function WorkerManagementPage() {
 
   const savePayment = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     setSaving(true);
@@ -530,11 +514,15 @@ export default function WorkerManagementPage() {
         workerId: paymentForm.workerId,
         amount: Number(paymentForm.amount || 0),
         paymentType: paymentForm.paymentType,
-        paymentMode: paymentForm.paymentMode || 'CASH',
-        paidAt: toIsoDate(paymentForm.paidAt) || new Date().toISOString(),
+        paymentMode: paymentForm.paymentMode,
+        paymentDate: toIsoDate(paymentForm.paidAt) || new Date().toISOString(),
+        referenceNumber: paymentForm.referenceNumber || undefined,
         notes: paymentForm.notes || undefined,
       });
-      if (!response.success) throw new Error(response.error?.message || 'Failed to record worker payment');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       // API returns { payment: {...}, summary: {...} } — update worker summary if available
       const responsePayment = response.data?.payment || response.data;
       const responseSummary = response.data?.summary;
@@ -548,14 +536,14 @@ export default function WorkerManagementPage() {
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to record worker payment');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
   };
 
   const viewLedger = async (worker: BackendRecord) => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !worker.id) return toast.error('Tenant or worker not found');
 
     setSelectedWorker(worker);
@@ -577,7 +565,7 @@ export default function WorkerManagementPage() {
   };
 
   const deleteWorker = async (worker: BackendRecord) => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !worker.id) return toast.error('Tenant or worker not found');
     if (!window.confirm(`Delete ${worker.name || workerCode(worker)}?`)) return;
 
@@ -672,7 +660,7 @@ export default function WorkerManagementPage() {
     >
       <div className="mb-6 flex w-full gap-1 overflow-x-auto rounded-xl bg-[#e5e7eb] p-1 sm:w-fit">
         {tabs.map(item => (
-          <button key={item.id} onClick={() => setTab(item.id)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
+          <button key={item.id} onClick={() => setTab(item.id)} className={`flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
             {item.icon} {item.label}
             <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-bold">{item.count}</span>
           </button>
@@ -682,7 +670,6 @@ export default function WorkerManagementPage() {
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <SearchInput
           containerClassName="max-w-sm flex-1"
-          inputClassName="theme-focus-ring h-9 rounded-lg border-[#e5e7eb] bg-[#f9fafb] focus:bg-white"
           placeholder="Search workers..."
           value={search}
           onChange={event => setSearch(event.target.value)}
@@ -720,33 +707,28 @@ export default function WorkerManagementPage() {
               )
             },
             {
-              field: 'phone',
-              header: 'Phone',
+              field: 'contact',
+              header: 'Contact Info',
               sortable: true,
               filterable: true,
               filterType: 'text',
-              render: (row) => <span className="theme-text-secondary">{row.phone || '-'}</span>
-            },
-            {
-              field: 'city',
-              header: 'City',
-              sortable: true,
-              filterable: true,
-              filterType: 'text',
-              render: (row) => <span className="text-[#6b7280]">{row.city || '-'}</span>
+              getValue: (row) => `${row.phone || ''} ${row.address || ''}`.trim() || '-',
+              render: (row) => (
+                <div>
+                  <p className="font-semibold theme-text-primary">{row.phone || '-'}</p>
+                  <p className="text-xs text-slate-500">{row.address || '-'}</p>
+                </div>
+              )
             },
             {
               field: 'activeAssignments',
               header: 'Active Assigns',
               sortable: true,
-              getValue: (row) => row.activeAssignments ?? row.summary?.activeAssignments ?? 0,
-              render: (row) => <div className="text-center font-semibold theme-text-primary">{row.activeAssignments ?? row.summary?.activeAssignments ?? '-'}</div>
-            },
-            {
-              field: 'openingBalance',
-              header: 'Opening Bal',
-              sortable: true,
-              render: (row) => <div className="text-right text-[#6b7280]">{formatCurrency(moneyNumber(row.openingBalance))}</div>
+              getValue: (row) => assignments.filter(a => a.workerId === row.id && a.status !== 'CLOSED' && a.status !== 'COMPLETED').length,
+              render: (row) => {
+                const activeCount = assignments.filter(a => a.workerId === row.id && a.status !== 'CLOSED' && a.status !== 'COMPLETED').length;
+                return <div className="text-center font-semibold theme-text-primary">{activeCount || '-'}</div>;
+              }
             },
             {
               field: 'earned',
@@ -756,18 +738,27 @@ export default function WorkerManagementPage() {
               render: (row) => <div className="text-right font-semibold theme-text-primary">{formatCurrency(workerEarned(row, assignments, goodsReturns))}</div>
             },
             {
-              field: 'paid',
-              header: 'Paid',
+              field: 'financials',
+              header: 'Paid / Outst.',
               sortable: true,
-              getValue: (row) => workerPaid(row, payments),
-              render: (row) => <div className="text-right text-[#1a7a4a]">{formatCurrency(workerPaid(row, payments))}</div>
-            },
-            {
-              field: 'outstanding',
-              header: 'Outstanding',
-              sortable: true,
-              getValue: (row) => workerOutstanding(row, assignments, goodsReturns, payments),
-              render: (row) => <div className="text-right font-semibold theme-text-primary">{formatCurrency(workerOutstanding(row, assignments, goodsReturns, payments))}</div>
+              getValue: (row) => workerPaid(row, payments) - workerOutstanding(row, assignments, goodsReturns, payments),
+              render: (row) => {
+                const paid = workerPaid(row, payments);
+                const outst = workerOutstanding(row, assignments, goodsReturns, payments);
+                if (paid === 0 && outst === 0) {
+                  return (
+                    <div className="text-right">
+                      <p className="font-semibold theme-text-primary">{formatCurrency(0)}</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="text-right">
+                    {paid > 0 && <p className="font-semibold text-[#1d4ed8]">{formatCurrency(paid)}</p>}
+                    {outst !== 0 && <p className="text-xs text-[#cc2200] font-bold">{formatCurrency(Math.abs(outst))}</p>}
+                  </div>
+                );
+              }
             },
             {
               field: 'status',
@@ -810,60 +801,71 @@ export default function WorkerManagementPage() {
                 sortable: true,
                 filterable: true,
                 filterType: 'text',
-                getValue: (row) => row.worker?.name || row.workerName || row.workerId || '-',
-                render: (row) => (
-                  <div className="flex items-center gap-3">
-                    <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
-                      <ClipboardList className="h-4 w-4" />
+                getValue: (row) => {
+                  const workerObj = workers.find(w => w.id === row.workerId) || row.worker;
+                  return workerObj?.name || row.workerName || row.workerId || '-';
+                },
+                render: (row) => {
+                  const workerObj = workers.find(w => w.id === row.workerId) || row.worker;
+                  const wName = workerObj?.name || row.workerName || '-';
+                  const wCode = workerCode(workerObj || { id: row.workerId });
+                  return (
+                    <div className="flex items-center gap-3">
+                      <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
+                        <ClipboardList className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold theme-text-primary">{wName}</p>
+                        <p className="text-[11px] text-slate-500 uppercase">{wCode}</p>
+                      </div>
                     </div>
+                  );
+                }
+              },
+              {
+                field: 'designMaterial',
+                header: 'Design & Material',
+                sortable: true,
+                filterable: true,
+                filterType: 'text',
+                getValue: (row) => {
+                  const designObj = designs.find(d => d.id === row.designId) || row.design;
+                  return designObj?.name || designObj?.designCode || designObj?.code || row.designId || '-';
+                },
+                render: (row) => {
+                  const matId = row.items?.[0]?.rawMaterialId;
+                  const material = rawMaterials.find(m => m.id === matId);
+                  const designObj = designs.find(d => d.id === row.designId) || row.design;
+                  const dName = designObj?.name || designObj?.designCode || designObj?.code || row.designId || '-';
+                  const dCode = designObj?.designCode || designObj?.code || row.designId?.slice(0,8);
+                  return (
                     <div>
-                      <p className="font-bold theme-text-primary">{row.worker?.name || row.workerName || row.workerId || '-'}</p>
-                      <p className="text-[11px] text-slate-500 uppercase">{row.assignmentNo || row.id?.slice(0, 8)}</p>
+                      <p className="font-bold theme-text-primary">{dName}</p>
+                      <p className="text-[11px] text-slate-500 uppercase">{dCode}</p>
+                      {material && (
+                        <p className="text-xs text-[#6b7280]">
+                          {material.name} {material.unit ? `(${material.unit})` : ''}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                )
-              },
-              {
-                field: 'design',
-                header: 'Design',
-                sortable: true,
-                filterable: true,
-                filterType: 'text',
-                getValue: (row) => designLabel(row),
-                render: (row) => designLabel(row)
-              },
-              {
-                field: 'rawMaterial',
-                header: 'Raw Material',
-                sortable: true,
-                filterable: true,
-                filterType: 'text',
-                getValue: (row) => row.rawMaterialType?.name || row.rawMaterialTypeName || '-',
-                render: (row) => (
-                  <span className="text-[#6b7280]">
-                    {row.rawMaterialType?.name || row.rawMaterialTypeName || '-'}
-                    {row.rawMaterialType?.unit && <span className="ml-1 text-[11px] text-[#9ca3af]">({row.rawMaterialType.unit})</span>}
-                  </span>
-                )
+                  );
+                }
               },
               {
                 field: 'rawMaterialQty',
                 header: 'Qty Issued',
                 sortable: true,
-                render: (row) => <div className="text-right font-semibold">{row.rawMaterialQty || '-'}</div>
-              },
-              {
-                field: 'expectedPieces',
-                header: 'Expected Pcs',
-                sortable: true,
-                render: (row) => <div className="text-right">{row.expectedPieces || '-'}</div>
+                render: (row) => <div className="text-right font-semibold">{row.items?.[0]?.quantityIssued || '-'}</div>
               },
               {
                 field: 'returnedPieces',
                 header: 'Returned Pcs',
                 sortable: true,
-                getValue: (row) => row.returnedPieces ?? 0,
-                render: (row) => <div className="text-right text-[#1a7a4a]">{row.returnedPieces ?? 0}</div>
+                getValue: (row) => row.returns?.reduce((acc: number, r: any) => acc + (r.piecesReturned || 0), 0) || 0,
+                render: (row) => {
+                  const returned = row.returns?.reduce((acc: number, r: any) => acc + (r.piecesReturned || 0), 0) || 0;
+                  return <div className="text-right text-[#1a7a4a]">{returned}</div>;
+                }
               },
               {
                 field: 'issuedAt',
@@ -871,8 +873,8 @@ export default function WorkerManagementPage() {
                 sortable: true,
                 filterable: true,
                 filterType: 'date',
-                getValue: (row) => row.issuedAt || row.createdAt,
-                render: (row) => <span className="text-[#6b7280]">{prettyDate(row.issuedAt || row.createdAt)}</span>
+                getValue: (row) => row.assignmentDate || row.createdAt,
+                render: (row) => <span className="text-[#6b7280]">{prettyDate(row.assignmentDate || row.createdAt)}</span>
               },
               {
                 field: 'status',
@@ -949,8 +951,23 @@ export default function WorkerManagementPage() {
                 sortable: true,
                 filterable: true,
                 filterType: 'text',
-                getValue: (row) => row.worker?.name || row.workerName || row.assignment?.worker?.name || '-',
-                render: (row) => row.worker?.name || row.workerName || row.assignment?.worker?.name || '-'
+                getValue: (row) => {
+                  const wId = returnWorkerId(row);
+                  const wObj = workers.find(w => w.id === wId) || row.worker || row.assignment?.worker;
+                  return wObj?.name || row.workerName || wId || '-';
+                },
+                render: (row) => {
+                  const wId = returnWorkerId(row);
+                  const wObj = workers.find(w => w.id === wId) || row.worker || row.assignment?.worker;
+                  const wName = wObj?.name || row.workerName || '-';
+                  const wCode = workerCode(wObj || { id: wId });
+                  return (
+                    <div>
+                      <p className="font-bold theme-text-primary">{wName}</p>
+                      <p className="text-[11px] text-slate-500 uppercase">{wCode}</p>
+                    </div>
+                  );
+                }
               },
               {
                 field: 'design',
@@ -958,29 +975,47 @@ export default function WorkerManagementPage() {
                 sortable: true,
                 filterable: true,
                 filterType: 'text',
-                getValue: (row) => designLabel(row.assignment || row),
-                render: (row) => designLabel(row.assignment || row)
+                getValue: (row) => {
+                  const dId = row.assignment?.designId || row.designId;
+                  const designObj = designs.find(d => d.id === dId) || row.assignment?.design || row.design;
+                  return designObj?.name || designObj?.designCode || designObj?.code || dId || '-';
+                },
+                render: (row) => {
+                  const dId = row.assignment?.designId || row.designId;
+                  const designObj = designs.find(d => d.id === dId) || row.assignment?.design || row.design;
+                  const dName = designObj?.name || designObj?.designCode || designObj?.code || dId || '-';
+                  const dCode = designObj?.designCode || designObj?.code || dId?.slice(0,8);
+                  return (
+                    <div>
+                      <p className="font-bold theme-text-primary">{dName}</p>
+                      <p className="text-[11px] text-slate-500 uppercase">{dCode}</p>
+                    </div>
+                  );
+                }
               },
               {
                 field: 'goodPieces',
                 header: 'Good Qty',
                 sortable: true,
-                getValue: (row) => row.acceptedPieces || row.goodPieces || row.quantity || 0,
-                render: (row) => <div className="text-right font-semibold text-[#1a7a4a]">{row.acceptedPieces || row.goodPieces || row.quantity || 0}</div>
+                getValue: (row) => row.piecesReturned || 0,
+                render: (row) => <div className="text-right font-semibold text-[#1a7a4a]">{row.piecesReturned || 0}</div>
               },
               {
                 field: 'rejectedPieces',
                 header: 'Rejected',
                 sortable: true,
-                getValue: (row) => row.rejectedPieces || row.rejectedQty || 0,
-                render: (row) => <div className="text-right text-[#cc2200]">{row.rejectedPieces || row.rejectedQty || 0}</div>
+                getValue: (row) => row.piecesRejected || 0,
+                render: (row) => <div className="text-right text-[#cc2200]">{row.piecesRejected || 0}</div>
               },
               {
                 field: 'earned',
                 header: 'Earned',
                 sortable: true,
-                getValue: (row) => Number(row.earningAmount || row.workerEarning || row.amount || 0),
-                render: (row) => <div className="text-right font-semibold theme-text-primary">{formatCurrency(Number(row.earningAmount || row.workerEarning || row.amount || 0))}</div>
+                getValue: (row) => (row.piecesReturned || 0) * (row.assignment?.design?.workerRate || 0),
+                render: (row) => {
+                  const earned = (row.piecesReturned || 0) * (row.assignment?.design?.workerRate || 0);
+                  return <div className="text-right font-semibold theme-text-primary">{formatCurrency(earned)}</div>;
+                }
               },
               {
                 field: 'returnedAt',
@@ -988,8 +1023,8 @@ export default function WorkerManagementPage() {
                 sortable: true,
                 filterable: true,
                 filterType: 'date',
-                getValue: (row) => row.returnedAt || row.createdAt,
-                render: (row) => <div className="text-right text-[#6b7280]">{prettyDate(row.returnedAt || row.createdAt)}</div>
+                getValue: (row) => row.returnDate || row.createdAt,
+                render: (row) => <div className="text-right text-[#6b7280]">{prettyDate(row.returnDate || row.createdAt)}</div>
               }
             ]}
           />
@@ -1030,8 +1065,23 @@ export default function WorkerManagementPage() {
               sortable: true,
               filterable: true,
               filterType: 'text',
-              getValue: (row) => row.worker?.name || row.workerName || row.workerId,
-              render: (row) => <div className="font-bold theme-text-primary">{row.worker?.name || row.workerName || row.workerId}</div>
+              getValue: (row) => {
+                const wId = paymentWorkerId(row);
+                const wObj = workers.find(w => w.id === wId) || row.worker;
+                return wObj?.name || row.workerName || wId || '-';
+              },
+              render: (row) => {
+                const wId = paymentWorkerId(row);
+                const wObj = workers.find(w => w.id === wId) || row.worker;
+                const wName = wObj?.name || row.workerName || '-';
+                const wCode = workerCode(wObj || { id: wId });
+                return (
+                  <div>
+                    <p className="font-bold theme-text-primary">{wName}</p>
+                    <p className="text-[11px] text-slate-500 uppercase">{wCode}</p>
+                  </div>
+                );
+              }
             },
             {
               field: 'amount',
@@ -1078,6 +1128,7 @@ export default function WorkerManagementPage() {
           values={workerForm}
           saving={saving}
           submitLabel={editingWorker ? 'Update Worker' : 'Create Worker'}
+          error={formError}
           onChange={(name, value) => setWorkerForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
           onSubmit={saveWorker}
@@ -1091,6 +1142,7 @@ export default function WorkerManagementPage() {
           designs={designs}
           rawMaterials={rawMaterials}
           saving={saving}
+          apiError={formError}
           onChange={(name, value) => setAssignmentForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
           onSubmit={saveAssignment}
@@ -1105,6 +1157,7 @@ export default function WorkerManagementPage() {
           rawMaterials={rawMaterials}
           selectedAssignment={selectedAssignment}
           saving={saving}
+          apiError={formError}
           onChange={(name, value) => setAssignmentForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
           onSubmit={saveAssignment}
@@ -1117,6 +1170,7 @@ export default function WorkerManagementPage() {
           fields={closeFields}
           values={closeForm}
           saving={saving}
+          apiError={formError}
           submitLabel="Close Assignment"
           onChange={(name, value) => setCloseForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
@@ -1128,6 +1182,7 @@ export default function WorkerManagementPage() {
           assignment={selectedAssignment}
           form={returnForm}
           saving={saving}
+          apiError={formError}
           onChange={(name, value) => setReturnForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
           onSubmit={saveReturn}
@@ -1138,6 +1193,7 @@ export default function WorkerManagementPage() {
           form={paymentForm}
           workers={workers}
           saving={saving}
+          apiError={formError}
           onChange={(name, value) => setPaymentForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
           onSubmit={savePayment}
@@ -1167,6 +1223,7 @@ function WorkerFormModal({
   values,
   saving,
   submitLabel = 'Save',
+  error,
   onChange,
   onClose,
   onSubmit,
@@ -1177,13 +1234,52 @@ function WorkerFormModal({
   values: Record<string, any>;
   saving?: boolean;
   submitLabel?: string;
+  error?: any;
   onChange: (name: string, value: any) => void;
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (error) {
+      const parsed = parseValidationErrors(error);
+      setFieldErrors(parsed.fields);
+      setGlobalError(parsed.global);
+      setTimeout(() => {
+        if (formRef.current) {
+          const firstInvalid = formRef.current.querySelector('[data-invalid="true"]') as HTMLElement;
+          if (firstInvalid) {
+            firstInvalid.focus();
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 50);
+    } else {
+      setFieldErrors({});
+      setGlobalError(null);
+    }
+  }, [error]);
+
+  const handleChange = (name: string, value: any) => {
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      if (Object.keys(fieldErrors).length <= 1 && globalError === 'Please correct the highlighted fields and try again.') {
+        setGlobalError(null);
+      }
+    }
+    onChange(name, value);
+  };
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
       <form
+        ref={formRef}
         onSubmit={onSubmit}
         className="theme-modal-panel w-full max-w-2xl overflow-hidden"
         style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
@@ -1204,6 +1300,12 @@ function WorkerFormModal({
           </button>
         </div>
 
+        {globalError && (
+          <div className="mx-6 mt-4 whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {globalError}
+          </div>
+        )}
+
         <div className="overflow-y-auto flex-1 p-6">
           <div className="grid gap-4 md:grid-cols-2">
             {fields.map(field => (
@@ -1212,32 +1314,35 @@ function WorkerFormModal({
                   {field.label} {field.required && <span className="text-red-500">*</span>}
                 </span>
                 {field.type === 'select' ? (
-                  <select
+                  <PremiumSelect
                     value={values[field.name] ?? ''}
                     required={field.required}
-                    onChange={event => onChange(field.name, event.target.value)}
-                    className="h-10 w-full text-sm font-semibold"
+                    onChange={(event: any) => handleChange(field.name, event.target.value)}
+                    className={`h-10 w-full text-sm font-semibold rounded-lg border ${fieldErrors[field.name] ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 outline-none focus:border-[var(--color-accent)]`}
+                    data-invalid={!!fieldErrors[field.name]}
                   >
                     <option value="">Select {field.label.toLowerCase()}</option>
-                    {(field.options || []).map(option => (
+                    {(field.options || []).map((option: any) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </PremiumSelect>
                 ) : field.type === 'textarea' ? (
                   <textarea
                     value={values[field.name] ?? ''}
                     required={field.required}
                     placeholder={field.placeholder}
-                    onChange={event => onChange(field.name, event.target.value)}
+                    onChange={event => handleChange(field.name, event.target.value)}
                     rows={3}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)]"
+                    className={`w-full rounded-lg border ${fieldErrors[field.name] ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)]`}
+                    data-invalid={!!fieldErrors[field.name]}
                   />
                 ) : field.type === 'checkbox' ? (
                   <input
                     type="checkbox"
                     checked={Boolean(values[field.name])}
-                    onChange={event => onChange(field.name, event.target.checked)}
-                    className="h-5 w-5 rounded border-slate-300"
+                    onChange={event => handleChange(field.name, event.target.checked)}
+                    className={`h-5 w-5 rounded ${fieldErrors[field.name] ? 'border-red-500 bg-red-50/30' : 'border-slate-300'}`}
+                    data-invalid={!!fieldErrors[field.name]}
                   />
                 ) : (
                   <input
@@ -1247,9 +1352,13 @@ function WorkerFormModal({
                     placeholder={field.placeholder}
                     min={field.min}
                     max={field.max}
-                    onChange={event => onChange(field.name, event.target.value)}
-                    className="h-10 w-full text-sm"
+                    onChange={event => handleChange(field.name, event.target.value)}
+                    className={`h-10 w-full rounded-lg border ${fieldErrors[field.name] ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm outline-none focus:border-[var(--color-accent)]`}
+                    data-invalid={!!fieldErrors[field.name]}
                   />
+                )}
+                {fieldErrors[field.name] && (
+                  <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors[field.name]}</p>
                 )}
                 {field.hint && (
                   <p className="mt-1 text-[11px] font-semibold text-slate-500">{field.hint}</p>
@@ -1272,11 +1381,11 @@ function WorkerFormModal({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">{label}</p>
-      <p className="text-sm font-semibold capitalize text-[#374151]">{value}</p>
+      <p className={`text-sm font-semibold capitalize ${valueClass || 'text-[#374151]'}`}>{value}</p>
     </div>
   );
 }
@@ -1305,7 +1414,7 @@ function LedgerModal({
   const isLoading = ledger === null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
       <div className="theme-modal-panel w-full max-w-3xl overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <div>
@@ -1317,11 +1426,12 @@ function LedgerModal({
           </button>
         </div>
         {/* Summary cards: prefer GET /workers/:id summary, fall back to computed ledger totals */}
-        <div className="grid gap-4 p-4 md:grid-cols-4">
-          <Metric label="Total Earned" value={formatCurrency(moneyNumber(summary?.totalEarned) || totals.earned)} />
-          <Metric label="Total Paid" value={formatCurrency(moneyNumber(summary?.totalPaid) || totals.paid)} />
-          <Metric label="Advance Given" value={formatCurrency(moneyNumber(summary?.advanceGiven))} />
-          <Metric label="Outstanding" value={formatCurrency(moneyNumber(summary?.outstandingBalance) || totals.balance)} />
+        <div className="grid gap-4 p-4 md:grid-cols-5">
+          <Metric label="Opening Balance" value={formatCurrency(Math.abs(moneyNumber(worker?.openingBalance)))} />
+          <Metric label="Total Earned" value={formatCurrency(moneyNumber(summary?.totalEarned) || Math.abs(totals.earned))} />
+          <Metric label="Total Paid" value={formatCurrency(Math.abs(moneyNumber(summary?.totalPaid) || totals.paid))} valueClass="text-blue-600" />
+          <Metric label="Advance Given" value={formatCurrency(Math.abs(moneyNumber(summary?.advanceGiven)))} />
+          <Metric label="Outstanding" value={formatCurrency(Math.abs(moneyNumber(summary?.outstandingBalance) || totals.balance))} valueClass="text-red-600" />
         </div>
         <div className="max-h-[55vh] overflow-auto border-t border-slate-200">
           {isLoading ? (

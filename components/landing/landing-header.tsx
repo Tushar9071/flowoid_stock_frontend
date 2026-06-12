@@ -23,8 +23,8 @@ export function LandingHeader() {
     { name: "Features", href: "#features" },
     { name: "Modules", href: "#modules" },
     { name: "Workflow", href: "#workflow" },
-    { name: "Pricing", href: "#pricing" },
     { name: "Contact", href: "#contact" },
+    { name: "Flowoid.tech", href: "https://flowoid.tech/" },
   ];
 
   return (

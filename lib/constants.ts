@@ -200,14 +200,14 @@ export const navigationItems = [
     label: 'Dealer Management',
     href: '/dashboard/dealers',
     icon: 'Users2',
-    permission: 'parties.read',
+    permission: 'dealer_management.read',
   },
   {
     id: 'supplier-management',
     label: 'Supplier Management',
     href: '/dashboard/suppliers',
     icon: 'Package',
-    permission: 'parties.read',
+    permission: 'supplier_management.read',
   },
   {
     id: 'orders-dispatch',
@@ -251,7 +251,6 @@ export const navigationItems = [
     label: 'Settings',
     href: '/dashboard/settings',
     icon: 'Settings',
-    adminOnly: true,
     permission: 'settings.read',
   },
   {

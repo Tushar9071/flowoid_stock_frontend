@@ -17,25 +17,32 @@ export default function AppLoader({ onComplete, duration = 2500 }: AppLoaderProp
   const [phase, setPhase] = useState<"loading" | "done" | "hidden">("loading");
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
   useEffect(() => {
     if (videoRef.current) {
       // Speeds up the 5 second original animation to 2.5 seconds
       videoRef.current.playbackRate = 2.0;
     }
 
+    let hideTimeout: NodeJS.Timeout;
     const finishTimeout = setTimeout(() => {
       setPhase("done");
       
-      const hideTimeout = setTimeout(() => {
+      hideTimeout = setTimeout(() => {
         setPhase("hidden");
-        if (onComplete) onComplete();
+        if (onCompleteRef.current) onCompleteRef.current();
       }, 600); // 600ms matches the fadeOut animation
-
-      return () => clearTimeout(hideTimeout);
     }, duration);
 
-    return () => clearTimeout(finishTimeout);
-  }, [duration, onComplete]);
+    return () => {
+      clearTimeout(finishTimeout);
+      if (hideTimeout) clearTimeout(hideTimeout);
+    };
+  }, [duration]);
 
   if (phase === "hidden") return null;
 

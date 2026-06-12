@@ -137,7 +137,9 @@ export function Sidebar() {
           </div>
           <ul className="space-y-1 px-3">
             {visibleItems.map(item => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
+              const isActive = pathname === item.href || 
+                               (item.href !== '/dashboard' && pathname.startsWith(item.href + '/')) ||
+                               (item.id === 'dashboard' && pathname === '/dashboard/recent-activity');
               const Icon = iconMap[item.icon as keyof typeof iconMap];
 
               return (
@@ -187,7 +189,7 @@ export function Sidebar() {
         {/* User profile footer */}
         <div className="p-4 border-t border-white/10 shrink-0">
           <div className="flex items-center gap-3 mb-3 px-2">
-            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold shrink-0 border border-white/20">
+            <div className="theme-avatar w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 shadow-sm border border-white/10">
               {user?.name?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">

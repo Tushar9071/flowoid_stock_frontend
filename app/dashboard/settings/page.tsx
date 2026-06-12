@@ -49,6 +49,7 @@ export default function DashboardSettingsPage() {
   const [activeSection, setActiveSection] = useState<SectionKey>('profile');
   const [isLoading, setIsLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<SectionKey | 'logo' | null>(null);
+  const [logoLoadError, setLogoLoadError] = useState(false);
 
   const sections = useMemo(() => [
     { id: 'profile' as const, label: 'Business Profile', icon: Building2 },
@@ -138,6 +139,7 @@ export default function DashboardSettingsPage() {
     const response = await SettingsService.uploadLogo(file);
     if (response.success) {
       setSettings({ ...emptySettings, ...response.data });
+      setLogoLoadError(false);
       toast.success('Logo updated');
     } else {
       toast.error(response.error?.message || 'Failed to upload logo');
@@ -150,13 +152,14 @@ export default function DashboardSettingsPage() {
     if (!rawUrl) return '';
     if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
-    if (!apiBase) return rawUrl;
-
-    const normalizedBase = apiBase.replace(/\/api\/?$/, '');
-    const normalizedPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
-    return `${normalizedBase}${normalizedPath}`;
+    const uploadPath = rawUrl.replace(/\\/g, '/').replace(/^\/?api\/uploads\//, '/uploads/');
+    const normalizedPath = uploadPath.startsWith('/') ? uploadPath : `/${uploadPath}`;
+    return encodeURI(normalizedPath);
   }, [settings.logoUrl]);
+
+  useEffect(() => {
+    setLogoLoadError(false);
+  }, [logoSrc]);
 
   return (
     <DashboardLayout
@@ -209,8 +212,8 @@ export default function DashboardSettingsPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-                    {logoSrc ? (
-                      <img src={logoSrc} alt="Business logo" className="h-full w-full object-cover" />
+                    {logoSrc && !logoLoadError ? (
+                      <img src={logoSrc} alt="Business logo" className="h-full w-full object-cover" onError={() => setLogoLoadError(true)} />
                     ) : (
                       <Building2 className="h-7 w-7 text-gray-400" />
                     )}

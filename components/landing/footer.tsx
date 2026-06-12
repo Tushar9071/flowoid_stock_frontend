@@ -11,18 +11,20 @@ export function Footer() {
           
           {/* Brand Column */}
           <div className="lg:col-span-2">
-            <Link href="/" className="inline-flex flex-col mb-4 w-40 md:w-48 shrink-0">
-              <Image
-                src="/brand/StockFlow_horizontal_light.svg"
-                alt="StockFlow"
-                width={2400}
-                height={600}
-                className="w-full h-auto object-contain object-left"
-              />
-              <span className="text-[11px] text-[#4B5C72] mt-1.5 font-medium tracking-wide">
-                Powered by Flowoid Technologies
+            <div className="flex flex-col mb-4 w-40 md:w-48 shrink-0">
+              <Link href="/" className="inline-flex mb-1">
+                <Image
+                  src="/brand/StockFlow_horizontal_light.svg"
+                  alt="StockFlow"
+                  width={2400}
+                  height={600}
+                  className="w-full h-auto object-contain object-left"
+                />
+              </Link>
+              <span className="text-[11px] text-[#4B5C72] font-medium tracking-wide">
+                Powered by <a href="https://flowoid.tech/" target="_blank" rel="noopener noreferrer" className="hover:text-[#D4A843] transition-colors">Flowoid Technologies</a>
               </span>
-            </Link>
+            </div>
             <p className="text-[#4B5C72] mb-6 max-w-xs leading-relaxed text-sm">
               Business Management for Jewellery Manufacturers. 
               Track workers, orders, inventory, and payments in one platform.
@@ -35,8 +37,8 @@ export function Footer() {
             <ul className="space-y-3">
               <li><Link href="#features" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Features</Link></li>
               <li><Link href="#modules" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Modules</Link></li>
-              <li><Link href="#pricing" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Pricing</Link></li>
-              <li><Link href="/changelog" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Changelog</Link></li>
+              <li><Link href="/contact" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Request a Demo</Link></li>
+              <li><Link href="/changelog" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Notes</Link></li>
             </ul>
           </div>
           
@@ -44,7 +46,7 @@ export function Footer() {
           <div>
             <h4 className="font-bold text-[#0F1C2E] mb-4 text-sm uppercase tracking-wider">Company</h4>
             <ul className="space-y-3">
-              <li><Link href="/about" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">About Flowoid</Link></li>
+              <li><a href="https://flowoid.tech/" target="_blank" rel="noopener noreferrer" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">About Flowoid</a></li>
               <li><Link href="/contact" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Contact</Link></li>
               <li><Link href="/privacy" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Privacy Policy</Link></li>
               <li><Link href="/terms" className="text-[#4B5C72] hover:text-[#D4A843] text-sm transition-colors">Terms</Link></li>
@@ -76,7 +78,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-[#E2E8F0] flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[#4B5C72] text-sm">
-            © 2025 Flowoid Technologies. All rights reserved.
+            © {new Date().getFullYear()} <a href="https://flowoid.tech/" target="_blank" rel="noopener noreferrer" className="hover:text-[#D4A843] transition-colors">Flowoid Technologies</a>. All rights reserved.
           </p>
           <p className="text-[#4B5C72] text-sm font-medium bg-[#F8F9FC] px-3 py-1 rounded-full border border-[#E2E8F0]">
             Built in India 🇮🇳

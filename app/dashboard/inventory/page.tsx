@@ -8,10 +8,11 @@ import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonForm, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
+import { formatApiError } from '@/lib/utils';
 import { SearchInput } from '@/components/shared/search-input';
 import { formatDate } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+
 import {
   BackendRecord,
   DesignService,
@@ -23,7 +24,7 @@ import { RawMaterialService } from '@/lib/services/raw-material.service';
 import { BackendTenant, RawMaterialStockSummary } from '@/lib/types';
 
 type Tab = 'unpackaged' | 'packaged' | 'alerts' | 'supplementary';
-type ModalMode = 'adjustment' | 'packaging' | 'alert' | 'view' | null;
+type ModalMode = 'adjustment' | 'packaging' | 'view' | null;
 type InventoryLoadingKey = 'stock' | 'rawStock' | 'packagingBatches' | 'alerts' | 'supplementary' | 'designs';
 type InventoryLoadingState = Record<InventoryLoadingKey, boolean>;
 
@@ -71,6 +72,7 @@ export default function InventoryPage() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedStock, setSelectedStock] = useState<BackendRecord | null>(null);
   const [stockForm, setStockForm] = useState<Record<string, any>>({});
+  const [formError, setFormError] = useState<any>(null);
 
   const canCreate = hasPermission('stock_items.create') || hasPermission('inventory.create');
   const canUpdate = hasPermission('inventory.update');
@@ -113,17 +115,7 @@ export default function InventoryPage() {
     };
 
     try {
-      const tenantRes = await CurrentTenantService.getCurrentTenant();
-      if (!tenantRes.success || !tenantRes.data) {
-        toast.error(tenantRes.error?.message || 'No business tenant found');
-        if (loadRunRef.current === runId) {
-          setLoading(createLoadingState(false));
-        }
-        return;
-      }
-
-      setTenant(tenantRes.data);
-      const tenantId = tenantRes.data.id;
+      const tenantId = "owner";
 
       await Promise.all([
         loadSection('stock', InventoryService.listStock(tenantId, { page: 1, limit: 100 }), data => setStock(responseItems(data))),
@@ -189,8 +181,8 @@ export default function InventoryPage() {
       type: 'finished',
       name: designName(alert),
       module: 'Finished Goods',
-      current: alert.currentStock || alert.currentPieces || 0,
-      threshold: alert.threshold || alert.lowStockThreshold || '-'
+      current: `${alert.availableDozens || 0} doz`,
+      threshold: alert.lowStockThreshold || '-'
     }));
     return [...finishedAlerts, ...rawAlerts];
   }, [alerts, rawStock]);
@@ -250,11 +242,7 @@ export default function InventoryPage() {
         },
         { name: 'notes', label: 'Notes', type: 'textarea' },
       ]
-    : modalMode === 'alert'
-      ? [
-          { name: 'lowStockAlertAt', label: 'Low Stock Alert At', type: 'number', required: true, min: 0 },
-        ]
-      : [
+    : [
           { name: 'designId', label: 'Design', type: 'select', required: true, options: designOptions },
           { name: 'type', label: 'Stock Type', type: 'select', required: true, options: [{ label: 'Unpackaged Pieces', value: 'UNPACKAGED' }, { label: 'Packaged Dozens', value: 'PACKAGED' }] },
           { 
@@ -269,6 +257,7 @@ export default function InventoryPage() {
 
   const openAdjustmentForm = (item?: BackendRecord) => {
     setSelectedStock(item || null);
+    setFormError(null);
     setModalMode('adjustment');
     setStockForm({
       designId: item?.designId || item?.design?.id || designs[0]?.id || '',
@@ -280,27 +269,23 @@ export default function InventoryPage() {
 
   const openPackagingForm = () => {
     setSelectedStock(null);
+    setFormError(null);
     setModalMode('packaging');
     setStockForm({ designId: designs[0]?.id || '', dozensPackaged: 1, notes: '' });
   };
 
-  const openAlertForm = (item: BackendRecord) => {
-    setSelectedStock(item);
-    setModalMode('alert');
-    setStockForm({
-      lowStockAlertAt: item.lowStockAlertAt || item.lowStockThreshold || item.threshold || 0,
-    });
-  };
+
 
   const closeStockForm = () => {
     setModalMode(null);
     setSelectedStock(null);
     setStockForm({});
+    setFormError(null);
   };
 
   const saveStock = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     const designId = stockForm.designId || selectedStock?.designId || selectedStock?.design?.id;
@@ -327,10 +312,6 @@ export default function InventoryPage() {
           dozensPackaged: Number(stockForm.dozensPackaged || 0),
           notes: stockForm.notes || undefined,
         });
-      } else if (modalMode === 'alert') {
-        response = await InventoryService.updateLowStockAlert(currentTenant.id, designId, {
-          lowStockAlertAt: Number(stockForm.lowStockAlertAt || 0),
-        });
       } else {
         response = await InventoryService.createAdjustment(currentTenant.id, designId, {
           type: stockForm.type,
@@ -339,19 +320,22 @@ export default function InventoryPage() {
         });
       }
 
-      if (!response?.success) throw new Error(response?.error?.message || 'Failed to save inventory action');
+      if (!response?.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success('Inventory updated');
       closeStockForm();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save inventory action');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
   };
 
   const viewStockByDesign = async (item: BackendRecord) => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     const designId = item.designId || item.design?.id;
     if (!currentTenant?.id || !designId) return toast.error('Tenant or design not found');
 
@@ -381,7 +365,7 @@ export default function InventoryPage() {
     >
       <div className="mb-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-[#e5e7eb] p-1">
         {tabs.map(item => (
-          <button key={item.id} onClick={() => setTab(item.id)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
+          <button key={item.id} onClick={() => setTab(item.id)} className={`flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
             {item.icon} {item.label}
             <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-bold">{item.count}</span>
           </button>
@@ -442,21 +426,21 @@ export default function InventoryPage() {
               header: 'Unpackaged',
               sortable: true,
               getValue: (row) => row.unpackagedPieces || row.availablePieces || 0,
-              render: (row) => <div className="text-right font-bold text-[#1a7a4a]">{row.unpackagedPieces || row.availablePieces || 0}</div>
+              render: (row) => <div className="text-center font-bold text-[#1a7a4a]">{row.unpackagedPieces || row.availablePieces || 0}</div>
             },
             {
               field: 'packagedDozens',
               header: 'Packaged',
               sortable: true,
               getValue: (row) => row.packagedDozens || row.availableDozens || 0,
-              render: (row) => <div className="text-right font-semibold theme-text-primary">{row.packagedDozens || row.availableDozens || 0}</div>
+              render: (row) => <div className="text-center font-semibold theme-text-primary">{row.packagedDozens || row.availableDozens || 0}</div>
             },
             {
               field: 'threshold',
               header: 'Threshold',
               sortable: true,
               getValue: (row) => row.lowStockThreshold || row.threshold || '-',
-              render: (row) => <div className="text-right text-[#6b7280]">{row.lowStockThreshold || row.threshold || '-'}</div>
+              render: (row) => <div className="text-center text-[#6b7280]">{row.lowStockThreshold || row.threshold || '-'}</div>
             },
             {
               field: 'updatedAt',
@@ -474,7 +458,6 @@ export default function InventoryPage() {
                 <div className="flex justify-end gap-2">
                   <button onClick={() => viewStockByDesign(row)} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">View</button>
                   {canCreate && <button onClick={() => openAdjustmentForm(row)} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">Adjust</button>}
-                  {canUpdate && <button onClick={() => openAlertForm(row)} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">Alert</button>}
                 </div>
               )
             }
@@ -516,11 +499,21 @@ export default function InventoryPage() {
               render: (row) => <div className="font-bold theme-text-primary">{designName(row)}</div>
             },
             {
+              field: 'unpackagedConsumed',
+              header: 'Pieces Consumed',
+              sortable: true,
+              getValue: (row) => (row.quantity || 0) * (row.piecesPerUnit || 12),
+              render: (row) => {
+                const consumed = (row.quantity || 0) * (row.piecesPerUnit || 12);
+                return <div className="text-center font-bold text-amber-600">{consumed}</div>;
+              }
+            },
+            {
               field: 'dozensPackaged',
               header: 'Packaged (Dozens)',
               sortable: true,
-              getValue: (row) => row.dozensPackaged || row.packagedDozens || row.dozenCount || 0,
-              render: (row) => <div className="text-right font-bold text-[#1a7a4a]">{row.dozensPackaged || row.packagedDozens || row.dozenCount || 0} doz</div>
+              getValue: (row) => row.quantity || row.dozensPackaged || row.packagedDozens || row.dozenCount || 0,
+              render: (row) => <div className="text-center font-bold text-[#1a7a4a]">{row.quantity || row.dozensPackaged || row.packagedDozens || row.dozenCount || 0} doz</div>
             },
             {
               field: 'createdAt',
@@ -529,7 +522,7 @@ export default function InventoryPage() {
               filterable: true,
               filterType: 'date',
               getValue: (row) => row.createdAt || row.packagedAt,
-              render: (row) => <div className="text-right text-[#6b7280]">{prettyDate(row.createdAt || row.packagedAt)}</div>
+              render: (row) => <div className="text-center text-[#6b7280]">{prettyDate(row.createdAt || row.packagedAt)}</div>
             }
           ]}
         />
@@ -581,11 +574,6 @@ export default function InventoryPage() {
                   <AlertTriangle className="h-3 w-3" /> Low
                 </span>
               )
-            },
-            {
-              field: 'actions',
-              header: 'Action',
-              render: (row) => row.type === 'finished' && canUpdate ? <button onClick={() => openAlertForm(row)} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">Update</button> : <span>-</span>
             }
           ]}
         />
@@ -628,8 +616,11 @@ export default function InventoryPage() {
               field: 'quantity',
               header: 'Current Stock',
               sortable: true,
-              getValue: (row) => row.quantity || row.currentStock || row.stock || row.availablePieces || 0,
-              render: (row) => <div className="text-right font-bold text-[#1a7a4a]">{row.quantity || row.currentStock || row.stock || row.availablePieces || 0}</div>
+              getValue: (row) => row.quantity ?? row.currentStock ?? (typeof row.stock === 'object' ? row.stock?.quantityAvailable ?? row.stock?.quantity ?? 0 : row.stock) ?? row.availablePieces ?? 0,
+              render: (row) => {
+                const qty = row.quantity ?? row.currentStock ?? (typeof row.stock === 'object' ? row.stock?.quantityAvailable ?? row.stock?.quantity ?? 0 : row.stock) ?? row.availablePieces ?? 0;
+                return <div className="text-center font-bold text-[#1a7a4a]">{qty}</div>;
+              }
             },
             {
               field: 'status',
@@ -647,7 +638,7 @@ export default function InventoryPage() {
               filterable: true,
               filterType: 'date',
               getValue: (row) => row.updatedAt || row.createdAt,
-              render: (row) => <div className="text-right text-[#6b7280]">{prettyDate(row.updatedAt || row.createdAt)}</div>
+              render: (row) => <div className="text-center text-[#6b7280]">{prettyDate(row.updatedAt || row.createdAt)}</div>
             }
           ]}
         />
@@ -655,12 +646,13 @@ export default function InventoryPage() {
 
       {modalMode && modalMode !== 'view' && (
         <SimpleRecordModal
-          title={modalMode === 'packaging' ? 'Create Packaging Batch' : modalMode === 'alert' ? 'Set Low Stock Alert' : 'Adjust Stock'}
-          subtitle={modalMode === 'packaging' ? 'Convert unpackaged items into packaged dozens' : modalMode === 'alert' ? 'Get notified when stock falls below this threshold' : 'Manually adjust stock levels for a design'}
+          title={modalMode === 'packaging' ? 'Create Packaging Batch' : 'Adjust Stock'}
+          subtitle={modalMode === 'packaging' ? 'Convert unpackaged items into packaged dozens' : 'Manually adjust stock levels for a design'}
           fields={stockFields}
           values={stockForm}
           saving={saving}
-          submitLabel={modalMode === 'packaging' ? 'Create Batch' : modalMode === 'alert' ? 'Save Alert' : 'Save Adjustment'}
+          apiError={formError}
+          submitLabel={modalMode === 'packaging' ? 'Create Batch' : 'Save Adjustment'}
           onChange={(name, value) => setStockForm(current => ({ ...current, [name]: value }))}
           onClose={closeStockForm}
           onSubmit={saveStock}
@@ -668,7 +660,7 @@ export default function InventoryPage() {
       )}
 
       {modalMode === 'view' && selectedStock && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+        <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
           <div className="theme-modal-panel w-full max-w-lg overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 p-4">
               <div>
@@ -710,7 +702,7 @@ export default function InventoryPage() {
 }
 
 
-function AlertRow({ name, module, current, threshold, action }: { name: string; module: string; current: React.ReactNode; threshold: React.ReactNode; action: React.ReactNode }) {
+function AlertRow({ name, module, current, threshold }: { name: string; module: string; current: React.ReactNode; threshold: React.ReactNode }) {
   return (
     <tr className="theme-table-row">
       <td className="px-5 py-3.5 text-sm font-semibold theme-text-primary">{name}</td>
@@ -722,7 +714,6 @@ function AlertRow({ name, module, current, threshold, action }: { name: string; 
           <AlertTriangle className="h-3 w-3" /> Low
         </span>
       </td>
-      <td className="px-5 py-3.5">{action}</td>
     </tr>
   );
 }

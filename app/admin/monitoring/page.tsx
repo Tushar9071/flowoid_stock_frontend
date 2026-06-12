@@ -60,7 +60,7 @@ export default function MonitoringPage() {
   }, []);
 
   const topRoutes = useMemo(() => {
-    if (!metrics?.api.routes) return [];
+    if (!metrics?.api?.routes) return [];
     return Object.entries(metrics.api.routes)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);
@@ -95,6 +95,17 @@ export default function MonitoringPage() {
     );
   }
 
+  const service = metrics.service || { uptimeSeconds: 0, pid: '-' };
+  const system = metrics.system || {
+    cpuUsagePercent: 0,
+    cpuCount: 0,
+    memoryUsagePercent: 0,
+    usedMemoryMb: 0,
+    totalMemoryMb: 0,
+  };
+  const database = metrics.database || { status: 'UNKNOWN', latencyMs: null };
+  const api = metrics.api || { totalRequests: 0, activeRequests: 0, averageResponseTimeMs: 0, routes: {} };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -108,10 +119,10 @@ export default function MonitoringPage() {
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Server} label="Service Uptime" value={formatUptime(metrics.service.uptimeSeconds)} detail={`PID ${metrics.service.pid}`} />
-        <MetricCard icon={Cpu} label="CPU Usage" value={`${Number(metrics.system.cpuUsagePercent || 0).toFixed(1)}%`} detail={`${metrics.system.cpuCount} cores`} />
-        <MetricCard icon={HardDrive} label="Memory Usage" value={`${Number(metrics.system.memoryUsagePercent || 0).toFixed(1)}%`} detail={`${metrics.system.usedMemoryMb} / ${metrics.system.totalMemoryMb} MB`} />
-        <MetricCard icon={Database} label="Database" value={metrics.database.status} detail={`${metrics.database.latencyMs ?? '-'} ms latency`} good={metrics.database.status === 'UP'} />
+        <MetricCard icon={Server} label="Service Uptime" value={formatUptime(Number(service.uptimeSeconds || 0))} detail={`PID ${service.pid ?? '-'}`} />
+        <MetricCard icon={Cpu} label="CPU Usage" value={`${Number(system.cpuUsagePercent || 0).toFixed(1)}%`} detail={`${system.cpuCount || 0} cores`} />
+        <MetricCard icon={HardDrive} label="Memory Usage" value={`${Number(system.memoryUsagePercent || 0).toFixed(1)}%`} detail={`${system.usedMemoryMb || 0} / ${system.totalMemoryMb || 0} MB`} />
+        <MetricCard icon={Database} label="Database" value={database.status || 'UNKNOWN'} detail={`${database.latencyMs ?? '-'} ms latency`} good={database.status === 'UP'} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -125,9 +136,9 @@ export default function MonitoringPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <SmallStat label="Total Requests" value={metrics.api.totalRequests} />
-            <SmallStat label="Active Requests" value={metrics.api.activeRequests} />
-            <SmallStat label="Avg Response" value={`${metrics.api.averageResponseTimeMs} ms`} />
+            <SmallStat label="Total Requests" value={api.totalRequests} />
+            <SmallStat label="Active Requests" value={api.activeRequests} />
+            <SmallStat label="Avg Response" value={`${api.averageResponseTimeMs} ms`} />
           </div>
 
           <div className="mt-6">

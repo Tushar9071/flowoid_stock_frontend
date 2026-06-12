@@ -43,18 +43,28 @@ const PERMISSION_ALIASES: Record<string, string[]> = {
   'raw_materials.create': ['raw_materials.create', 'raw-materials.create', 'materials.create'],
   'raw_materials.update': ['raw_materials.update', 'raw_materials.edit', 'raw-materials.update', 'raw-materials.edit', 'materials.update'],
   'raw_materials.delete': ['raw_materials.delete', 'raw-materials.delete', 'materials.delete'],
+  'raw_materials.approve': ['raw_materials.approve', 'raw-materials.approve', 'materials.approve'],
   'raw-materials.read': ['raw-materials.read', 'raw_materials.read', 'raw_materials.view', 'materials.read'],
   'raw-materials.create': ['raw-materials.create', 'raw_materials.create', 'materials.create'],
   'raw-materials.update': ['raw-materials.update', 'raw-materials.edit', 'raw_materials.update', 'raw_materials.edit', 'materials.update'],
   'raw-materials.delete': ['raw-materials.delete', 'raw_materials.delete', 'materials.delete'],
+  'raw-materials.approve': ['raw-materials.approve', 'raw_materials.approve', 'materials.approve'],
   'stock_items.read': ['stock_items.read', 'stock-items.read', 'inventory.read', 'inventory.view', 'stock.read'],
   'stock_items.create': ['stock_items.create', 'stock-items.create', 'inventory.create', 'stock.create'],
   'inventory.create': ['inventory.create', 'stock_items.create', 'stock.create'],
   'inventory.update': ['inventory.update', 'inventory.edit', 'stock_items.update', 'stock-items.update', 'stock.update'],
-  'parties.read': ['parties.read', 'parties.view', 'party_management.read', 'party-management.read', 'customers.read', 'suppliers.read'],
-  'parties.create': ['parties.create', 'party_management.create', 'customers.create', 'suppliers.create'],
-  'parties.update': ['parties.update', 'parties.edit', 'party_management.update', 'customers.update', 'suppliers.update'],
-  'parties.delete': ['parties.delete', 'party_management.delete', 'customers.delete', 'suppliers.delete'],
+  'parties.read': ['parties.read', 'parties.view', 'party_management.read', 'party-management.read', 'customers.read', 'dealers.read', 'suppliers.read'],
+  'parties.create': ['parties.create', 'party_management.create', 'customers.create', 'dealers.create', 'suppliers.create'],
+  'parties.update': ['parties.update', 'parties.edit', 'party_management.update', 'customers.update', 'dealers.update', 'suppliers.update'],
+  'parties.delete': ['parties.delete', 'party_management.delete', 'customers.delete', 'dealers.delete', 'suppliers.delete'],
+  'dealer_management.read': ['dealer_management.read', 'dealer-management.read', 'dealers.read', 'parties.read', 'parties.view'],
+  'dealer_management.create': ['dealer_management.create', 'dealer-management.create', 'dealers.create', 'parties.create'],
+  'dealer_management.update': ['dealer_management.update', 'dealer-management.update', 'dealers.update', 'dealers.edit', 'parties.update', 'parties.edit'],
+  'dealer_management.delete': ['dealer_management.delete', 'dealer-management.delete', 'dealers.delete', 'parties.delete'],
+  'supplier_management.read': ['supplier_management.read', 'supplier-management.read', 'suppliers.read', 'parties.read', 'parties.view'],
+  'supplier_management.create': ['supplier_management.create', 'supplier-management.create', 'suppliers.create', 'parties.create'],
+  'supplier_management.update': ['supplier_management.update', 'supplier-management.update', 'suppliers.update', 'suppliers.edit', 'parties.update', 'parties.edit'],
+  'supplier_management.delete': ['supplier_management.delete', 'supplier-management.delete', 'suppliers.delete', 'parties.delete'],
   'sales_orders.read': ['sales_orders.read', 'sales-orders.read', 'orders.read', 'orders.view', 'orders_dispatch.read'],
   'sales_orders.create': ['sales_orders.create', 'sales-orders.create', 'orders.create', 'orders_dispatch.create'],
   'orders.create': ['orders.create', 'sales_orders.create', 'sales-orders.create'],
@@ -131,15 +141,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const publicRoutes = ['/', '/login', '/register', '/demo'];
       const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith('/demo'));
 
-      if (isPublicRoute) {
-        setIsLoading(false);
-        return;
-      }
+      const storedUserStr = localStorage.getItem(AUTH_USER_STORAGE_KEY);
 
       try {
-        const storedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
+        if (storedUserStr) {
+          setUser(JSON.parse(storedUserStr));
+        }
+
+        if (isPublicRoute && !storedUserStr) {
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+          if (pathname === '/' && isStandalone) {
+             router.replace('/login');
+          }
+          setIsLoading(false);
+          return;
         }
 
         const response = await AuthService.getCurrentUser();
@@ -147,11 +162,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(response.data);
           localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(response.data));
           
-          // Fetch permissions if user is authenticated
           const permResponse = await AuthService.getMyPermissions();
           if (permResponse.success) {
             const normalized = normalizePermissions(permResponse.data);
             applyPermissionsForUser(response.data, normalized, setPermissions, setIsFullAccess);
+          }
+
+          if (isPublicRoute && pathname !== '/demo') {
+            router.replace(isSuperAdminRole(response.data.role) ? '/admin' : '/dashboard');
+            return;
+          }
+        } else {
+          if (storedUserStr) {
+             localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+             setUser(null);
+          }
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+          if (pathname === '/' && isStandalone) {
+             router.replace('/login');
           }
         }
       } catch (error) {
@@ -162,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuth();
-  }, [pathname]);
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!user) return;

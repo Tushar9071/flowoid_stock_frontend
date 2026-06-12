@@ -19,7 +19,7 @@ export function SearchInput({
   ...props
 }: SearchInputProps) {
   return (
-    <div className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2.5 shadow-sm transition-all focus-within:border-[var(--color-border-accent)] focus-within:ring-2 focus-within:ring-[#0F2A4A]/10', containerClassName)}>
+    <div className={cn('flex w-full items-center gap-2.5 rounded-full bg-slate-100 px-4 py-2.5 transition-all hover:bg-slate-200/60 focus-within:bg-white focus-within:ring-2 focus-within:ring-slate-200 focus-within:shadow-sm', containerClassName)}>
       <Search className={cn('pointer-events-none h-4 w-4 shrink-0 text-[#9ca3af]', iconClassName)} />
       <input
         type={type}

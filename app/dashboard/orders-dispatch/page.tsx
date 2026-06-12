@@ -20,19 +20,22 @@ import { SkeletonList, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { SimpleField, SimpleRecordModal } from '@/components/shared/simple-record-modal';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { formatApiError } from '@/lib/utils';
+
 import {
   BackendRecord,
   DesignService,
   DocumentService,
   OrderService,
+  InventoryService,
   responseItems,
 } from '@/lib/services/business-modules.service';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { PartyService } from '@/lib/services/party.service';
 import { BackendTenant } from '@/lib/types';
 import { SearchInput } from '@/components/shared/search-input';
 
-type Tab = 'orders' | 'dispatch' | 'overdue';
+type Tab = 'orders' | 'dispatch';
 type ModalMode = 'create' | 'editOrder' | 'addItem' | 'editItem' | 'dispatch' | 'cancel' | null;
 
 function prettyDate(value?: string | null) {
@@ -45,7 +48,14 @@ function orderNumber(order: BackendRecord) {
 }
 
 function dealerName(order: BackendRecord) {
-  return order.dealer?.name || order.party?.name || order.dealerName || order.partyName || '-';
+  const party = order.dealer || order.party;
+  if (party && party.name) return party.name;
+  return order.dealerName || order.partyName || '-';
+}
+
+function dealerCode(order: BackendRecord) {
+  const party = order.dealer || order.party;
+  return party?.code || '-';
 }
 
 function orderItems(order: BackendRecord) {
@@ -58,6 +68,15 @@ function orderId(order: BackendRecord) {
 
 function normalizedOrderStatus(order: BackendRecord) {
   return String(order.status || order.orderStatus || '').toLowerCase();
+}
+
+function orderTrackingRef(row: BackendRecord) {
+  const ref = row.trackingRef || row.dispatch?.trackingRef || row.dispatches?.[0]?.trackingRef || row.vehicleNumber || row.dispatch?.vehicleNumber || row.dispatches?.[0]?.vehicleNumber;
+  return ref && ref !== '-' ? ref : 'Pending';
+}
+
+function orderDispatchDate(row: BackendRecord) {
+  return row.dispatchedAt || row.dispatchDate || row.dispatch?.dispatchDate || row.dispatches?.[0]?.dispatchDate || null;
 }
 
 function canDownloadOrderDocuments(order: BackendRecord) {
@@ -87,6 +106,13 @@ function toDateInput(value?: string | null) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+function toDateTimeInput(value?: string | null) {
+  if (!value) return '';
+  const d = new Date(value);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
 export default function OrdersDispatchPage() {
   const { hasPermission } = useAuth();
   const [tenant, setTenant] = useState<BackendTenant | null>(null);
@@ -96,16 +122,42 @@ export default function OrdersDispatchPage() {
   const itemsPerPage = 12;
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<BackendRecord[]>([]);
-  const [overdueOrders, setOverdueOrders] = useState<BackendRecord[]>([]);
+
   const [dealers, setDealers] = useState<BackendRecord[]>([]);
   const [designs, setDesigns] = useState<BackendRecord[]>([]);
+  const [stock, setStock] = useState<BackendRecord[]>([]);
+  const [selectedDesignAvailability, setSelectedDesignAvailability] = useState<number | null>(null);
+
+
   const [seeding, setSeeding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedOrder, setSelectedOrder] = useState<BackendRecord | null>(null);
   const [selectedItem, setSelectedItem] = useState<BackendRecord | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
+  const [formError, setFormError] = useState<any>(null);
   const [dispatchSummary, setDispatchSummary] = useState<BackendRecord | null>(null);
+
+  useEffect(() => {
+    if (form.designId && tenant?.id) {
+      const existing = stock.find(s => String(s.designId) === String(form.designId) || String(s.design?.id) === String(form.designId));
+      if (existing) {
+        setSelectedDesignAvailability(Number(existing.availableDozens ?? existing.packagedDozens ?? 0));
+      } else {
+        InventoryService.getStockAvailability(tenant.id, form.designId)
+          .then(res => {
+            if (res.success && res.data) {
+              setSelectedDesignAvailability(Number(res.data.availableDozens ?? res.data.packagedDozens ?? 0));
+            } else {
+              setSelectedDesignAvailability(0);
+            }
+          })
+          .catch(() => setSelectedDesignAvailability(0));
+      }
+    } else {
+      setSelectedDesignAvailability(null);
+    }
+  }, [form.designId, tenant?.id, stock]);
 
   const canCreate = hasPermission('sales_orders.create') || hasPermission('orders.create');
   const canUpdate = hasPermission('orders.update') || hasPermission('sales_orders.update');
@@ -115,37 +167,40 @@ export default function OrdersDispatchPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const tenantRes = await CurrentTenantService.getCurrentTenant();
+      const tenantRes = await CurrentOwnerService.getCurrentOwner();
       if (!tenantRes.success || !tenantRes.data) {
         toast.error(tenantRes.error?.message || 'No business tenant found');
         return;
       }
-
       const tenantId = tenantRes.data.id;
       setTenant(tenantRes.data);
-      const [ordersRes, overdueRes, dealersRes, designsRes] = await Promise.all([
+      const [ordersRes, dealersRes, designsRes, stockRes, dispatchesRes] = await Promise.all([
         OrderService.list(tenantId, { page: 1, limit: 100 }),
-        OrderService.overdue(tenantId, { page: 1, limit: 100 }),
         PartyService.dropdown(tenantId, { type: 'DEALER', isActive: true, limit: 100 }),
         DesignService.list(tenantId, { page: 1, limit: 100 }),
+        InventoryService.listStock(tenantId, { page: 1, limit: 100 }),
+        OrderService.listDispatches(tenantId, { page: 1, limit: 100 }),
       ]);
+
+      const designsList = designsRes.success ? responseItems(designsRes.data) : [];
+      const dispatchesList = dispatchesRes.success ? responseItems(dispatchesRes.data as any) : [];
 
       if (ordersRes.success) {
         let fetchedOrders = responseItems(ordersRes.data);
         if (fetchedOrders.length > 0) {
-          const detailedOrders = await Promise.all(
-            fetchedOrders.map(async (o) => {
-              if (!o.id) return o;
-              try {
-                const detailRes = await OrderService.getById(tenantId, o.id);
-                if (detailRes.success && detailRes.data) {
-                  return { ...o, items: detailRes.data.items || detailRes.data.orderItems || o.items };
-                }
-              } catch {}
-              return o;
-            })
-          );
-          setOrders(detailedOrders);
+          const fastOrders = fetchedOrders.map(o => {
+            const orderDispatches = dispatchesList.filter((d: any) => d.orderId === o.id);
+            const enrichedItems = (o.items || o.orderItems || []).map((item: any) => {
+               const design = designsList.find((dsg: any) => dsg.id === item.designId);
+               return { ...item, design: item.design || design };
+            });
+            return {
+              ...o,
+              items: enrichedItems,
+              dispatches: orderDispatches,
+            };
+          });
+          setOrders(fastOrders);
         } else {
           setOrders([]);
         }
@@ -153,29 +208,9 @@ export default function OrdersDispatchPage() {
         toast.error(ordersRes.error?.message || 'Failed to load orders');
       }
 
-      if (overdueRes.success) {
-        let fetchedOverdue = responseItems(overdueRes.data);
-        if (fetchedOverdue.length > 0) {
-          const detailedOverdue = await Promise.all(
-            fetchedOverdue.map(async (o) => {
-              if (!o.id) return o;
-              try {
-                const detailRes = await OrderService.getById(tenantId, o.id);
-                if (detailRes.success && detailRes.data) {
-                  return { ...o, items: detailRes.data.items || detailRes.data.orderItems || o.items };
-                }
-              } catch {}
-              return o;
-            })
-          );
-          setOverdueOrders(detailedOverdue);
-        } else {
-          setOverdueOrders([]);
-        }
-      }
-
       if (dealersRes.success) setDealers(responseItems(dealersRes.data as any));
       if (designsRes.success) setDesigns(responseItems(designsRes.data));
+      if (stockRes.success) setStock(responseItems(stockRes.data));
     } catch {
       toast.error('Failed to load orders module');
     } finally {
@@ -197,12 +232,12 @@ export default function OrdersDispatchPage() {
 
   const filteredOrders = useMemo(() => {
     const term = search.toLowerCase();
-    const source = tab === 'overdue' ? overdueOrders : orders;
+    const source = orders;
     return source.filter(order =>
       orderNumber(order).toLowerCase().includes(term) ||
       dealerName(order).toLowerCase().includes(term)
     );
-  }, [orders, overdueOrders, search, tab]);
+  }, [orders, search, tab]);
 
   const dispatchedOrders = filteredOrders.filter(order =>
     ['packed', 'dispatched', 'delivered', 'partially_dispatched'].includes(String(order.status || order.orderStatus || '').toLowerCase())
@@ -213,13 +248,14 @@ export default function OrdersDispatchPage() {
   const tabs = [
     { id: 'orders' as Tab, label: 'All Orders', icon: <FileText className="h-4 w-4" />, count: orders.length },
     { id: 'dispatch' as Tab, label: 'Dispatch Status', icon: <Truck className="h-4 w-4" />, count: dispatchedOrders.length },
-    { id: 'overdue' as Tab, label: 'Overdue Credit', icon: <Package className="h-4 w-4" />, count: overdueOrders.length },
   ];
 
-  const designOptions = designs.map(design => ({
-    label: `${design.designCode || design.code || ''} ${design.name || ''}`.trim() || design.id,
-    value: String(design.id),
-  }));
+  const designOptions = designs.map(design => {
+    return {
+      label: `${design.designCode || design.code || ''} ${design.name || ''}`.trim() || String(design.id),
+      value: String(design.id),
+    };
+  });
 
   const dealerOptions = dealers.map(dealer => ({
     label: dealer.name || dealer.code || 'Dealer',
@@ -231,7 +267,13 @@ export default function OrdersDispatchPage() {
       return [
         { name: 'dealerId', label: 'Dealer', type: 'select', required: true, options: dealerOptions },
         { name: 'designId', label: 'Design', type: 'select', required: true, options: designOptions },
-        { name: 'quantityDozens', label: 'Quantity Dozens', type: 'number', required: true },
+        { 
+          name: 'quantityDozens', 
+          label: 'Quantity Dozens', 
+          type: 'number', 
+          required: true,
+          hint: selectedDesignAvailability !== null ? `Available to order: ${selectedDesignAvailability} dozens` : undefined
+        },
         { name: 'pricePerDozen', label: 'Price Per Dozen', type: 'number', required: true },
         { name: 'isCreditOrder', label: 'Credit Order', type: 'checkbox' },
         { name: 'discountAmount', label: 'Discount', type: 'number' },
@@ -250,7 +292,13 @@ export default function OrdersDispatchPage() {
     if (modalMode === 'addItem') {
       return [
         { name: 'designId', label: 'Design', type: 'select', required: true, options: designOptions },
-        { name: 'quantityDozens', label: 'Quantity Dozens', type: 'number', required: true },
+        { 
+          name: 'quantityDozens', 
+          label: 'Quantity Dozens', 
+          type: 'number', 
+          required: true,
+          hint: selectedDesignAvailability !== null ? `Available to order: ${selectedDesignAvailability} dozens` : undefined
+        },
         { name: 'pricePerDozen', label: 'Price Per Dozen', type: 'number' },
         { name: 'notes', label: 'Notes', type: 'textarea' },
       ];
@@ -268,7 +316,7 @@ export default function OrdersDispatchPage() {
       return [
         { name: 'transportMode', label: 'Transport Mode', required: true },
         { name: 'trackingRef', label: 'Tracking Reference' },
-        { name: 'dispatchedAt', label: 'Dispatch Date', type: 'date' },
+        { name: 'dispatchedAt', label: 'Dispatch Time', type: 'datetime-local' },
       ];
     }
 
@@ -277,11 +325,12 @@ export default function OrdersDispatchPage() {
     }
 
     return [];
-  }, [dealerOptions, designOptions, modalMode]);
+  }, [dealerOptions, designOptions, modalMode, selectedDesignAvailability]);
 
   const openCreateOrder = () => {
     setSelectedOrder(null);
     setSelectedItem(null);
+    setFormError(null);
     setModalMode('create');
     setForm({
       dealerId: dealers[0]?.id || '',
@@ -297,6 +346,7 @@ export default function OrdersDispatchPage() {
   const openEditOrder = (order: BackendRecord) => {
     setSelectedOrder(order);
     setSelectedItem(null);
+    setFormError(null);
     setModalMode('editOrder');
     setForm({
       isCreditOrder: Boolean(order.isCreditOrder),
@@ -308,6 +358,7 @@ export default function OrdersDispatchPage() {
   const openAddItem = (order: BackendRecord) => {
     setSelectedOrder(order);
     setSelectedItem(null);
+    setFormError(null);
     setModalMode('addItem');
     setForm({ designId: designs[0]?.id || '', quantityDozens: 1, pricePerDozen: '', notes: '' });
   };
@@ -315,6 +366,7 @@ export default function OrdersDispatchPage() {
   const openEditItem = (order: BackendRecord, item: BackendRecord) => {
     setSelectedOrder(order);
     setSelectedItem(item);
+    setFormError(null);
     setModalMode('editItem');
     setForm({
       quantityDozens: item.quantityDozens || item.quantity || 1,
@@ -326,17 +378,22 @@ export default function OrdersDispatchPage() {
   const openDispatch = (order: BackendRecord) => {
     setSelectedOrder(order);
     setSelectedItem(null);
+    setFormError(null);
     setModalMode('dispatch');
+    const defaultTracker = `TRK-${Math.floor(100000 + Math.random() * 900000)}`;
+    const defaultDate = new Date().toISOString();
+    const existingTracker = orderTrackingRef(order);
     setForm({
-      transportMode: order.transportMode || order.dispatch?.transportMode || 'Road',
-      trackingRef: order.trackingRef || order.dispatch?.trackingRef || '',
-      dispatchedAt: toDateInput(order.dispatchedAt || order.dispatchDate),
+      transportMode: order.transportMode || order.dispatch?.transportMode || order.dispatches?.[0]?.transportDetails || order.dispatches?.[0]?.transportMode || 'Road',
+      trackingRef: existingTracker && existingTracker !== 'Pending' ? existingTracker : defaultTracker,
+      dispatchedAt: toDateTimeInput(orderDispatchDate(order) || defaultDate),
     });
   };
 
   const openCancel = (order: BackendRecord) => {
     setSelectedOrder(order);
     setSelectedItem(null);
+    setFormError(null);
     setModalMode('cancel');
     setForm({ cancelReason: order.cancelReason || '' });
   };
@@ -346,15 +403,26 @@ export default function OrdersDispatchPage() {
     setSelectedOrder(null);
     setSelectedItem(null);
     setForm({});
+    setFormError(null);
+    setSelectedDesignAvailability(null);
   };
 
   const saveModal = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     setSaving(true);
     try {
+      if (modalMode === 'create' || modalMode === 'addItem') {
+        const reqQty = Number(form.quantityDozens || 1);
+        if (selectedDesignAvailability !== null && reqQty > selectedDesignAvailability) {
+          setFormError(`Cannot order more than available stock (${selectedDesignAvailability} dozens available).`);
+          setSaving(false);
+          return;
+        }
+      }
+
       let response;
       if (modalMode === 'create') {
         response = await OrderService.create(currentTenant.id, {
@@ -389,9 +457,13 @@ export default function OrdersDispatchPage() {
         });
       } else if (modalMode === 'dispatch' && selectedOrder?.id) {
         response = await OrderService.dispatch(currentTenant.id, selectedOrder.id, {
-          transportMode: form.transportMode,
-          trackingRef: form.trackingRef || undefined,
-          dispatchedAt: form.dispatchedAt ? new Date(form.dispatchedAt).toISOString() : undefined,
+          transportDetails: String(form.transportMode || 'Road'),
+          vehicleNumber: String(form.trackingRef || ''),
+          dispatchDate: form.dispatchedAt ? new Date(form.dispatchedAt).toISOString() : new Date().toISOString(),
+          items: orderItems(selectedOrder).map((item: any) => ({
+            orderItemId: item.id,
+            quantityDispatched: Number(item.pendingQty || 0),
+          })),
         });
       } else if (modalMode === 'cancel' && selectedOrder?.id) {
         response = await OrderService.cancel(currentTenant.id, selectedOrder.id, {
@@ -399,19 +471,22 @@ export default function OrdersDispatchPage() {
         });
       }
 
-      if (!response?.success) throw new Error(response?.error?.message || 'Failed to save order action');
+      if (!response?.success) {
+        setFormError(response?.error);
+        return;
+      }
       toast.success('Order updated');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save order action');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
   };
 
   const runOrderAction = async (order: BackendRecord, action: 'confirm' | 'pack') => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !order.id) return toast.error('Tenant or order not found');
 
     setSaving(true);
@@ -431,7 +506,7 @@ export default function OrdersDispatchPage() {
 
   const deleteItem = async (order: BackendRecord, item: BackendRecord) => {
     if (!order.id || !item.id || !window.confirm('Delete this order item?')) return;
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     setSaving(true);
@@ -448,7 +523,7 @@ export default function OrdersDispatchPage() {
   };
 
   const loadDispatchSummary = async (order: BackendRecord) => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !order.id) return toast.error('Tenant or order not found');
 
     setSaving(true);
@@ -480,7 +555,7 @@ export default function OrdersDispatchPage() {
     >
       <div className="mb-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-[#e5e7eb] p-1">
         {tabs.map(item => (
-          <button key={item.id} onClick={() => setTab(item.id)} className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
+          <button key={item.id} onClick={() => setTab(item.id)} className={`flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-5 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
             {item.icon} {item.label}
             <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-bold">{item.count}</span>
           </button>
@@ -500,7 +575,7 @@ export default function OrdersDispatchPage() {
 
       {loading && (tab === 'dispatch' ? <SkeletonTable rows={8} cols={6} /> : <SkeletonList count={6} />)}
 
-      {!loading && (tab === 'orders' || tab === 'overdue') && (
+      {!loading && (tab === 'orders') && (
         <div className="space-y-4">
           {filteredOrders.map(order => (
             <div key={order.id} className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white theme-card-accent">
@@ -509,6 +584,9 @@ export default function OrdersDispatchPage() {
                   <div>
                     <span className="mb-1.5 inline-block rounded bg-[#f3f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#6b7280]">{orderNumber(order)}</span>
                     <h3 className="text-[18px] font-bold theme-text-primary">{dealerName(order)}</h3>
+                    {dealerCode(order) !== '-' && (
+                      <p className="mt-0.5 text-[12px] font-semibold text-[#6b7280]">{dealerCode(order)}</p>
+                    )}
                     <p className="mt-0.5 text-sm text-[#6b7280]">Ordered on {prettyDate(order.orderDate || order.createdAt)}</p>
                   </div>
                   <div className="text-right">
@@ -567,6 +645,18 @@ export default function OrdersDispatchPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Payment:</p>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[#0F2A4A]">{order.paymentStatus || (order.isCreditOrder ? 'credit' : 'cash')}</span>
                   </div>
+                  {orderTrackingRef(order) !== 'Pending' && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Tracker No:</p>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#0F2A4A]">{orderTrackingRef(order)}</span>
+                    </div>
+                  )}
+                  {orderDispatchDate(order) && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Dispatch Date:</p>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#0F2A4A]">{prettyDate(orderDispatchDate(order))}</span>
+                    </div>
+                  )}
                   <OrderActions
                     order={order}
                     tenant={tenant}
@@ -585,7 +675,14 @@ export default function OrdersDispatchPage() {
               </div>
             </div>
           ))}
-          {filteredOrders.length === 0 && <EmptyState text="No orders found." tenant={tenant} />}
+          {filteredOrders.length === 0 && (
+            <EmptyState 
+              title="No orders found" 
+              subtitle="Try adjusting search or filters."
+              icon={<FileText className="h-6 w-6" />} 
+              tenant={tenant} 
+            />
+          )}
         </div>
       )}
 
@@ -620,7 +717,14 @@ export default function OrdersDispatchPage() {
               filterable: true,
               filterType: 'text',
               getValue: (row) => dealerName(row),
-              render: (row) => <div className="font-bold text-[#374151]">{dealerName(row)}</div>
+              render: (row) => (
+                <div className="flex flex-col">
+                  <span className="font-bold text-[#374151]">{dealerName(row)}</span>
+                  {dealerCode(row) !== '-' && (
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{dealerCode(row)}</span>
+                  )}
+                </div>
+              )
             },
             {
               field: 'trackingRef',
@@ -628,8 +732,8 @@ export default function OrdersDispatchPage() {
               sortable: true,
               filterable: true,
               filterType: 'text',
-              getValue: (row) => row.trackingRef || row.dispatch?.trackingRef || '-',
-              render: (row) => <div className="font-mono text-[#6b7280]">{row.trackingRef || row.dispatch?.trackingRef || '-'}</div>
+              getValue: (row) => orderTrackingRef(row),
+              render: (row) => <div className={`font-mono ${orderTrackingRef(row) === 'Pending' ? 'text-slate-400 italic text-xs' : 'text-[#6b7280]'}`}>{orderTrackingRef(row)}</div>
             },
             {
               field: 'dispatchedAt',
@@ -637,8 +741,8 @@ export default function OrdersDispatchPage() {
               sortable: true,
               filterable: true,
               filterType: 'date',
-              getValue: (row) => row.dispatchedAt || row.dispatchDate,
-              render: (row) => <div className="text-[#6b7280]">{prettyDate(row.dispatchedAt || row.dispatchDate)}</div>
+              getValue: (row) => orderDispatchDate(row),
+              render: (row) => <div className={!orderDispatchDate(row) ? 'text-slate-400 italic text-xs' : 'text-[#6b7280]'}>{orderDispatchDate(row) ? prettyDate(orderDispatchDate(row)) : 'Pending'}</div>
             },
             {
               field: 'status',
@@ -657,10 +761,15 @@ export default function OrdersDispatchPage() {
                   <button onClick={() => loadDispatchSummary(row)} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">
                     Summary
                   </button>
-                  {tenant && orderId(row) && (
-                    <button onClick={() => openOrderDocument(tenant, row, 'challan')} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">
-                      Challan
-                    </button>
+                  {tenant && orderId(row) && ['DISPATCHED', 'PARTIALLY_DISPATCHED'].includes(String(row.status || row.orderStatus || '').toUpperCase()) && (
+                    <>
+                      <button onClick={() => openOrderDocument(tenant, row, 'challan')} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">
+                        Challan
+                      </button>
+                      <button onClick={() => openOrderDocument(tenant, row, 'invoice')} className="theme-secondary-btn rounded-lg px-3 py-1.5 text-xs font-semibold">
+                        Invoice
+                      </button>
+                    </>
                   )}
                 </div>
               )
@@ -676,6 +785,7 @@ export default function OrdersDispatchPage() {
           fields={modalFields}
           values={form}
           saving={saving}
+          apiError={formError}
           submitLabel={modalSubmit(modalMode)}
           onChange={(name, value) => setForm(current => ({ ...current, [name]: value }))}
           onClose={closeModal}
@@ -684,7 +794,7 @@ export default function OrdersDispatchPage() {
       )}
 
       {dispatchSummary && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+        <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
           <div className="theme-modal-panel w-full max-w-xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 p-4">
               <div>
@@ -833,10 +943,21 @@ function StatusPill({ status }: { status: string }) {
 
 
 
-function EmptyState({ text, tenant }: { text: string; tenant?: BackendTenant | null }) {
+function EmptyState({ text, tenant, icon, title, subtitle }: { text?: string; tenant?: BackendTenant | null; icon?: React.ReactNode; title?: string; subtitle?: string }) {
+  if (tenant === null) {
+    return (
+      <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center text-sm font-medium text-[#6b7280]">
+        A tenant is required before records can be loaded.
+      </div>
+    );
+  }
   return (
-    <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center text-sm font-medium text-[#6b7280]">
-      {tenant === null ? 'A tenant is required before orders can be loaded.' : text}
+    <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center">
+      <div className="theme-icon-chip mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
+        {icon || <FileText className="h-6 w-6" />}
+      </div>
+      <p className="text-lg font-bold theme-text-primary">{title || text || "No records found"}</p>
+      {subtitle && <p className="mt-1 text-sm text-[#6b7280]">{subtitle}</p>}
     </div>
   );
 }
@@ -844,8 +965,20 @@ function EmptyState({ text, tenant }: { text: string; tenant?: BackendTenant | n
 function OrderSummaryView({ summary }: { summary: any }) {
   if (!summary) return null;
 
+  // The summary might be an array of dispatches (from getDispatchSummary) or a single order object
+  const dispatches = Array.isArray(summary) ? summary : (summary.dispatches || []);
+  const latestDispatch = dispatches.length > 0 ? dispatches[0] : null;
   const orderData = summary.order || summary;
-  const items = summary.items || summary.orderItems || summary.dispatchItems || orderData.items || orderData.orderItems || [];
+  
+  // Collect all items from the latest dispatch
+  const items = latestDispatch?.items 
+    ? latestDispatch.items.map((di: any) => ({
+        ...di,
+        ...di.orderItem,
+        quantityDispatched: di.quantityDispatched,
+      }))
+    : (orderData.items || orderData.orderItems || []);
+
   const status = normalizedOrderStatus(orderData);
   const total = summary.totalAmount || summary.total || summary.finalAmount || orderData.totalAmount || orderData.total || 0;
 
@@ -871,21 +1004,21 @@ function OrderSummaryView({ summary }: { summary: any }) {
           <p className="mt-1 text-sm font-semibold theme-text-primary">{prettyDate(summary.createdAt || summary.orderDate || orderData.createdAt || orderData.orderDate)}</p>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Expected Delivery</p>
-          <p className="mt-1 text-sm font-semibold theme-text-primary">{prettyDate(summary.expectedDeliveryDate || summary.deliveryDate || orderData.expectedDeliveryDate || orderData.deliveryDate)}</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Dispatch Date</p>
+          <p className="mt-1 text-sm font-semibold theme-text-primary">{latestDispatch ? prettyDate(latestDispatch.dispatchDate) : '-'}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Tracking Ref</p>
-          <p className="mt-1 text-sm font-semibold theme-text-primary">{summary.trackingRef || summary.dispatch?.trackingRef || orderData.trackingRef || orderData.dispatch?.trackingRef || '-'}</p>
+          <p className="mt-1 text-sm font-semibold theme-text-primary">{latestDispatch?.vehicleNumber || latestDispatch?.trackingRef || (orderTrackingRef(orderData) !== 'Pending' ? orderTrackingRef(orderData) : 'Pending')}</p>
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-          <h3 className="text-sm font-bold theme-text-primary">Order Items</h3>
+          <h3 className="text-sm font-bold theme-text-primary">Dispatched Items</h3>
         </div>
         {items.length === 0 ? (
-          <div className="p-6 text-center text-sm text-slate-500">No items found in this order.</div>
+          <div className="p-6 text-center text-sm text-slate-500">No dispatch items found.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">

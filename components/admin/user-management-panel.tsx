@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { PermissionService } from '@/lib/services/role-permission.service';
 import { UserService } from '@/lib/services/user.service';
 import { BackendTenant, CreateUserPayload, ManagedUser, UpdateUserPayload } from '@/lib/types';
@@ -50,26 +50,6 @@ function getRoleName(user: ManagedUser) {
   return user.role?.name || 'Default Role';
 }
 
-function userBelongsToTenant(user: ManagedUser, tenantIds: Set<string>) {
-  if (user.tenantId && tenantIds.has(user.tenantId)) return true;
-
-  return Boolean(user.tenantUsers?.some(item => {
-    const tenantId = item.tenant?.id || item.tenantId;
-    return tenantId ? tenantIds.has(tenantId) : false;
-  }));
-}
-
-function tenantNamesForUser(user: ManagedUser, tenants: BackendTenant[]) {
-  const fallbackTenants = new Map(tenants.map(tenant => [tenant.id, tenant.name]));
-  const names = user.tenantUsers
-    ?.map(item => item.tenant?.name || (item.tenantId ? fallbackTenants.get(item.tenantId) : undefined))
-    .filter(Boolean);
-
-  if (names?.length) return names.join(', ');
-  if (user.tenantId && fallbackTenants.has(user.tenantId)) return fallbackTenants.get(user.tenantId);
-  return '-';
-}
-
 export function UserManagementPanel({ showLocalAction = false }: { showLocalAction?: boolean }) {
   const { hasPermission, isFullAccess, role } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -96,7 +76,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const tenantsRes = isOwner ? await CurrentTenantService.listCurrentTenants() : null;
+      const tenantsRes = isOwner ? await CurrentOwnerService.listCurrentOwners() : null;
       const ownerTenants = tenantsRes?.success ? tenantsRes.data || [] : [];
       const ownerTenantId = ownerTenants[0]?.id;
       const usersRes = await UserService.list(isOwner && ownerTenantId ? { tenantId: ownerTenantId } : undefined);
@@ -129,10 +109,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
 
   const tenantIds = useMemo(() => new Set(tenants.map(tenant => tenant.id)), [tenants]);
 
-  const tenantScopedUsers = useMemo(() => {
-    if (!isOwner || tenantIds.size === 0) return users;
-    return users.filter(user => userBelongsToTenant(user, tenantIds));
-  }, [isOwner, tenantIds, users]);
+  const tenantScopedUsers = users;
 
   const filteredUsers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -607,26 +584,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
                 <Detail label="Updated" value={viewingUser.updatedAt ? new Date(viewingUser.updatedAt).toLocaleString() : '-'} />
               </div>
 
-              <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <p className="mb-3 text-xs font-black uppercase tracking-widest text-gray-400">Tenant Access</p>
-                {viewingUser.tenantUsers?.length ? (
-                  <div className="space-y-2">
-                    {viewingUser.tenantUsers.map(item => (
-                      <div key={item.id} className="flex items-center justify-between rounded-lg bg-white px-4 py-3">
-                        <div>
-                          <p className="font-bold text-gray-900">{item.tenant?.name || (item.tenantId ? tenants.find(tenant => tenant.id === item.tenantId)?.name : null) || 'Tenant'}</p>
-                          <p className="text-xs text-gray-500">{item.tenant?.slug || item.tenantId || '-'}</p>
-                        </div>
-                        <span className="theme-badge-soft rounded-full px-3 py-1 text-xs font-bold">
-                          {item.role?.name || getRoleName(viewingUser)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No tenant records linked.</p>
-                )}
-              </div>
+
 
               <div className="mt-7 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5">
                 {canUpdate && (

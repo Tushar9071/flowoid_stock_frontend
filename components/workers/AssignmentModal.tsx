@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Package, User, Layers, ClipboardList, AlertTriangle } from 'lucide-react';
 import { BackendRecord } from '@/lib/services/business-modules.service';
+import { PremiumSelect } from '@/components/ui/PremiumSelect';
 
 interface AssignmentModalProps {
   mode: 'create' | 'update';
@@ -12,6 +13,7 @@ interface AssignmentModalProps {
   rawMaterials: BackendRecord[];
   selectedAssignment?: BackendRecord | null;
   saving: boolean;
+  apiError?: any;
   onChange: (name: string, value: any) => void;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -25,10 +27,50 @@ export function AssignmentModal({
   rawMaterials,
   selectedAssignment,
   saving,
+  apiError,
   onChange,
   onClose,
   onSubmit,
 }: AssignmentModalProps) {
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+  const [globalError, setGlobalError] = React.useState<string | null>(null);
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  React.useEffect(() => {
+    if (apiError) {
+      import('@/lib/utils').then(({ parseValidationErrors }) => {
+        const parsed = parseValidationErrors(apiError);
+        setFieldErrors(parsed.fields);
+        setGlobalError(parsed.global);
+        setTimeout(() => {
+          if (formRef.current) {
+            const firstInvalid = formRef.current.querySelector('[data-invalid="true"]') as HTMLElement;
+            if (firstInvalid) {
+              firstInvalid.focus();
+              firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }, 50);
+      });
+    } else {
+      setFieldErrors({});
+      setGlobalError(null);
+    }
+  }, [apiError]);
+
+  const handleChange = (name: string, value: any) => {
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      if (Object.keys(fieldErrors).length <= 1 && globalError === 'Please correct the highlighted fields and try again.') {
+        setGlobalError(null);
+      }
+    }
+    onChange(name, value);
+  };
   const selectedWorker = workers.find(w => w.id === form.workerId);
   const selectedDesign = designs.find(d => d.id === form.designId);
   const selectedMaterial = rawMaterials.find(m => m.id === form.rawMaterialTypeId);
@@ -54,8 +96,9 @@ export function AssignmentModal({
     requestedQty > availableStock;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
       <form
+        ref={formRef}
         onSubmit={onSubmit}
         className="theme-modal-panel w-full max-w-2xl overflow-hidden"
         style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
@@ -81,6 +124,12 @@ export function AssignmentModal({
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {globalError && (
+          <div className="mx-6 mt-4 whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            {globalError}
+          </div>
+        )}
 
         <div className="overflow-y-auto flex-1">
           {mode === 'create' ? (
@@ -112,34 +161,34 @@ export function AssignmentModal({
               {/* Worker + Design row */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Worker" required>
-                  <select
-                    value={form.workerId || ''}
+                  <PremiumSelect
                     required
-                    onChange={e => onChange('workerId', e.target.value)}
-                    className="h-10 w-full text-sm"
+                    value={form.workerId || ''}
+                    onChange={(e: any) => handleChange('workerId', e.target.value)}
+                    className={`h-10 w-full rounded-lg border ${fieldErrors.workerId ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                    data-invalid={!!fieldErrors.workerId}
                   >
-                    <option value="">Select worker</option>
+                    <option value="">Select a Worker...</option>
                     {workers.map(w => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}{w.city ? ` · ${w.city}` : ''}
-                      </option>
+                      <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
-                  </select>
+                  </PremiumSelect>
+                  {fieldErrors.workerId && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.workerId}</p>}
                 </Field>
                 <Field label="Design" required>
-                  <select
-                    value={form.designId || ''}
+                  <PremiumSelect
                     required
-                    onChange={e => onChange('designId', e.target.value)}
-                    className="h-10 w-full text-sm"
+                    value={form.designId || ''}
+                    onChange={(e: any) => handleChange('designId', e.target.value)}
+                    className={`h-10 w-full rounded-lg border ${fieldErrors.designId ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                    data-invalid={!!fieldErrors.designId}
                   >
-                    <option value="">Select design</option>
+                    <option value="">Select a Design...</option>
                     {designs.map(d => (
-                      <option key={d.id} value={d.id}>
-                        {[d.designCode || d.code, d.name].filter(Boolean).join(' – ')}
-                      </option>
+                      <option key={d.id} value={d.id}>{d.name || d.code || d.designCode}</option>
                     ))}
-                  </select>
+                  </PremiumSelect>
+                  {fieldErrors.designId && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.designId}</p>}
                 </Field>
               </div>
 
@@ -150,32 +199,35 @@ export function AssignmentModal({
                 </p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Raw Material Type" required>
-                    <select
+                    <PremiumSelect
                       value={form.rawMaterialTypeId || ''}
-                      required
-                      onChange={e => onChange('rawMaterialTypeId', e.target.value)}
-                      className="h-10 w-full text-sm"
+                      onChange={(e: any) => handleChange('rawMaterialTypeId', e.target.value)}
+                      className={`h-10 w-full rounded-lg border ${fieldErrors.rawMaterialTypeId ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                      data-invalid={!!fieldErrors.rawMaterialTypeId}
                     >
-                      <option value="">Select material</option>
+                      <option value="">None (No Material Issue)</option>
                       {rawMaterials.map(m => (
                         <option key={m.id} value={m.id}>
-                          {m.name}{m.unit ? ` (${m.unit})` : ''}
+                          {m.name || m.materialName} ({m.currentStock ?? m.availableStock ?? 0} {m.unit || 'units'} avail)
                         </option>
                       ))}
-                    </select>
+                    </PremiumSelect>
+                    {fieldErrors.rawMaterialTypeId && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.rawMaterialTypeId}</p>}
                   </Field>
                   <div>
                     <Field label={`Qty Issued${selectedMaterial?.unit ? ` (${selectedMaterial.unit})` : ''}`} required>
                       <input
                         type="number"
-                        min="0"
-                        step="0.0001"
+                        min="0.1"
+                        step="0.1"
+                        required={!!form.rawMaterialTypeId}
                         value={form.rawMaterialQty || ''}
-                        required
-                        placeholder="e.g. 2.5"
-                        onChange={e => onChange('rawMaterialQty', e.target.value)}
-                        className={`h-10 w-full text-sm ${stockInsufficient ? 'border-red-400 focus:ring-red-300' : ''}`}
+                        onChange={e => handleChange('rawMaterialQty', e.target.value)}
+                        className={`h-10 w-full rounded-lg border ${fieldErrors.rawMaterialQty ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                        placeholder="e.g. 50"
+                        data-invalid={!!fieldErrors.rawMaterialQty}
                       />
+                      {fieldErrors.rawMaterialQty && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.rawMaterialQty}</p>}
                     </Field>
                     {/* Available stock hint */}
                     {availableStock !== null && !Number.isNaN(availableStock) && (
@@ -204,43 +256,23 @@ export function AssignmentModal({
                 )}
               </div>
 
-              {/* Pieces section */}
-              <div className="rounded-xl border border-green-100 bg-green-50/50 p-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-green-700">
-                  Piece Count
-                </p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Expected Pieces" required>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={form.expectedPieces || ''}
-                      required
-                      placeholder="e.g. 100"
-                      onChange={e => onChange('expectedPieces', e.target.value)}
-                      className="h-10 w-full text-sm"
-                    />
-                  </Field>
-                  <Field label="Issued At">
-                    <input
-                      type="date"
-                      value={form.issuedAt || ''}
-                      onChange={e => onChange('issuedAt', e.target.value)}
-                      className="h-10 w-full text-sm"
-                    />
-                  </Field>
-                </div>
-              </div>
-
               {/* Dates + Notes */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Issued At" required>
+                  <input
+                    type="date"
+                    required
+                    value={form.issuedAt || ''}
+                    onChange={e => onChange('issuedAt', e.target.value)}
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-500"
+                  />
+                </Field>
                 <Field label="Expected Return Date">
                   <input
                     type="date"
                     value={form.expectedReturnDate || ''}
                     onChange={e => onChange('expectedReturnDate', e.target.value)}
-                    className="h-10 w-full text-sm"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-500"
                   />
                 </Field>
                 <Field label="Notes">
@@ -249,7 +281,7 @@ export function AssignmentModal({
                     value={form.notes || ''}
                     placeholder="Optional notes"
                     onChange={e => onChange('notes', e.target.value)}
-                    className="h-10 w-full text-sm"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-500"
                   />
                 </Field>
               </div>
@@ -262,8 +294,7 @@ export function AssignmentModal({
                   <p className="font-semibold theme-text-primary">{selectedAssignment.worker?.name || '—'}</p>
                   <p className="text-slate-500 text-xs mt-0.5">
                     {selectedAssignment.design?.designCode || selectedAssignment.designId || '—'}
-                    {' · '}Expected: {selectedAssignment.expectedPieces ?? '?'} pcs
-                    {' · '}Returned: {selectedAssignment.returnedPieces ?? 0} pcs
+                    {' · '}Returned: {Array.isArray(selectedAssignment.returns) ? selectedAssignment.returns.reduce((acc: number, r: any) => acc + Number(r.piecesReturned || 0), 0) : 0} pcs
                   </p>
                   {/* Show current status for context */}
                   {selectedAssignment.status && (

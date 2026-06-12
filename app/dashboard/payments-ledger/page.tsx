@@ -10,15 +10,18 @@ import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { formatApiError } from '@/lib/utils';
+
 import {
   BackendRecord,
   DocumentService,
   PaymentService,
+  ReportService,
   responseItems,
 } from '@/lib/services/business-modules.service';
 import { PartyService } from '@/lib/services/party.service';
 import { BackendTenant } from '@/lib/types';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { SearchInput } from '@/components/shared/search-input';
 
 type Tab = 'payments' | 'ledger' | 'ageing' | 'cashflow';
@@ -30,6 +33,10 @@ function prettyDate(value?: string | null) {
 
 function partyName(payment: BackendRecord) {
   return payment.party?.name || payment.dealer?.name || payment.supplier?.name || payment.partyName || '-';
+}
+
+function partyCode(payment: BackendRecord) {
+  return payment.party?.code || payment.party?.partyCode || payment.dealer?.code || payment.supplier?.code || payment.partyCode || payment.partyId?.slice(0, 8) || '-';
 }
 
 function paymentId(payment: BackendRecord) {
@@ -60,6 +67,7 @@ export default function PaymentsLedgerPage() {
   const [saving, setSaving] = useState(false);
   const [paymentForm, setPaymentForm] = useState<Record<string, any>>({});
   const [statusForm, setStatusForm] = useState<Record<string, any>>({});
+  const [formError, setFormError] = useState<any>(null);
   const [selectedPayment, setSelectedPayment] = useState<BackendRecord | null>(null);
   const [outstanding, setOutstanding] = useState<BackendRecord | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -78,7 +86,7 @@ export default function PaymentsLedgerPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const tenantRes = await CurrentTenantService.getCurrentTenant();
+      const tenantRes = await CurrentOwnerService.getCurrentOwner();
       if (!tenantRes.success || !tenantRes.data) {
         toast.error(tenantRes.error?.message || 'No business tenant found');
         return;
@@ -93,19 +101,53 @@ export default function PaymentsLedgerPage() {
       if (dateFrom) queryParams.dateFrom = dateFrom;
       if (dateTo) queryParams.dateTo = dateTo;
 
-      const [paymentsRes, partiesRes, agingRes, cashflowRes] = await Promise.all([
+      const [paymentsRes, partiesRes, agingRes] = await Promise.all([
         PaymentService.list(tenantRes.data.id, queryParams),
         PartyService.list(tenantRes.data.id, { isActive: true, limit: 100 }),
-        PaymentService.agingReport(tenantRes.data.id, filterParty ? { partyId: filterParty } : {}),
-        PaymentService.cashflow(tenantRes.data.id, { dateFrom, dateTo }),
+        ReportService.ledgerAging(tenantRes.data.id, { 
+          fromDate: dateFrom || new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0], 
+          toDate: dateTo || new Date().toISOString().split('T')[0], 
+          partyType: 'DEALER' 
+        }),
       ]);
 
-      if (paymentsRes.success) setPayments(responseItems(paymentsRes.data));
-      else toast.error(paymentsRes.error?.message || 'Failed to load payments');
+      if (paymentsRes.success) {
+        const pItems = responseItems(paymentsRes.data);
+        setPayments(pItems);
+        
+        const daysMap: Record<string, { date: string, inflow: number, outflow: number }> = {};
+        pItems.forEach(payment => {
+          const status = String(payment.status || payment.paymentStatus || '').toUpperCase();
+          if (!['CLEARED', 'COMPLETED', 'PAID', 'SUCCESS'].includes(status)) return;
+          
+          const dateStr = String(payment.paymentDate || payment.paidAt || payment.createdAt).split('T')[0];
+          if (!daysMap[dateStr]) daysMap[dateStr] = { date: dateStr, inflow: 0, outflow: 0 };
+          
+          const amt = Number(payment.amount || 0);
+          const nature = String(payment.nature || payment.paymentNature || '').toUpperCase();
+          
+          if (nature === 'DEALER_RECEIPT' || nature === 'DEALER_ADVANCE') {
+             daysMap[dateStr].inflow += amt;
+          } else if (nature === 'SUPPLIER_PAYMENT' || nature === 'SUPPLIER_ADVANCE') {
+             daysMap[dateStr].outflow += amt;
+          } else {
+             const pType = String(payment.party?.type || payment.party?.partyType || payment.partyType || 'DEALER').toUpperCase();
+             if (pType === 'DEALER') daysMap[dateStr].inflow += amt;
+             else daysMap[dateStr].outflow += amt;
+          }
+        });
+        
+        const cashItems = Object.values(daysMap)
+          .map(d => ({ ...d, netCashFlow: d.inflow - d.outflow }))
+          .sort((a, b) => b.date.localeCompare(a.date));
+          
+        setCashflow(cashItems);
+      } else toast.error(paymentsRes.error?.message || 'Failed to load payments');
+      
       if (partiesRes.success) setParties(partiesRes.data.items || []);
       
       if (agingRes.success) {
-        const items = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.items || [agingRes.data].filter(Boolean));
+        const items = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.report || [agingRes.data].filter(Boolean));
         let totalOutstanding = 0;
         let current = 0;
         let days0to30 = 0;
@@ -114,12 +156,18 @@ export default function PaymentsLedgerPage() {
         let days90plus = 0;
 
         items.forEach((item: any) => {
-          totalOutstanding += Number(item.totalOutstanding || 0);
-          current += Number(item.buckets?.current || item.current || 0);
-          days0to30 += Number(item.buckets?.days0To30 || item.days0To30 || item.days0to30 || 0);
-          days31to60 += Number(item.buckets?.days31To60 || item.days31To60 || item.days31to60 || 0);
-          days61to90 += Number(item.buckets?.days61To90 || item.days61To90 || item.days61to90 || 0);
-          days90plus += Number(item.buckets?.days90Plus || item.days90Plus || item.days90plus || 0);
+          const bal = Number(item.currentBalance || item.totalOutstanding || 0);
+          const b0 = Number(item.bucket0to30 || item.buckets?.days0To30 || 0);
+          const b31 = Number(item.bucket31to60 || item.buckets?.days31To60 || 0);
+          const b61 = Number(item.bucket61to90 || item.buckets?.days61To90 || 0);
+          const b90 = Number(item.bucket90plus || item.buckets?.days90Plus || 0);
+          
+          totalOutstanding += bal;
+          days0to30 += b0;
+          days31to60 += b31;
+          days61to90 += b61;
+          days90plus += b90;
+          current += (bal - (b0 + b31 + b61 + b90));
         });
 
         setAging({
@@ -130,12 +178,6 @@ export default function PaymentsLedgerPage() {
           days61to90,
           days90plus
         });
-      }
-
-      if (cashflowRes.success) {
-        const cashData = cashflowRes.data as any;
-        const cashItems = Array.isArray(cashData) ? cashData : (cashData?.items || [cashData].filter(Boolean));
-        setCashflow(cashItems);
       }
     } catch {
       toast.error('Failed to load payment module');
@@ -211,6 +253,7 @@ export default function PaymentsLedgerPage() {
       bankName: '',
       notes: '',
     });
+    setFormError(null);
   };
 
   const openStatusForm = (payment: BackendRecord) => {
@@ -223,11 +266,12 @@ export default function PaymentsLedgerPage() {
       paymentStatus: paymentStatus(payment),
       notes: '',
     });
+    setFormError(null);
   };
 
   const savePayment = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
 
     setSaving(true);
@@ -244,12 +288,15 @@ export default function PaymentsLedgerPage() {
       const response = paymentForm.partyType === 'SUPPLIER'
         ? await PaymentService.createSupplierPayment(currentTenant.id, payload)
         : await PaymentService.createDealerPayment(currentTenant.id, payload);
-      if (!response.success) throw new Error(response.error?.message || 'Failed to record payment');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success('Payment recorded');
       setPaymentForm({});
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to record payment');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -257,7 +304,7 @@ export default function PaymentsLedgerPage() {
 
   const savePaymentStatus = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     const id = selectedPayment ? paymentId(selectedPayment) : '';
     if (!currentTenant?.id || !id) return toast.error('Tenant or payment not found');
 
@@ -267,25 +314,54 @@ export default function PaymentsLedgerPage() {
         paymentStatus: String(statusForm.paymentStatus || '').toUpperCase(),
         notes: statusForm.notes || undefined,
       });
-      if (!response.success) throw new Error(response.error?.message || 'Failed to update payment status');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success('Payment status updated');
       setStatusForm({});
       setSelectedPayment(null);
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update payment status');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
   };
 
   const checkOutstanding = async (party: BackendRecord) => {
-    const currentTenant = tenant || (await CurrentTenantService.getCurrentTenant()).data;
+    const currentTenant = tenant;
     if (!currentTenant?.id || !party.id) return toast.error('Tenant or party not found');
 
     const response = await PaymentService.partyOutstanding(currentTenant.id, party.id);
     if (!response.success) return toast.error(response.error?.message || 'Failed to load outstanding');
-    setOutstanding({ ...response.data, partyName: party.name, partyType: party.type });
+    
+    // Fetch aging for this party to get the overdue details
+    const agingRes = await ReportService.ledgerAging(currentTenant.id, {
+        fromDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0],
+        toDate: new Date().toISOString().split('T')[0],
+        partyType: party.partyType || party.type || 'DEALER',
+    });
+
+    let partyAging: any = { bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucket90plus: 0 };
+    if (agingRes.success) {
+        const items = Array.isArray(agingRes.data) ? agingRes.data : (agingRes.data?.report || [agingRes.data].filter(Boolean));
+        const found = items.find((i: any) => i.partyId === party.id);
+        if (found) partyAging = found;
+    }
+    
+    const overdue = Number(partyAging.bucket31to60 || partyAging.buckets?.days31To60 || 0) + 
+                    Number(partyAging.bucket61to90 || partyAging.buckets?.days61To90 || 0) + 
+                    Number(partyAging.bucket90plus || partyAging.buckets?.days90Plus || 0);
+
+    setOutstanding({ 
+      partyName: party.name, 
+      partyType: party.partyType || party.type || 'DEALER',
+      creditLimit: party.creditLimit || 0,
+      outstanding: Number(response.data?.balance ?? response.data ?? 0),
+      overdue: overdue,
+      aging: partyAging
+    });
   };
 
   const openReceipt = (payment: BackendRecord) => {
@@ -315,7 +391,7 @@ export default function PaymentsLedgerPage() {
     >
       <div className="mb-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-[#e5e7eb] p-1 scrollbar-none">
         {tabs.map(item => (
-          <button key={item.id} onClick={() => setTab(item.id)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
+          <button key={item.id} onClick={() => setTab(item.id)} className={`flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all ${tab === item.id ? 'theme-tab-active' : 'theme-tab-inactive'}`}>
             {item.icon} {item.label}
             <span className="rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-bold">{item.count}</span>
           </button>
@@ -428,6 +504,7 @@ export default function PaymentsLedgerPage() {
                 <div>
                   <span className="mb-1.5 inline-block rounded bg-[#f3f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#6b7280]">{payment.paymentNo || paymentId(payment)?.slice(0, 8)}</span>
                   <h3 className="text-[16px] font-bold theme-text-primary">{partyName(payment)}</h3>
+                  <p className="text-[11px] text-slate-500 uppercase">{partyCode(payment)}</p>
                 </div>
                 <p className="text-[18px] font-bold text-[#1a7a4a]">{formatCurrency(Number(payment.amount || 0))}</p>
               </div>
@@ -456,7 +533,14 @@ export default function PaymentsLedgerPage() {
               </div>
             </div>
           ))}
-          {filteredPayments.length === 0 && <EmptyState text="No payments found." tenant={tenant} />}
+          {filteredPayments.length === 0 && (
+            <EmptyState 
+              title="No payments found" 
+              subtitle="Try adjusting search or filters."
+              icon={<Wallet className="h-6 w-6" />} 
+              tenant={tenant} 
+            />
+          )}
         </div>
       )}
 
@@ -480,7 +564,10 @@ export default function PaymentsLedgerPage() {
                   <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
                     <BookOpen className="h-4 w-4" />
                   </div>
-                  {row.name || '-'}
+                  <div>
+                    <p className="font-bold theme-text-primary">{row.name || '-'}</p>
+                    <p className="text-[11px] text-slate-500 uppercase">{row.code || row.partyCode || row.id?.slice(0, 8)}</p>
+                  </div>
                 </div>
               )
             },
@@ -504,6 +591,7 @@ export default function PaymentsLedgerPage() {
               field: 'creditLimit',
               header: 'Credit Limit',
               sortable: true,
+              align: 'right',
               getValue: (row) => Number(row.creditLimit || 0),
               render: (row) => <div className="text-right font-semibold">{formatCurrency(Number(row.creditLimit || 0))}</div>
             },
@@ -511,8 +599,9 @@ export default function PaymentsLedgerPage() {
               field: 'outstanding',
               header: 'Outstanding',
               sortable: true,
-              getValue: (row) => Number(row.outstanding || row.openingBalance || 0),
-              render: (row) => <div className="text-right font-bold text-[#cc2200]">{formatCurrency(Number(row.outstanding || row.openingBalance || 0))}</div>
+              align: 'right',
+              getValue: (row) => Number(row.currentBalance ?? row.outstanding ?? row.openingBalance ?? 0),
+              render: (row) => <div className="text-right font-bold text-[#cc2200]">{formatCurrency(Number(row.currentBalance ?? row.outstanding ?? row.openingBalance ?? 0))}</div>
             },
             {
               field: 'status',
@@ -526,6 +615,7 @@ export default function PaymentsLedgerPage() {
             {
               field: 'actions',
               header: 'Action',
+              align: 'right',
               render: (row) => (
                 <div className="flex justify-end gap-2">
                   <button onClick={() => checkOutstanding(row)} className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold">
@@ -575,7 +665,14 @@ export default function PaymentsLedgerPage() {
               </div>
             </div>
           ))}
-          {cashflow.length === 0 && <EmptyState text="No cash flow rows returned." tenant={tenant} />}
+          {cashflow.length === 0 && (
+            <EmptyState 
+              title="No cash flow rows returned" 
+              subtitle="Try adjusting search or filters."
+              icon={<FileText className="h-6 w-6" />} 
+              tenant={tenant} 
+            />
+          )}
         </div>
       )}
       {Object.keys(paymentForm).length > 0 && (
@@ -585,6 +682,7 @@ export default function PaymentsLedgerPage() {
           fields={paymentFields}
           values={paymentForm}
           saving={saving}
+          apiError={formError}
           submitLabel="Record Payment"
           onChange={(name, value) => {
             setPaymentForm(form => ({
@@ -593,7 +691,10 @@ export default function PaymentsLedgerPage() {
               ...(name === 'partyType' ? { partyId: parties.find(party => party.type === value)?.id || '' } : {}),
             }));
           }}
-          onClose={() => setPaymentForm({})}
+          onClose={() => {
+            setPaymentForm({});
+            setFormError(null);
+          }}
           onSubmit={savePayment}
         />
       )}
@@ -604,17 +705,19 @@ export default function PaymentsLedgerPage() {
           fields={statusFields}
           values={statusForm}
           saving={saving}
+          apiError={formError}
           submitLabel="Update Status"
           onChange={(name, value) => setStatusForm(form => ({ ...form, [name]: value }))}
           onClose={() => {
             setStatusForm({});
             setSelectedPayment(null);
+            setFormError(null);
           }}
           onSubmit={savePaymentStatus}
         />
       )}
       {outstanding && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+        <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
           <div className="theme-modal-panel w-full max-w-xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 p-4">
               <div>
@@ -629,8 +732,31 @@ export default function PaymentsLedgerPage() {
               <Metric label="Party Type" value={String(outstanding.partyType || outstanding.type || '-')} />
               <Metric label="Outstanding" value={formatCurrency(Number(outstanding.outstanding || outstanding.totalOutstanding || outstanding.balance || 0))} />
               <Metric label="Credit Limit" value={formatCurrency(Number(outstanding.creditLimit || 0))} />
-              <Metric label="Overdue" value={formatCurrency(Number(outstanding.overdue || outstanding.overdueAmount || 0))} />
+              <Metric label="Total Overdue" value={formatCurrency(Number(outstanding.overdue || outstanding.overdueAmount || 0))} />
             </div>
+            {outstanding.aging && (
+              <div className="border-t border-slate-200 p-4 bg-slate-50">
+                <h3 className="mb-3 text-sm font-bold theme-text-primary">Aging Breakdown</h3>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="rounded-lg bg-white p-3 border border-slate-100 shadow-sm text-center">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">0-30 Days</p>
+                    <p className="text-sm font-bold text-slate-700 mt-1">{formatCurrency(Number(outstanding.aging.bucket0to30 || outstanding.aging.buckets?.days0To30 || 0))}</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-slate-100 shadow-sm text-center">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">31-60 Days</p>
+                    <p className="text-sm font-bold text-amber-600 mt-1">{formatCurrency(Number(outstanding.aging.bucket31to60 || outstanding.aging.buckets?.days31To60 || 0))}</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-slate-100 shadow-sm text-center">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">61-90 Days</p>
+                    <p className="text-sm font-bold text-orange-600 mt-1">{formatCurrency(Number(outstanding.aging.bucket61to90 || outstanding.aging.buckets?.days61To90 || 0))}</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 border border-slate-100 shadow-sm text-center">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">90+ Days</p>
+                    <p className="text-sm font-bold text-red-600 mt-1">{formatCurrency(Number(outstanding.aging.bucket90plus || outstanding.aging.buckets?.days90Plus || 0))}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -668,10 +794,21 @@ function StatusPill({ active }: { active: boolean }) {
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-[#e6f9f0] text-[#1a7a4a]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>{active ? 'Active' : 'Inactive'}</span>;
 }
 
-function EmptyState({ text, tenant }: { text: string; tenant?: BackendTenant | null }) {
+function EmptyState({ text, tenant, icon, title, subtitle }: { text?: string; tenant?: BackendTenant | null; icon?: React.ReactNode; title?: string; subtitle?: string }) {
+  if (tenant === null) {
+    return (
+      <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center text-sm font-medium text-[#6b7280]">
+        A tenant is required before records can be loaded.
+      </div>
+    );
+  }
   return (
-    <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center text-sm font-medium text-[#6b7280]">
-      {tenant === null ? 'A tenant is required before payments can be loaded.' : text}
+    <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center">
+      <div className="theme-icon-chip mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
+        {icon || <Wallet className="h-6 w-6" />}
+      </div>
+      <p className="text-lg font-bold theme-text-primary">{title || text || "No records found"}</p>
+      {subtitle && <p className="mt-1 text-sm text-[#6b7280]">{subtitle}</p>}
     </div>
   );
 }

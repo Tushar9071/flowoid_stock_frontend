@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+
 import {
   AssignmentService,
   BackendRecord,
@@ -17,10 +17,12 @@ import {
   InventoryService,
   OrderService,
   PaymentService,
+  ReportService,
   responseItems,
   WorkerService,
 } from '@/lib/services/business-modules.service';
 import { BackendTenant } from '@/lib/types';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 
 type ReportKey = 'sales' | 'inventory' | 'workers' | 'payments' | 'designs';
 
@@ -81,18 +83,28 @@ export default function ReportsPage() {
   const [cashflow, setCashflow] = useState<BackendRecord[]>([]);
   const [designs, setDesigns] = useState<BackendRecord[]>([]);
 
+  const [reportData, setReportData] = useState<Record<string, any>>({});
+
+  // Default date range: last 30 days
+  const defaultToDate = new Date().toISOString().slice(0, 10);
+  const defaultFromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [fromDate, setFromDate] = useState(defaultFromDate);
+  const [toDate, setToDate] = useState(defaultToDate);
+
   const canExport = hasPermission('reports.read') || hasPermission('dashboard.read');
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const tenantRes = await CurrentTenantService.getCurrentTenant();
+      const tenantRes = await CurrentOwnerService.getCurrentOwner();
       if (!tenantRes.success || !tenantRes.data) {
         toast.error(tenantRes.error?.message || 'No business tenant found');
         return;
       }
 
       setTenant(tenantRes.data);
+      const dateRange = { fromDate, toDate };
+
       const [
         ordersRes,
         stockRes,
@@ -100,19 +112,29 @@ export default function ReportsPage() {
         workersRes,
         assignmentsRes,
         paymentsRes,
-        agingRes,
-        cashflowRes,
         designsRes,
+        // Real backend report endpoints
+        salesSummaryRes,
+        stockMovementRes,
+        workerProdRes,
+        paymentCollectionRes,
+        inventoryValuationRes,
+        ledgerAgingRes,
       ] = await Promise.all([
-        OrderService.list(tenantRes.data.id, { page: 1, limit: 100 }),
-        InventoryService.listStock(tenantRes.data.id, { page: 1, limit: 100 }),
-        InventoryService.listLowStockAlerts(tenantRes.data.id, { page: 1, limit: 100 }),
-        WorkerService.list(tenantRes.data.id, { page: 1, limit: 100 }),
-        AssignmentService.list(tenantRes.data.id, { page: 1, limit: 100 }),
-        PaymentService.list(tenantRes.data.id, { page: 1, limit: 100 }),
-        PaymentService.agingReport(tenantRes.data.id),
-        PaymentService.cashflow(tenantRes.data.id),
-        DesignService.list(tenantRes.data.id, { page: 1, limit: 100 }),
+        OrderService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
+        InventoryService.listStock(tenantRes.data.id, { page: 1, per_page: 100 }),
+        InventoryService.listLowStockAlerts(tenantRes.data.id, { page: 1, per_page: 100 }),
+        WorkerService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
+        AssignmentService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
+        PaymentService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
+        DesignService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
+        // Real backend dedicated report endpoints
+        ReportService.salesSummary(tenantRes.data.id, { ...dateRange, groupBy: 'month' }),
+        ReportService.stockMovement(tenantRes.data.id, dateRange),
+        ReportService.workerProductivity(tenantRes.data.id, dateRange),
+        ReportService.paymentCollection(tenantRes.data.id, dateRange),
+        ReportService.inventoryValuation(tenantRes.data.id),
+        ReportService.ledgerAging(tenantRes.data.id, { ...dateRange, partyType: 'DEALER' }),
       ]);
 
       if (ordersRes.success) setOrders(responseItems(ordersRes.data));
@@ -120,16 +142,58 @@ export default function ReportsPage() {
       if (alertsRes.success) setAlerts(responseItems(alertsRes.data));
       if (workersRes.success) setWorkers(responseItems(workersRes.data));
       if (assignmentsRes.success) setAssignments(responseItems(assignmentsRes.data));
-      if (paymentsRes.success) setPayments(responseItems(paymentsRes.data));
-      if (agingRes.success) setAging(agingRes.data);
-      if (cashflowRes.success) setCashflow(responseItems(cashflowRes.data as any));
+      if (paymentsRes.success) {
+        const pItems = responseItems(paymentsRes.data);
+        setPayments(pItems);
+        
+        const daysMap: Record<string, { date: string, inflow: number, outflow: number }> = {};
+        pItems.forEach(payment => {
+          if (!['CLEARED', 'COMPLETED', 'PAID', 'SUCCESS'].includes(String(payment.status || payment.paymentStatus).toUpperCase())) return;
+          const dateStr = String(payment.paymentDate || payment.paidAt || payment.createdAt).split('T')[0];
+          if (!daysMap[dateStr]) daysMap[dateStr] = { date: dateStr, inflow: 0, outflow: 0 };
+          const amt = Number(payment.amount || 0);
+          const nature = String(payment.nature || payment.paymentNature || '');
+          if (nature === 'DEALER_RECEIPT' || nature === 'DEALER_ADVANCE') {
+             daysMap[dateStr].inflow += amt;
+          } else if (nature === 'SUPPLIER_PAYMENT' || nature === 'SUPPLIER_ADVANCE') {
+             daysMap[dateStr].outflow += amt;
+          } else {
+             const pType = String(payment.party?.type || payment.party?.partyType || payment.partyType || 'DEALER');
+             if (pType === 'DEALER') daysMap[dateStr].inflow += amt;
+             else daysMap[dateStr].outflow += amt;
+          }
+        });
+        const cashItems = Object.values(daysMap)
+          .map(d => ({ ...d, netCashFlow: d.inflow - d.outflow }))
+          .sort((a, b) => b.date.localeCompare(a.date));
+        setCashflow(cashItems);
+      }
+      
       if (designsRes.success) setDesigns(responseItems(designsRes.data));
+
+      if (ledgerAgingRes.success) {
+        const items = Array.isArray(ledgerAgingRes.data) ? ledgerAgingRes.data : (ledgerAgingRes.data?.report || [ledgerAgingRes.data].filter(Boolean));
+        let totalOutstanding = 0;
+        items.forEach((item: any) => {
+          totalOutstanding += Number(item.currentBalance || item.totalOutstanding || 0);
+        });
+        setAging({ totalOutstanding });
+      }
+
+      // Store raw report data from dedicated report endpoints
+      setReportData({
+        salesSummary: salesSummaryRes.success ? salesSummaryRes.data : null,
+        stockMovement: stockMovementRes.success ? stockMovementRes.data : null,
+        workerProductivity: workerProdRes.success ? workerProdRes.data : null,
+        paymentCollection: paymentCollectionRes.success ? paymentCollectionRes.data : null,
+        inventoryValuation: inventoryValuationRes.success ? inventoryValuationRes.data : null,
+      });
     } catch {
       toast.error('Failed to load report data');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fromDate, toDate]);
 
   const pathname = usePathname();
 

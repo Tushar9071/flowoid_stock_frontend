@@ -14,6 +14,7 @@ import {
   Database,
   Edit3,
   FileText,
+  CheckCircle2,
   Loader2,
   Package,
   Plus,
@@ -26,8 +27,10 @@ import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
 import { PartyService } from '@/lib/services/party.service';
 import { RawMaterialService } from '@/lib/services/raw-material.service';
-import { CurrentTenantService } from '@/lib/services/current-tenant.service';
+import { CurrentOwnerService } from '@/lib/services/current-owner.service';
+
 import { SearchInput } from '@/components/shared/search-input';
+import { PremiumSelect } from '@/components/ui/PremiumSelect';
 import {
   BackendTenant,
   CreateRawMaterialPurchasePayload,
@@ -62,14 +65,14 @@ type PurchaseForm = {
   quantity: string;
   costPerUnit: string;
   purchaseDate: string;
-  status: RawMaterialPurchaseStatus;
   invoiceNumber: string;
   notes: string;
+  status?: RawMaterialPurchaseStatus;
 };
 
 const PAGE_LIMIT = 12;
-const UNITS: RawMaterialUnit[] = ['KG', 'GRAM', 'PIECE', 'METER', 'DOZEN'];
-const PURCHASE_STATUSES: RawMaterialPurchaseStatus[] = ['PENDING', 'RECEIVED', 'CANCELLED'];
+const UNITS: RawMaterialUnit[] = ['KG', 'GRAM', 'PIECE', 'METER', 'DOZEN', 'OTHER'];
+const PURCHASE_STATUSES: RawMaterialPurchaseStatus[] = ['DRAFT', 'FINAL', 'CANCELLED'];
 
 const SAMPLE_TYPES: CreateRawMaterialTypePayload[] = [
   { name: 'Gold Plated Base', unit: 'KG', description: 'Base layer material for jewellery plating' },
@@ -93,9 +96,9 @@ const emptyPurchaseForm = (): PurchaseForm => ({
   quantity: '',
   costPerUnit: '',
   purchaseDate: new Date().toISOString().slice(0, 10),
-  status: 'RECEIVED',
   invoiceNumber: '',
   notes: '',
+  status: 'DRAFT',
 });
 
 function Portal({ children }: { children: React.ReactNode }) {
@@ -136,7 +139,7 @@ function dateInputToIso(date: string) {
 
 function typeFormFromMaterial(material: RawMaterialType): TypeForm {
   return {
-    name: material.name,
+     name: material.name,
     unit: material.unit,
     description: material.description || '',
     isActive: material.isActive,
@@ -146,21 +149,57 @@ function typeFormFromMaterial(material: RawMaterialType): TypeForm {
 
 function purchaseFormFromPurchase(purchase: RawMaterialPurchase): PurchaseForm {
   return {
-    materialTypeId: purchase.materialTypeId,
-    supplierId: purchase.supplierId,
+    materialTypeId: purchase.materialTypeId || purchase.materialId || '',
+    supplierId: purchase.supplierId || purchase.supplierPartyId || '',
     quantity: String(purchase.quantity || ''),
     costPerUnit: String(purchase.costPerUnit || ''),
     purchaseDate: purchase.purchaseDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-    status: purchase.status,
     invoiceNumber: purchase.invoiceNumber || '',
     notes: purchase.notes || '',
+    status: purchase.status,
   };
 }
 
+function shortId(id?: string | null) {
+  if (!id) return '-';
+  return id.length > 10 ? `${id.slice(0, 8)}...` : id;
+}
+
+function materialLabel(row: RawMaterialPurchase | RawMaterialIssuance, types?: RawMaterialType[]) {
+  const name = row.materialType?.name || row.material?.name;
+  if (name) return name;
+  const id = row.materialTypeId || row.materialId;
+  const found = types?.find(t => t.id === id);
+  return found?.name || shortId(id);
+}
+
+function materialUnit(row: RawMaterialPurchase | RawMaterialIssuance, types?: RawMaterialType[]) {
+  const unit = row.materialType?.unit || row.material?.unit;
+  if (unit) return unit;
+  const id = row.materialTypeId || row.materialId;
+  const found = types?.find(t => t.id === id);
+  return found?.unit || '';
+}
+
+function supplierLabel(row: RawMaterialPurchase, suppliers?: PartyDropdownItem[]) {
+  const name = row.supplier?.name || row.supplierParty?.name;
+  if (name) return name;
+  const id = row.supplierId || row.supplierPartyId;
+  const found = suppliers?.find(s => s.id === id);
+  return found?.name || shortId(id);
+}
+
 function statusPill(status: RawMaterialPurchaseStatus) {
-  if (status === 'RECEIVED') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (status === 'PENDING') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (status === 'FINAL') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (status === 'DRAFT') return 'border-amber-200 bg-amber-50 text-amber-700';
   return 'border-slate-200 bg-slate-100 text-slate-600';
+}
+
+function formatStatus(status: RawMaterialPurchaseStatus) {
+  if (status === 'FINAL') return 'Stock Received';
+  if (status === 'DRAFT') return 'Draft';
+  if (status === 'CANCELLED') return 'Cancelled';
+  return status;
 }
 
 export default function RawMaterialsPage() {
@@ -168,8 +207,12 @@ export default function RawMaterialsPage() {
   const [tenant, setTenant] = useState<BackendTenant | null>(null);
   const [tab, setTab] = useState<Tab>('stock');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
-  const [purchaseStatus, setPurchaseStatus] = useState<'all' | RawMaterialPurchaseStatus>('all');
+  const [stockFilter, setStockFilter] = useState<'ALL' | 'LOW_STOCK' | 'ADEQUATE' | 'OUT_OF_STOCK'>('ALL');
+  const [materialFilter, setMaterialFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [purchaseFilter, setPurchaseFilter] = useState<'ALL' | 'DRAFT' | 'FINAL' | 'CANCELLED'>('ALL');
+  const [purchaseDateFilter, setPurchaseDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH'>('ALL');
+  const [usageFilter, setUsageFilter] = useState<'ALL' | 'PENDING' | 'ISSUED' | 'CANCELLED'>('ALL');
+  const [usageDateFilter, setUsageDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH'>('ALL');
   const [page, setPage] = useState(1);
   const [types, setTypes] = useState<RawMaterialType[]>([]);
   const [stock, setStock] = useState<RawMaterialStockSummary[]>([]);
@@ -192,9 +235,10 @@ export default function RawMaterialsPage() {
   const canCreate = hasPermission('raw-materials.create');
   const canUpdate = hasPermission('raw-materials.update');
   const canDelete = hasPermission('raw-materials.delete');
+  const canApprove = hasPermission('raw_materials.approve') || hasPermission('raw-materials.approve');
 
   const loadTenant = useCallback(async () => {
-    const response = await CurrentTenantService.getCurrentTenant();
+    const response = await CurrentOwnerService.getCurrentOwner();
     if (response.success && response.data) {
       setTenant(response.data);
       return response.data;
@@ -216,6 +260,25 @@ export default function RawMaterialsPage() {
     if (stockRes.success) setStock(stockRes.data || []);
   }, []);
 
+  const getDateRange = (filter: string) => {
+    if (filter === 'ALL') return {};
+    const today = new Date();
+    const dateTo = today.toISOString().split('T')[0];
+    let dateFrom = dateTo;
+    
+    if (filter === 'WEEK') {
+      const lastWeek = new Date(today);
+      lastWeek.setDate(today.getDate() - 7);
+      dateFrom = lastWeek.toISOString().split('T')[0];
+    } else if (filter === 'MONTH') {
+      const lastMonth = new Date(today);
+      lastMonth.setMonth(today.getMonth() - 1);
+      dateFrom = lastMonth.toISOString().split('T')[0];
+    }
+    
+    return { dateFrom, dateTo };
+  };
+
   const loadData = useCallback(async () => {
     const currentTenant = tenant || await loadTenant();
     if (!currentTenant) {
@@ -232,7 +295,7 @@ export default function RawMaterialsPage() {
           page,
           limit: PAGE_LIMIT,
           search: search.trim() || undefined,
-          isActive: status === 'all' ? undefined : status === 'active',
+          isActive: materialFilter === 'ALL' ? undefined : materialFilter === 'ACTIVE',
         });
         if (response.success) {
           setTypes(response.data.items);
@@ -250,8 +313,10 @@ export default function RawMaterialsPage() {
         const response = await RawMaterialService.listPurchases(currentTenant.id, {
           page,
           limit: PAGE_LIMIT,
-          status: purchaseStatus === 'all' ? undefined : purchaseStatus,
-        });
+          search: search.trim() || undefined,
+          status: purchaseFilter === 'ALL' ? undefined : (purchaseFilter as RawMaterialPurchaseStatus),
+          ...getDateRange(purchaseDateFilter),
+        } as any);
         if (response.success) {
           setPurchases(response.data.items);
           setPagination({
@@ -268,7 +333,10 @@ export default function RawMaterialsPage() {
         const response = await RawMaterialService.listIssuances(currentTenant.id, {
           page,
           limit: PAGE_LIMIT,
-        });
+          search: search.trim() || undefined,
+          status: usageFilter === 'ALL' ? undefined : usageFilter,
+          ...getDateRange(usageDateFilter),
+        } as any);
         if (response.success) {
           setIssuances(response.data.items);
           setPagination({
@@ -285,7 +353,7 @@ export default function RawMaterialsPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadReferenceData, loadTenant, page, purchaseStatus, search, status, tab, tenant]);
+  }, [loadReferenceData, loadTenant, page, search, tab, tenant, materialFilter, purchaseFilter, purchaseDateFilter, usageFilter, usageDateFilter]);
 
   const pathname = usePathname();
 
@@ -295,7 +363,7 @@ export default function RawMaterialsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [tab, search, status, purchaseStatus]);
+  }, [tab, search, stockFilter, materialFilter, purchaseFilter, purchaseDateFilter, usageFilter, usageDateFilter]);
 
   const stockStats = useMemo(() => {
     const current = stock.reduce((sum, item) => sum + Number(item.currentStock || 0), 0);
@@ -304,6 +372,22 @@ export default function RawMaterialsPage() {
     const low = stock.filter(item => item.isLow).length;
     return { current, purchased, issued, low };
   }, [stock]);
+
+  const filteredStock = useMemo(() => {
+    return stock.filter(item => {
+      const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase()) || 
+                          (item as any).materialTypeId?.toLowerCase().includes(search.toLowerCase()) || 
+                          item.unit.toLowerCase().includes(search.toLowerCase());
+      if (!matchSearch) return false;
+      if (stockFilter === 'ALL') return true;
+      
+      const current = Number(item.currentStock || 0);
+      if (stockFilter === 'OUT_OF_STOCK') return current <= 0;
+      if (stockFilter === 'LOW_STOCK') return item.isLow && current > 0;
+      if (stockFilter === 'ADEQUATE') return !item.isLow && current > 0;
+      return true;
+    });
+  }, [stock, search, stockFilter]);
 
   const openTypeModal = async (material?: RawMaterialType) => {
     if (material && !canUpdate) return toast.error('You do not have permission to update material types');
@@ -325,6 +409,7 @@ export default function RawMaterialsPage() {
     if (!currentTenant) return;
     if (!typeForm.name.trim() || typeForm.name.trim().length < 2) return toast.error('Material name must be at least 2 characters');
 
+   
     if (!selectedType && Number(typeForm.openingStock) > 0) {
       if (!typeForm.supplierId) return toast.error('Supplier is required by the database to log initial stock');
       if (!typeForm.costPerUnit || Number(typeForm.costPerUnit) <= 0) return toast.error('Cost per unit is required by the database to log initial stock');
@@ -340,23 +425,37 @@ export default function RawMaterialsPage() {
       };
 
       const response = selectedType
-        ? await RawMaterialService.updateType(currentTenant.id, selectedType.id, { ...payload, isActive: typeForm.isActive })
+        ? await RawMaterialService.updateType(currentTenant.id, selectedType.id, payload)
         : await RawMaterialService.createType(currentTenant.id, payload);
 
       if (response.success) {
-        if (!selectedType && Number(typeForm.openingStock) > 0 && typeForm.costPerUnit && typeForm.supplierId) {
+        if (selectedType && typeForm.unit !== selectedType.unit) {
+          const unitResponse = await RawMaterialService.updateTypeUnit(currentTenant.id, selectedType.id, typeForm.unit);
+          if (!unitResponse.success) {
+            toast.error(unitResponse.error?.message || 'Material saved, but unit could not be changed');
+          }
+        }
+
+        if (selectedType && selectedType.isActive && !typeForm.isActive) {
+          // If deactivated during edit, call deleteType
+          await RawMaterialService.deleteType(currentTenant.id, selectedType.id);
+        }
+
+          if (!selectedType && Number(typeForm.openingStock) > 0 && typeForm.costPerUnit && typeForm.supplierId) {
           const quantity = parseFloat(typeForm.openingStock);
           const cost = parseFloat(typeForm.costPerUnit);
           if (!isNaN(quantity) && quantity > 0 && !isNaN(cost) && cost > 0) {
-            await RawMaterialService.createPurchase(currentTenant.id, {
+            const openingPurchase = await RawMaterialService.createPurchase(currentTenant.id, {
               materialTypeId: response.data.id,
               supplierId: typeForm.supplierId,
               quantity,
               costPerUnit: cost,
               purchaseDate: new Date().toISOString(),
-              status: 'RECEIVED',
               notes: 'Opening Stock',
             });
+            if (openingPurchase.success) {
+              await RawMaterialService.finalisePurchase(currentTenant.id, openingPurchase.data.id);
+            }
           }
         }
         toast.success(selectedType ? 'Material type updated' : 'Material type created');
@@ -399,13 +498,17 @@ export default function RawMaterialsPage() {
 
   const openPurchaseModal = async (purchase?: RawMaterialPurchase) => {
     if (purchase && !canUpdate) return toast.error('You do not have permission to update purchases');
+    if (purchase && purchase.status !== 'DRAFT') return toast.error('Only DRAFT purchases can be edited');
     if (!purchase && !canCreate) return toast.error('You do not have permission to create purchases');
     const currentTenant = tenant || await loadTenant();
     if (!currentTenant) return;
 
     await loadReferenceData(currentTenant.id);
     setSelectedPurchase(purchase || null);
-    setPurchaseForm(purchase ? purchaseFormFromPurchase(purchase) : emptyPurchaseForm());
+    setPurchaseForm(purchase ? purchaseFormFromPurchase(purchase) : {
+      ...emptyPurchaseForm(),
+      invoiceNumber: `PUR${String(pagination.totalItems + 1).padStart(3, '0')}`
+    });
     setPurchaseFormErrors({});
     setPurchaseModalMode(purchase ? 'edit' : 'create');
   };
@@ -428,7 +531,6 @@ export default function RawMaterialsPage() {
         quantity,
         costPerUnit,
         purchaseDate: dateInputToIso(purchaseForm.purchaseDate) || new Date().toISOString(),
-        status: purchaseForm.status,
         invoiceNumber: purchaseForm.invoiceNumber.trim() || undefined,
         notes: purchaseForm.notes.trim() || undefined,
       };
@@ -436,10 +538,10 @@ export default function RawMaterialsPage() {
       const response = selectedPurchase
         ? await RawMaterialService.updatePurchase(currentTenant.id, selectedPurchase.id, commonPayload satisfies UpdateRawMaterialPurchasePayload)
         : await RawMaterialService.createPurchase(currentTenant.id, {
-            ...commonPayload,
-            materialTypeId: purchaseForm.materialTypeId,
-            supplierId: purchaseForm.supplierId,
-          } satisfies CreateRawMaterialPurchasePayload);
+          ...commonPayload,
+          materialTypeId: purchaseForm.materialTypeId,
+          supplierId: purchaseForm.supplierId,
+        } satisfies CreateRawMaterialPurchasePayload);
 
       if (response.success) {
         toast.success(selectedPurchase ? 'Purchase updated' : 'Purchase created');
@@ -468,15 +570,32 @@ export default function RawMaterialsPage() {
   const deletePurchase = async (purchase: RawMaterialPurchase) => {
     const currentTenant = tenant || await loadTenant();
     if (!currentTenant) return;
-    if (!canDelete) return toast.error('You do not have permission to delete purchases');
-    if (!window.confirm(`Delete purchase ${purchase.invoiceNumber || purchase.id}? This can affect stock.`)) return;
+    if (!canUpdate) return toast.error('You do not have permission to cancel purchases');
+    if (purchase.status === 'CANCELLED') return toast.error('Purchase is already cancelled');
+    if (!window.confirm(`Cancel purchase ${purchase.invoiceNumber || shortId(purchase.id)}? This can affect stock.`)) return;
 
     const response = await RawMaterialService.deletePurchase(currentTenant.id, purchase.id);
     if (response.success) {
-      toast.success('Purchase deleted');
+      toast.success('Purchase cancelled');
       await loadData();
     } else {
       toast.error(response.error?.message || 'Failed to delete purchase');
+    }
+  };
+
+  const finalisePurchase = async (purchase: RawMaterialPurchase) => {
+    const currentTenant = tenant || await loadTenant();
+    if (!currentTenant) return;
+    if (!canApprove) return toast.error('You do not have permission to mark purchases as stock received');
+    if (purchase.status !== 'DRAFT') return toast.error('Only DRAFT purchases can be marked as stock received');
+    if (!window.confirm(`Mark purchase ${purchase.invoiceNumber || shortId(purchase.id)} as Stock Received? Stock and supplier due amount will be updated.`)) return;
+
+    const response = await RawMaterialService.finalisePurchase(currentTenant.id, purchase.id);
+    if (response.success) {
+      toast.success('Purchase marked as Stock Received');
+      await loadData();
+    } else {
+      toast.error(response.error?.message || 'Failed to update purchase status');
     }
   };
 
@@ -490,7 +609,7 @@ export default function RawMaterialsPage() {
     let skipped = 0;
     try {
       const existingRes = await RawMaterialService.listTypes(currentTenant.id, { page: 1, limit: 100 });
-      const existingNames = new Set((existingRes.success ? existingRes.data.items : []).map(item => item.name.toLowerCase()));
+      const existingNames = new Set((existingRes.success ? existingRes.data.items : []).map((item: RawMaterialType) => item.name.toLowerCase()));
 
       for (const sample of SAMPLE_TYPES) {
         if (existingNames.has(sample.name.toLowerCase())) {
@@ -512,15 +631,15 @@ export default function RawMaterialsPage() {
 
   const tabs = [
     { id: 'stock' as Tab, label: 'Stock', icon: Boxes },
-    { id: 'types' as Tab, label: 'Types', icon: Package },
-    { id: 'purchases' as Tab, label: 'Purchases', icon: Truck },
-    { id: 'issuances' as Tab, label: 'Issuances', icon: FileText },
+    { id: 'types' as Tab, label: 'Raw Materials', icon: Package },
+    { id: 'purchases' as Tab, label: 'Material Purchases', icon: Truck },
+    { id: 'issuances' as Tab, label: 'Material Usage', icon: FileText },
   ];
 
   return (
     <DashboardLayout
       title="Raw Materials"
-      subtitle="Tenant-scoped material catalogue, supplier purchases, stock and assignment issuances"
+      subtitle="Tenant-scoped raw materials, supplier purchases, stock and material usage"
       action={
         canCreate ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -529,96 +648,110 @@ export default function RawMaterialsPage() {
               className="theme-accent-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold"
             >
               <Plus className="h-4 w-4" />
-              {tab === 'purchases' ? 'Add Purchase' : 'Add Material'}
+              {tab === 'purchases' ? 'Add Material Purchase' : 'Add Raw Material'}
             </button>
           </div>
         ) : undefined
       }
     >
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          {loading && stock.length === 0 ? (
-            <div className="col-span-1 lg:col-span-4">
-              <SkeletonCard count={4} />
-            </div>
-          ) : (
-            [
-              { label: 'Current Stock', value: stockStats.current.toLocaleString('en-IN'), Icon: Package },
-              { label: 'Purchased', value: stockStats.purchased.toLocaleString('en-IN'), Icon: Truck },
-              { label: 'Issued', value: stockStats.issued.toLocaleString('en-IN'), Icon: FileText },
-              { label: 'Low Items', value: stockStats.low.toLocaleString('en-IN'), Icon: AlertTriangle },
-            ].map(({ label, value, Icon }) => (
-              <div key={label} className="theme-surface-card p-4">
-                <div className="flex items-center gap-3">
-                  <span className="theme-icon-chip flex h-10 w-10 items-center justify-center rounded-lg">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-                    <p className="theme-text-primary text-xl font-black">{value}</p>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+      <div className="space-y-6">
+        {/* Module Tabs (Non-Sticky) */}
+        <div className="flex flex-nowrap overflow-x-auto whitespace-nowrap gap-2 pb-1 hide-scrollbar">
+          {tabs.map(item => (
+            <button
+              key={item.id}
+              onClick={() => { setTab(item.id); setSearch(''); }}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition whitespace-nowrap flex-shrink-0 ${
+                tab === item.id ? 'theme-tab-active shadow-sm' : 'theme-secondary-btn bg-white border border-[#e5e7eb]'
+              }`}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search & Filters Container */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-[#e5e7eb] bg-white p-4 sm:p-5 shadow-sm">
+          <div className="flex w-full sm:max-w-sm">
+            <SearchInput
+              containerClassName="w-full"
+              inputClassName="border-slate-200 bg-slate-50/50"
+              placeholder={
+                tab === 'stock' ? 'Search stock by material name or code...' :
+                tab === 'types' ? 'Search raw materials...' :
+                tab === 'purchases' ? 'Search purchases...' :
+                'Search material usage...'
+              }
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-nowrap overflow-x-auto whitespace-nowrap gap-2 pb-1 hide-scrollbar">
+            {tab === 'stock' && (
+              <select value={stockFilter} onChange={e => setStockFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
+                <option value="ALL">All Materials</option>
+                <option value="LOW_STOCK">Low Stock</option>
+                <option value="ADEQUATE">Adequate Stock</option>
+                <option value="OUT_OF_STOCK">Out of Stock</option>
+              </select>
+            )}
+            {tab === 'types' && (
+              <select value={materialFilter} onChange={e => setMaterialFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
+                <option value="ALL">All</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            )}
+            {tab === 'purchases' && (
+              <>
+                <select value={purchaseFilter} onChange={e => setPurchaseFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
+                  <option value="ALL">All Purchases</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="FINAL">Stock Received</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+                <select value={purchaseDateFilter} onChange={e => setPurchaseDateFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
+                  <option value="ALL">All Time</option>
+                  <option value="TODAY">Today</option>
+                  <option value="WEEK">This Week</option>
+                  <option value="MONTH">This Month</option>
+                </select>
+              </>
+            )}
+            {tab === 'issuances' && (
+              <>
+                <select value={usageFilter} onChange={e => setUsageFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
+                  <option value="ALL">All Usage</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="ISSUED">Issued</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+                <select value={usageDateFilter} onChange={e => setUsageDateFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
+                  <option value="ALL">All Time</option>
+                  <option value="TODAY">Today</option>
+                  <option value="WEEK">This Week</option>
+                  <option value="MONTH">This Month</option>
+                </select>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="theme-surface-card overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {tabs.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setTab(item.id)}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition ${
-                    tab === item.id ? 'theme-tab-active' : 'theme-secondary-btn'
-                  }`}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              {tab === 'types' && (
-                <>
-                  <SearchInput
-                    containerClassName="w-full sm:w-72"
-                    inputClassName="border-slate-200 bg-white"
-                    placeholder="Search material types..."
-                    value={search}
-                    onChange={event => setSearch(event.target.value)}
-                  />
-                  <select value={status} onChange={event => setStatus(event.target.value as typeof status)} className="h-10 rounded-lg text-sm font-semibold">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="all">All</option>
-                  </select>
-                </>
-              )}
-              {tab === 'purchases' && (
-                <select value={purchaseStatus} onChange={event => setPurchaseStatus(event.target.value as typeof purchaseStatus)} className="h-10 rounded-lg text-sm font-semibold">
-                  <option value="all">All statuses</option>
-                  {PURCHASE_STATUSES.map(item => <option key={item} value={item}>{item}</option>)}
-                </select>
-              )}
-              {/* Refresh button removed — auto-refresh on route change */}
-            </div>
-          </div>
-
           {loading && ((tab === 'stock' && stock.length === 0) || (tab === 'types' && types.length === 0) || (tab === 'purchases' && purchases.length === 0) || (tab === 'issuances' && issuances.length === 0)) ? (
             <div className="p-4">
               <SkeletonTable rows={6} cols={6} />
             </div>
           ) : tab === 'stock' ? (
-            <StockGrid stock={stock} />
+            <StockGrid stock={filteredStock} />
           ) : tab === 'types' ? (
             <TypesTable types={types} canUpdate={canUpdate} canDelete={canDelete} onEdit={openTypeModal} onDelete={deleteType} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
           ) : tab === 'purchases' ? (
-            <PurchasesTable purchases={purchases} canUpdate={canUpdate} canDelete={canDelete} onEdit={openPurchaseModal} onDelete={deletePurchase} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
+            <PurchasesTable purchases={purchases} types={types} suppliers={suppliers} canUpdate={canUpdate} canDelete={canUpdate} canApprove={canApprove} onEdit={openPurchaseModal} onDelete={deletePurchase} onFinalise={finalisePurchase} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
           ) : (
-            <IssuancesTable issuances={issuances} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
+            <IssuancesTable issuances={issuances} types={types} loading={loading} page={page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} onPageChange={setPage} />
           )}
         </div>
       </div>
@@ -661,13 +794,14 @@ function StockGrid({ stock }: { stock: RawMaterialStockSummary[] }) {
 
   return (
     <div className="grid grid-cols-1 gap-5 p-4 md:grid-cols-2">
-      {stock.map(item => {
+      {stock.map((item, index) => {
         const purchased = Number(item.totalPurchased || 0);
         const current = Number(item.currentStock || 0);
         const stockPercentage = purchased > 0 ? Math.max(0, (current / purchased) * 100) : 0;
 
+        const itemKey = item.materialTypeId || (item as any).id || `stock-item-${index}`;
         return (
-          <div key={item.materialTypeId} className={`flex overflow-hidden rounded-2xl border bg-white ${item.isLow ? 'border-l-4 border-l-theme-status-critical' : 'theme-card-accent'}`}>
+          <div key={itemKey} className={`flex overflow-hidden rounded-2xl border bg-white ${item.isLow ? 'border-l-4 border-l-theme-status-critical' : 'theme-card-accent'}`}>
             <div className="flex-1 p-5">
               <div className="mb-4 flex items-start justify-between">
                 <div>
@@ -679,7 +813,7 @@ function StockGrid({ stock }: { stock: RawMaterialStockSummary[] }) {
                 </div>
                 {item.isLow ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                    <AlertTriangle className="h-3 w-3" /> Low Stock
+                    <AlertTriangle className="h-3 w-3" /> Reorder Required
                   </span>
                 ) : (
                   <span className="theme-badge-soft inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold">
@@ -690,7 +824,7 @@ function StockGrid({ stock }: { stock: RawMaterialStockSummary[] }) {
 
               <div className="mb-4 border-t border-slate-100" />
               <div className="mb-4 grid grid-cols-2 gap-4">
-                <Metric label="Current Stock" value={`${item.currentStock} ${item.unit}`} />
+                <Metric label="Available Stock" value={`${item.currentStock} ${item.unit}`} />
                 <Metric label="Purchased" value={`${item.totalPurchased} ${item.unit}`} />
               </div>
               <div>
@@ -748,7 +882,7 @@ function TypesTable({
       searchable={false}
       loading={loading}
       emptyIcon={<Package className="h-6 w-6 text-slate-400" />}
-      emptyTitle="No material types found"
+      emptyTitle="No raw materials found"
       columns={[
         {
           field: 'name',
@@ -810,12 +944,12 @@ function TypesTable({
           render: (row) => (
             <div className="flex justify-end gap-2">
               {canUpdate && (
-                <button onClick={() => onEdit(row)} className="theme-secondary-btn rounded-lg p-2" title="Edit material">
+                <button onClick={() => onEdit(row)} className="theme-secondary-btn rounded-lg p-2" title="Edit raw material">
                   <Edit3 className="h-4 w-4" />
                 </button>
               )}
               {canDelete && (
-                <button onClick={() => onDelete(row)} className="theme-danger-btn rounded-lg p-2" title="Delete material">
+                <button onClick={() => onDelete(row)} className="theme-danger-btn rounded-lg p-2" title="Delete raw material">
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
@@ -829,10 +963,14 @@ function TypesTable({
 
 function PurchasesTable({
   purchases,
+  types,
+  suppliers,
   canUpdate,
   canDelete,
+  canApprove,
   onEdit,
   onDelete,
+  onFinalise,
   loading,
   page,
   totalPages,
@@ -840,10 +978,14 @@ function PurchasesTable({
   onPageChange
 }: {
   purchases: RawMaterialPurchase[];
+  types: RawMaterialType[];
+  suppliers: PartyDropdownItem[];
   canUpdate: boolean;
   canDelete: boolean;
+  canApprove: boolean;
   onEdit: (purchase: RawMaterialPurchase) => void;
   onDelete: (purchase: RawMaterialPurchase) => void;
+  onFinalise: (purchase: RawMaterialPurchase) => void;
   loading: boolean;
   page: number;
   totalPages: number;
@@ -856,7 +998,7 @@ function PurchasesTable({
       searchable={false}
       loading={loading}
       emptyIcon={<Truck className="h-6 w-6 text-slate-400" />}
-      emptyTitle="No purchases found"
+      emptyTitle="No material purchases found"
       columns={[
         {
           field: 'item',
@@ -864,15 +1006,15 @@ function PurchasesTable({
           sortable: true,
           filterable: true,
           filterType: 'text',
-          getValue: (row) => row.materialType?.name || row.materialTypeId,
+          getValue: (row) => materialLabel(row, types),
           render: (row) => (
             <div className="flex items-center gap-3">
               <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
                 <Truck className="h-4 w-4" />
               </div>
               <div>
-                <p className="theme-text-primary font-bold">{row.materialType?.name || row.materialTypeId}</p>
-                <p className="text-sm text-slate-500">{row.invoiceNumber || '-'}</p>
+                <p className="theme-text-primary font-bold">{materialLabel(row, types)}</p>
+                <p className="text-sm text-slate-500">{row.invoiceNumber || `ID ${shortId(row.id)}`}</p>
               </div>
             </div>
           )
@@ -883,15 +1025,15 @@ function PurchasesTable({
           sortable: true,
           filterable: true,
           filterType: 'text',
-          getValue: (row) => row.supplier?.name || row.supplierId,
-          render: (row) => <div>{row.supplier?.name || row.supplierId}</div>
+          getValue: (row) => supplierLabel(row, suppliers),
+          render: (row) => <div>{supplierLabel(row, suppliers)}</div>
         },
         {
           field: 'quantity',
           header: 'Qty / Unit',
           sortable: true,
-          getValue: (row) => `${row.quantity} ${row.materialType?.unit || ''}`,
-          render: (row) => <div className="font-semibold">{row.quantity} {row.materialType?.unit || ''}</div>
+          getValue: (row) => `${row.quantity} ${materialUnit(row, types)}`,
+          render: (row) => <div className="font-semibold">{row.quantity} {materialUnit(row, types)}</div>
         },
         {
           field: 'costPerUnit',
@@ -914,7 +1056,7 @@ function PurchasesTable({
           filterable: true,
           filterType: 'text',
           getValue: (row) => row.status,
-          render: (row) => <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusPill(row.status)}`}>{row.status}</span>
+          render: (row) => <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusPill(row.status)}`}>{formatStatus(row.status)}</span>
         },
         {
           field: 'purchaseDate',
@@ -930,13 +1072,18 @@ function PurchasesTable({
           header: 'Actions',
           render: (row) => (
             <div className="flex justify-end gap-2">
-              {canUpdate && (
-                <button onClick={() => onEdit(row)} className="theme-secondary-btn rounded-lg p-2" title="Edit purchase">
+              {canUpdate && row.status === 'DRAFT' && (
+                <button onClick={() => onEdit(row)} className="theme-secondary-btn rounded-lg p-2" title="Edit material purchase">
                   <Edit3 className="h-4 w-4" />
                 </button>
               )}
-              {canDelete && (
-                <button onClick={() => onDelete(row)} className="theme-danger-btn rounded-lg p-2" title="Delete purchase">
+              {canApprove && row.status === 'DRAFT' && (
+                <button onClick={() => onFinalise(row)} className="theme-accent-btn rounded-lg p-2" title="Mark as Stock Received">
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
+              )}
+              {canDelete && row.status !== 'CANCELLED' && (
+                <button onClick={() => onDelete(row)} className="theme-danger-btn rounded-lg p-2" title="Cancel material purchase">
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
@@ -950,6 +1097,7 @@ function PurchasesTable({
 
 function IssuancesTable({
   issuances,
+  types,
   loading,
   page,
   totalPages,
@@ -957,6 +1105,7 @@ function IssuancesTable({
   onPageChange
 }: {
   issuances: RawMaterialIssuance[];
+  types: RawMaterialType[];
   loading: boolean;
   page: number;
   totalPages: number;
@@ -969,8 +1118,8 @@ function IssuancesTable({
       searchable={false}
       loading={loading}
       emptyIcon={<FileText className="h-6 w-6 text-slate-400" />}
-      emptyTitle="No assignment issuances found"
-      emptySubtitle="Manual issuance creation is disabled."
+      emptyTitle="No material usage found"
+      emptySubtitle="Manual material usage creation is disabled."
       columns={[
         {
           field: 'item',
@@ -978,15 +1127,15 @@ function IssuancesTable({
           sortable: true,
           filterable: true,
           filterType: 'text',
-          getValue: (row) => row.materialType?.name || row.materialTypeId,
+          getValue: (row) => materialLabel(row, types),
           render: (row) => (
             <div className="flex items-center gap-3">
               <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
                 <FileText className="h-4 w-4" />
               </div>
               <div>
-                <p className="theme-text-primary font-bold">{row.materialType?.name || row.materialTypeId}</p>
-                <p className="text-sm text-slate-500">Assignment: {row.assignmentId}</p>
+                <p className="theme-text-primary font-bold">{materialLabel(row, types)}</p>
+                <p className="text-sm text-slate-500">Reference: {row.assignmentId}</p>
               </div>
             </div>
           )
@@ -995,8 +1144,8 @@ function IssuancesTable({
           field: 'quantity',
           header: 'Qty / Unit',
           sortable: true,
-          getValue: (row) => `${row.quantity} ${row.materialType?.unit || ''}`,
-          render: (row) => <div className="font-semibold">{row.quantity} {row.materialType?.unit || ''}</div>
+          getValue: (row) => `${row.quantity} ${materialUnit(row, types)}`,
+          render: (row) => <div className="font-semibold">{row.quantity} {materialUnit(row, types)}</div>
         },
         {
           field: 'issuedAt',
@@ -1006,6 +1155,11 @@ function IssuancesTable({
           filterType: 'date',
           getValue: (row) => row.issuedAt,
           render: (row) => <div className="text-slate-500">{prettyDate(row.issuedAt)}</div>
+        },
+        {
+          field: 'status',
+          header: 'Status',
+          render: () => <span className="rounded-full border px-3 py-1 text-xs font-bold border-indigo-200 bg-indigo-50 text-indigo-700">Issued</span>
         },
         {
           field: 'notes',
@@ -1077,33 +1231,34 @@ function TypeModal({
 }) {
   return (
     <Portal>
-      <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
-        <form onSubmit={onSubmit} className="theme-modal-panel w-full max-w-xl overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 p-4">
+      <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+        <form onSubmit={onSubmit} className="theme-modal-panel flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 p-4">
             <div>
-              <h2 className="text-xl font-bold theme-text-primary">{mode === 'create' ? 'Add Material Type' : 'Edit Material Type'}</h2>
+              <h2 className="text-xl font-bold theme-text-primary">{mode === 'create' ? 'Add Raw Material' : 'Edit Raw Material'}</h2>
               <p className="text-sm text-slate-500">Catalogue name, unit and active status</p>
             </div>
             <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg p-2">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid gap-4 p-4">
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid gap-4">
             <Field label="Name" value={form.name} onChange={value => setForm(data => ({ ...data, name: value }))} required error={errors.name} />
             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Unit <span className="text-red-500">*</span></span>
-              <select value={form.unit} onChange={event => setForm(data => ({ ...data, unit: event.target.value as RawMaterialUnit }))} className={`h-10 w-full text-sm font-semibold ${errors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}>
+              <PremiumSelect value={form.unit} onChange={(event: any) => setForm((data: any) => ({ ...data, unit: event.target.value as RawMaterialUnit }))} className={`h-10 w-full text-sm font-semibold ${errors.unit ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}>
                 {UNITS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-              </select>
+              </PremiumSelect>
               {errors.unit && <p className="mt-1 text-xs text-red-500">{errors.unit}</p>}
             </label>
-            <label className="block">
+             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Description</span>
               <textarea
                 value={form.description}
                 onChange={event => setForm(data => ({ ...data, description: event.target.value }))}
                 rows={3}
-                className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] ${errors.description ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] ${errors.description ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
               />
               {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}
             </label>
@@ -1117,14 +1272,14 @@ function TypeModal({
                       <Field label="Cost Per Unit" type="number" value={form.costPerUnit || ''} onChange={value => setForm(data => ({ ...data, costPerUnit: value }))} />
                       <label className="block md:col-span-2">
                         <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Supplier for Initial Stock</span>
-                        <select
+                        <PremiumSelect
                           value={form.supplierId || ''}
-                          onChange={event => setForm(data => ({ ...data, supplierId: event.target.value }))}
+                          onChange={(event: any) => setForm((data: any) => ({ ...data, supplierId: event.target.value }))}
                           className="h-10 w-full text-sm font-semibold disabled:bg-slate-100"
                         >
                           <option value="">Select supplier</option>
                           {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                        </select>
+                        </PremiumSelect>
                       </label>
                     </>
                   )}
@@ -1132,15 +1287,16 @@ function TypeModal({
               </div>
             )}
             <label className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-              Active material type
-              <input type="checkbox" checked={form.isActive} onChange={event => setForm(data => ({ ...data, isActive: event.target.checked }))} />
+              Active raw material
+              <input type="checkbox" disabled={!form.isActive && mode === 'edit'} checked={form.isActive} onChange={event => setForm(data => ({ ...data, isActive: event.target.checked }))} />
             </label>
+            </div>
           </div>
-          <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
+          <div className="flex shrink-0 justify-end gap-3 border-t border-slate-200 p-4">
             <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg px-4 py-2 text-sm font-semibold">Cancel</button>
             <button disabled={saving} className="theme-accent-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Material
+              Save Raw Material
             </button>
           </div>
         </form>
@@ -1172,75 +1328,78 @@ function PurchaseModal({
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  const isDraft = !editing || (editing && form.status === 'DRAFT');
+  
   return (
     <Portal>
-      <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
-        <form onSubmit={onSubmit} className="theme-modal-panel w-full max-w-3xl overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 p-4">
+      <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+        <form onSubmit={onSubmit} className="theme-modal-panel flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 p-4">
             <div>
-              <h2 className="text-xl font-bold theme-text-primary">{mode === 'create' ? 'Add Purchase' : 'Edit Purchase'}</h2>
+              <h2 className="text-xl font-bold theme-text-primary">{mode === 'create' ? 'Add Material Purchase' : 'Edit Material Purchase'}</h2>
               <p className="text-sm text-slate-500">Supplier intake. Total cost is computed by backend.</p>
             </div>
             <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg p-2">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid gap-4 p-4 md:grid-cols-2">
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Material Type <span className="text-red-500">*</span></span>
-              <select
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Raw Material <span className="text-red-500">*</span></span>
+              <PremiumSelect
                 value={form.materialTypeId}
                 disabled={editing}
-                onChange={event => setForm(data => ({ ...data, materialTypeId: event.target.value }))}
+                onChange={(event: any) => setForm(data => ({ ...data, materialTypeId: event.target.value }))}
                 className={`h-10 w-full text-sm font-semibold disabled:bg-slate-100 ${errors.materialTypeId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
-                required
               >
-                <option value="">Select material</option>
+                <option value="">Select raw material</option>
                 {materialTypes.map(material => <option key={material.id} value={material.id}>{material.name} ({material.unit})</option>)}
-              </select>
+              </PremiumSelect>
               {errors.materialTypeId && <p className="mt-1 text-xs text-red-500">{errors.materialTypeId}</p>}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Supplier <span className="text-red-500">*</span></span>
-              <select
+              <PremiumSelect
                 value={form.supplierId}
                 disabled={editing}
-                onChange={event => setForm(data => ({ ...data, supplierId: event.target.value }))}
+                onChange={(event: any) => setForm(data => ({ ...data, supplierId: event.target.value }))}
                 className={`h-10 w-full text-sm font-semibold disabled:bg-slate-100 ${errors.supplierId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
-                required
               >
                 <option value="">Select supplier</option>
                 {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-              </select>
+              </PremiumSelect>
               {errors.supplierId && <p className="mt-1 text-xs text-red-500">{errors.supplierId}</p>}
             </label>
-            <Field label="Quantity" type="number" value={form.quantity} onChange={value => setForm(data => ({ ...data, quantity: value }))} required error={errors.quantity} />
-            <Field label="Cost Per Unit" type="number" value={form.costPerUnit} onChange={value => setForm(data => ({ ...data, costPerUnit: value }))} required error={errors.costPerUnit} />
-            <Field label="Purchase Date" type="date" value={form.purchaseDate} onChange={value => setForm(data => ({ ...data, purchaseDate: value }))} required error={errors.purchaseDate} />
+            <Field label="Quantity" type="number" disabled={!isDraft} value={form.quantity} onChange={value => setForm(data => ({ ...data, quantity: value }))} required error={errors.quantity} />
+            <Field label="Cost Per Unit" type="number" disabled={!isDraft} value={form.costPerUnit} onChange={value => setForm(data => ({ ...data, costPerUnit: value }))} required error={errors.costPerUnit} />
+            <Field label="Purchase Date" type="date" disabled={!isDraft} value={form.purchaseDate} onChange={value => setForm(data => ({ ...data, purchaseDate: value }))} required error={errors.purchaseDate} />
             <label className="block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Status <span className="text-red-500">*</span></span>
-              <select value={form.status} onChange={event => setForm(data => ({ ...data, status: event.target.value as RawMaterialPurchaseStatus }))} className={`h-10 w-full text-sm font-semibold ${errors.status ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}>
-                {PURCHASE_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-              </select>
+              <PremiumSelect disabled={form.status === 'CANCELLED'} value={form.status} onChange={(event: any) => setForm(data => ({ ...data, status: event.target.value as RawMaterialPurchaseStatus }))} className={`h-10 w-full text-sm font-semibold disabled:bg-slate-100 ${errors.status ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}>
+                {PURCHASE_STATUSES.map(status => <option key={status} disabled={!isDraft && status === 'DRAFT'} value={status}>{formatStatus(status)}</option>)}
+              </PremiumSelect>
               {errors.status && <p className="mt-1 text-xs text-red-500">{errors.status}</p>}
             </label>
-            <Field label="Invoice Number" value={form.invoiceNumber} onChange={value => setForm(data => ({ ...data, invoiceNumber: value }))} error={errors.invoiceNumber} />
+            <Field label="Invoice Number" disabled={!isDraft} value={form.invoiceNumber} onChange={value => setForm(data => ({ ...data, invoiceNumber: value }))} error={errors.invoiceNumber} />
             <label className="block md:col-span-2">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Notes</span>
               <textarea
+                disabled={!isDraft}
                 value={form.notes}
                 onChange={event => setForm(data => ({ ...data, notes: event.target.value }))}
                 rows={3}
-                className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] ${errors.notes ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+                className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)] disabled:bg-slate-100 ${errors.notes ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}`}
               />
               {errors.notes && <p className="mt-1 text-xs text-red-500">{errors.notes}</p>}
             </label>
+            </div>
           </div>
-          <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
+          <div className="flex shrink-0 justify-end gap-3 border-t border-slate-200 p-4">
             <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg px-4 py-2 text-sm font-semibold">Cancel</button>
             <button disabled={saving} className="theme-accent-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Purchase
+              Save Material Purchase
             </button>
           </div>
         </form>

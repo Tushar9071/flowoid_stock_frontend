@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@/lib/types';
 import { isSuperAdminRole, normalizeRole } from '@/lib/roles';
+import { SkeletonAppLayout } from '@/components/skeleton/Skeletons';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -31,7 +32,7 @@ export function AuthGuard({
     if (isLoading) return;
 
     if (!isAuthenticated || !user) {
-      router.replace(redirectTo);
+      router.replace('/login');
       return;
     }
 
@@ -49,36 +50,15 @@ export function AuthGuard({
   }, [isAuthenticated, isLoading, role, user, router, redirectTo, allowedRoles]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading Flowoid Stock…</p>
-        </div>
-      </div>
-    );
+    return <SkeletonAppLayout />;
   }
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Redirecting to login...</p>
-        </div>
-      </div>
-    );
+    return <SkeletonAppLayout />;
   }
 
   if (allowedRoles.length > 0 && role && !allowedRoles.map(normalizeRole).includes(normalizeRole(role))) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Opening your workspace...</p>
-        </div>
-      </div>
-    );
+    return <SkeletonAppLayout />;
   }
 
   return <>{children}</>;

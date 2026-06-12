@@ -8,7 +8,10 @@ import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { normalizeRole } from '@/lib/roles';
 import Image from 'next/image';
-import { SearchInput } from '@/components/shared/search-input';
+import { GlobalSearch } from '@/components/shared/global-search';
+import { useRecentActivity } from '@/lib/hooks/use-activity-context';
+import { Clock, CheckCircle, CheckCircle2 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 
 const ROLE_LABELS: Record<string, string> = {
   flowoid_admin: 'Flowoid Admin',
@@ -21,7 +24,9 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
   const { user, role, logout } = useAuth();
   const router = useRouter();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { activities, unreadCount, markAllAsRead, lastReadTimestamp } = useRecentActivity();
   const roleKey = normalizeRole(role);
 
   const handleLogout = async () => {
@@ -53,8 +58,8 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
         </div>
 
         {/* Global Search Bar */}
-        <SearchInput
-          containerClassName="flex-1 max-w-2xl hidden md:flex"
+        <GlobalSearch
+          containerClassName="flex-1 max-w-2xl hidden md:block"
           placeholder="Search designs, dealers, or workers globally..."
         />
 
@@ -71,10 +76,80 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
           <div className="w-px h-6 bg-[#e5e7eb] mx-1" />
 
           {/* Notifications */}
-          <button className="relative p-2.5 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]">
-            <Bell className="w-5 h-5 text-[#374151]" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-[#cc2200] rounded-full border-2 border-white" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2.5 hover:bg-[#f9fafb] rounded-full transition-colors border border-transparent hover:border-[#e5e7eb]"
+            >
+              <Bell className="w-5 h-5 text-[#374151]" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-4 h-4 px-1 flex items-center justify-center bg-[#cc2200] text-white text-[10px] font-bold rounded-full border-2 border-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowNotifications(false)}
+                />
+                <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-[320px] sm:max-w-none bg-white rounded-xl shadow-xl border border-[#e5e7eb] z-50 overflow-hidden flex flex-col max-h-[85vh] origin-top-right">
+                  <div className="p-4 border-b border-[#e5e7eb] flex items-center justify-between shrink-0 bg-[#f9fafb]">
+                    <h3 className="text-[15px] font-bold text-[#0F2A4A]">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllAsRead}
+                        className="text-[12px] font-semibold text-indigo-600 hover:text-indigo-800"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  <div className="overflow-y-auto flex-1 p-2 max-h-[380px]">
+                    {activities.length === 0 ? (
+                      <div className="py-10 flex flex-col items-center justify-center text-center">
+                        <CheckCircle className="w-10 h-10 text-[#e5e7eb] mb-2" />
+                        <p className="text-sm font-medium text-[#6b7280]">No recent activity available</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {activities.slice(0, 20).map((activity, i) => (
+                          <div key={activity.id} className="p-3 hover:bg-[#f9fafb] rounded-lg transition-colors flex gap-3 items-start group">
+                            <span className="shrink-0 mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white transition-colors">
+                              <activity.icon className="w-4 h-4 text-slate-500" />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-bold text-slate-900 leading-tight">
+                                {activity.title}
+                              </p>
+                              <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed">
+                                {activity.subtitle}
+                              </p>
+                              <div className="flex items-center text-[11px] font-semibold text-slate-400 mt-1.5 uppercase tracking-wide">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {formatDistanceToNow(activity.timestamp, { addSuffix: true })}
+                              </div>
+                            </div>
+                            {activity.timestamp.getTime() > lastReadTimestamp && (
+                              <span className="w-2 h-2 rounded-full bg-[#cc2200] shrink-0 mt-2"></span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {activities.length > 0 && (
+                    <div className="p-3 border-t border-[#e5e7eb] shrink-0 text-center bg-[#f9fafb] sticky bottom-0">
+                      <button onClick={() => { setShowNotifications(false); router.push('/dashboard/recent-activity'); }} className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800">
+                        View all activity
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Divider */}
           <div className="w-px h-6 bg-[#e5e7eb] mx-1" />
@@ -101,7 +176,7 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
                   className="fixed inset-0 z-40" 
                   onClick={() => setShowDropdown(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#e5e7eb] z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-56 max-w-[280px] sm:max-w-none bg-white rounded-xl shadow-lg border border-[#e5e7eb] z-50 overflow-hidden origin-top-right">
                   <div className="p-4 border-b border-[#e5e7eb] bg-[#f9fafb]">
                     <p className="text-[14px] font-bold text-[#0F2A4A]">{user?.name || 'User'}</p>
                     <p className="text-[12px] text-[#6b7280] truncate mt-0.5">{user?.email || 'user@example.com'}</p>

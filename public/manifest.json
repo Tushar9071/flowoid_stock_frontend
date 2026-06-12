@@ -2,7 +2,7 @@
   "name": "StockFlow - Smart Stock. Smooth Flow.",
   "short_name": "StockFlow",
   "description": "Multi-tenant stock management platform",
-  "start_url": "/",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

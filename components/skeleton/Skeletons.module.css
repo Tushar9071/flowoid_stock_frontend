@@ -4,10 +4,10 @@
 }
 
 .shimmer {
-  background: linear-gradient(90deg, #f1f1f1 0%, #e2e2e2 45%, #f4f4f4 62%, #ededed 100%);
-  background-size: 700px 100%;
-  animation: shimmer 1.45s ease-in-out infinite;
-  opacity: 0.90;
+  background: linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%);
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  opacity: 1;
 }
 
 .tableWrap {

@@ -1,16 +1,18 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import {
-  Plus, Grid2X2, List, Layers, Gem, Edit3, Trash2, Settings2,
-  Filter, X, Check,
+  Plus, Grid2X2, List, Gem, Edit3, Trash2, Settings2,
+  X, ArrowLeft, Eye, Image as ImageIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable, ColumnDef } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
+import { ConfirmModal } from '@/components/shared/confirm-modal';
 import { SearchInput } from '@/components/shared/search-input';
 import { formatCurrency } from '@/lib/constants';
 import { useAuth } from '@/lib/auth-context';
@@ -21,7 +23,9 @@ import {
   SupplementaryService,
 } from '@/lib/services/business-modules.service';
 
-type ViewMode = 'grid' | 'list';
+import { useViewMode } from '@/context/ViewModeContext';
+import { ViewToggle } from '@/components/ui/ViewToggle';
+
 type ModalMode = 'design' | 'category' | 'need' | null;
 
 function money(value: unknown) {
@@ -49,6 +53,33 @@ function materialName(item: BackendRecord) {
   return item.rawMaterial?.name || item.name || 'Material';
 }
 
+/**
+ * Converts any backend image path to a frontend-accessible URL via the Next.js proxy.
+ * Backend stores paths like: /uploads/designs/xxx.jpg
+ * The Next.js proxy at /uploads/[...path] forwards requests to the backend static file server.
+ */
+function backendAssetUrl(imagePath: string | undefined | null) {
+  if (!imagePath) return '';
+  // Already a full external URL — use as-is
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+  // Normalize Windows backslashes to forward slashes
+  let normalized = imagePath.replace(/\\/g, '/');
+  // Strip any /api/ or api/ prefix so we always get /uploads/...
+  normalized = normalized.replace(/^\/?api\//, '/');
+  // Ensure a leading slash so it hits the Next.js route handler at /uploads/[...path]
+  if (!normalized.startsWith('/')) normalized = '/' + normalized;
+  return normalized;
+}
+
+function primaryDesignImage(design: BackendRecord) {
+  const images = design.images || [];
+  if (images.length === 0) {
+    return backendAssetUrl(design.imageUrl || design.image);
+  }
+  const image = images.find((item: BackendRecord) => item.isPrimary) || images[0];
+  return backendAssetUrl(image?.url || design.imageUrl || design.image);
+}
+
 // ─── Status Pill ─────────────────────────────────────────────────────────────
 function StatusPill({ status }: { status: string }) {
   const active = status === 'ACTIVE';
@@ -66,10 +97,19 @@ function StatusPill({ status }: { status: string }) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function DesignCataloguePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DesignCatalogueContent />
+    </Suspense>
+  );
+}
+
+function DesignCatalogueContent() {
   const { hasPermission } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('list'); // Default to list since user requested the table back
+  const { viewMode, setViewMode } = useViewMode();
   const [page, setPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
@@ -77,6 +117,8 @@ export default function DesignCataloguePage() {
   const [categories, setCategories] = useState<BackendRecord[]>([]);
   const [rawMaterials, setRawMaterials] = useState<BackendRecord[]>([]);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<any>(null);
+  const [viewingDesign, setViewingDesign] = useState<BackendRecord | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [editingDesign, setEditingDesign] = useState<BackendRecord | null>(null);
   const [editingCategory, setEditingCategory] = useState<BackendRecord | null>(null);
@@ -86,10 +128,30 @@ export default function DesignCataloguePage() {
   const [categoryForm, setCategoryForm] = useState<Record<string, any>>({});
   const [needForm, setNeedForm] = useState<Record<string, any>>({});
   const [needsByDesignId, setNeedsByDesignId] = useState<Record<string, BackendRecord[]>>({});
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   // Column filter state
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setPage(p => p + 1);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    if (observerTarget.current) observer.observe(observerTarget.current);
+    return () => observer.disconnect();
+  }, []);
 
   const canCreate = hasPermission('designs.create');
   const canUpdate = hasPermission('designs.update');
@@ -156,6 +218,7 @@ export default function DesignCataloguePage() {
     { name: 'description', label: 'Description', type: 'textarea' },
     { name: 'sellingPrice', label: 'Selling Price (₹)', type: 'number', required: true },
     { name: 'productionCost', label: 'Production Cost (₹)', type: 'number' },
+    { name: 'images', label: 'Design Images', type: 'file' },
   ];
 
   const categoryFields: SimpleField[] = [
@@ -251,6 +314,7 @@ export default function DesignCataloguePage() {
 
   const closeModal = () => {
     setModalMode(null);
+    setFormError(null);
     setEditingDesign(null);
     setEditingCategory(null);
     setSelectedDesign(null);
@@ -266,6 +330,9 @@ export default function DesignCataloguePage() {
     event.preventDefault();
     setSaving(true);
     try {
+      const files = Array.isArray(designForm.images)
+        ? designForm.images.filter((file: unknown) => file instanceof File)
+        : [];
       const payload = {
         categoryId: designForm.categoryId,
         name: designForm.name,
@@ -275,16 +342,40 @@ export default function DesignCataloguePage() {
         ...(editingDesign?.id ? {} : { code: designForm.code }),
       };
 
-      const response = editingDesign?.id
-        ? await DesignService.update('', editingDesign.id, payload)
-        : await DesignService.create('', payload);
+      let response;
+      if (editingDesign?.id) {
+        response = await DesignService.update('', editingDesign.id, payload);
+        if (response.success && files.length) {
+          const imageData = new FormData();
+          imageData.append('altText', String(designForm.name || 'Design image'));
+          imageData.append('isPrimary', 'true'); // mark first image as primary so it shows in list
+          files.forEach((file: File) => imageData.append('images', file));
+          const imageResponse = await DesignService.uploadImages('', editingDesign.id, imageData);
+          if (!imageResponse.success)
+            throw new Error(imageResponse.error?.message || 'Design saved, but image upload failed');
+        }
+      } else if (files.length) {
+        const formData = new FormData();
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') formData.append(key, String(value));
+        });
+        formData.append('altText', String(designForm.name || 'Design image'));
+        formData.append('isPrimary', 'true'); // mark first image as primary so it shows in list
+        files.forEach((file: File) => formData.append('images', file));
+        response = await DesignService.create('', formData);
+      } else {
+        response = await DesignService.create('', payload);
+      }
 
-      if (!response.success) throw new Error(response.error?.message || 'Failed to save design');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success(editingDesign ? 'Design updated' : 'Design created');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save design');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -303,12 +394,15 @@ export default function DesignCataloguePage() {
         ? await DesignService.updateCategory('', editingCategory.id, payload)
         : await DesignService.createCategory('', payload);
 
-      if (!response.success) throw new Error(response.error?.message || 'Failed to save category');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success(editingCategory ? 'Category updated' : 'Category created');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save category');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -316,16 +410,23 @@ export default function DesignCataloguePage() {
 
   const deleteCategory = async (category: BackendRecord) => {
     if (!category.id) return toast.error('Category not found');
-    if (!window.confirm(`Deactivate category "${category.name || 'this category'}"?`)) return;
 
-    const response = await DesignService.deleteCategory('', category.id);
-    if (response.success) {
-      toast.success('Category deactivated');
-      if (selectedCategory === category.id) setSelectedCategory(null);
-      await loadData();
-    } else {
-      toast.error(response.error?.message || 'Failed to deactivate category');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Deactivate Category',
+      message: `Deactivate category "${category.name || 'this category'}"?`,
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        const response = await DesignService.deleteCategory('', category.id as string);
+        if (response.success) {
+          toast.success('Category deactivated');
+          if (selectedCategory === category.id) setSelectedCategory(null);
+          await loadData();
+        } else {
+          toast.error(response.error?.message || 'Failed to deactivate category');
+        }
+      },
+    });
   };
 
   const saveNeed = async (event: React.FormEvent) => {
@@ -348,12 +449,15 @@ export default function DesignCataloguePage() {
           })
         : await DesignService.addSupplementaryNeed('', selectedDesign.id, payload);
 
-      if (!response.success) throw new Error(response.error?.message || 'Failed to save supplementary need');
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
       toast.success(editingNeed ? 'Supplementary need updated' : 'Supplementary need added');
       closeModal();
       await loadData();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save supplementary need');
+      setFormError(error);
     } finally {
       setSaving(false);
     }
@@ -361,27 +465,57 @@ export default function DesignCataloguePage() {
 
   const deleteNeed = async (design: BackendRecord, need: BackendRecord) => {
     if (!design.id || !need.id) return toast.error('Design or need not found');
-    if (!window.confirm('Remove this supplementary need?')) return;
 
-    const response = await DesignService.deleteSupplementaryNeed('', design.id, need.id);
-    if (response.success) {
-      toast.success('Supplementary need removed');
-      await loadData();
-    } else {
-      toast.error(response.error?.message || 'Failed to remove supplementary need');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Remove Supplementary Need',
+      message: 'Remove this supplementary need?',
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        const response = await DesignService.deleteSupplementaryNeed(
+          '',
+          design.id as string,
+          need.id as string
+        );
+        if (response.success) {
+          toast.success('Supplementary need removed');
+          await loadData();
+        } else {
+          toast.error(response.error?.message || 'Failed to remove supplementary need');
+        }
+      },
+    });
   };
 
   const deleteDesign = async (design: BackendRecord) => {
     if (!design.id) return toast.error('Design not found');
-    if (!window.confirm(`Deactivate "${design.name || designCode(design)}"?`)) return;
 
-    const response = await DesignService.delete('', design.id);
-    if (response.success) {
-      toast.success('Design deactivated');
-      await loadData();
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Deactivate Design',
+      message: `Deactivate "${design.name || designCode(design)}"?`,
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        const response = await DesignService.delete('', design.id as string);
+        if (response.success) {
+          toast.success('Design deactivated');
+          await loadData();
+        } else {
+          toast.error(response.error?.message || 'Failed to deactivate design');
+        }
+      },
+    });
+  };
+
+  // Fetch full design (with ALL images) before showing the details view
+  const viewDesign = async (design: BackendRecord) => {
+    const res = await DesignService.getById('', design.id as string);
+    if (res.success && res.data) {
+      const full = (res.data as any).design || res.data;
+      setViewingDesign(full as BackendRecord);
     } else {
-      toast.error(response.error?.message || 'Failed to deactivate design');
+      // Fall back to the list data if fetch fails
+      setViewingDesign(design);
     }
   };
 
@@ -404,338 +538,453 @@ export default function DesignCataloguePage() {
         filterCategories.includes(design.categoryId as string);
 
       const matchesFilterStatus =
-        filterStatus.length === 0 ||
-        filterStatus.includes(designStatus(design));
+        filterStatus.length === 0 || filterStatus.includes(designStatus(design));
 
       return matchesSearch && matchesCategory && matchesFilterCategory && matchesFilterStatus;
     });
   }, [designs, searchTerm, selectedCategory, filterCategories, filterStatus]);
 
   const paginatedDesigns = useMemo(
-    () => filteredDesigns.slice((page - 1) * itemsPerPage, page * itemsPerPage),
+    () => filteredDesigns.slice(0, page * itemsPerPage),
     [filteredDesigns, page, itemsPerPage]
   );
 
   const activeFilters = filterCategories.length + filterStatus.length;
 
-  // Options for headers
-  const categoryFilterOptions = useMemo(() =>
-    categories.map(c => ({ label: c.name || 'Unknown', value: c.id as string })),
-    [categories]
-  );
-  
-  const statusFilterOptions = [
-    { label: 'Active', value: 'ACTIVE' },
-    { label: 'Inactive', value: 'INACTIVE' },
-  ];
-
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <DashboardLayout
-      title="Design Catalogue"
-      subtitle="Manage designs, categories, and supplementary material requirements"
-      action={
-        <div className="flex flex-wrap gap-2">
-          {canCreate && (
-            <button
-              onClick={() => openCategoryForm()}
-              className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold"
-            >
-              <Plus className="h-4 w-4" />
-              Add Category
-            </button>
-          )}
-          {canCreate && (
-            <button
-              onClick={() => openDesignForm()}
-              className="inline-flex items-center gap-2 rounded-lg theme-accent-btn px-5 py-2.5 text-sm font-semibold transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Add Design
-            </button>
-          )}
-        </div>
+      title={viewingDesign ? 'Design Details' : 'Design Catalogue'}
+      subtitle={
+        viewingDesign
+          ? `Viewing details for ${viewingDesign.name || designCode(viewingDesign)}`
+          : 'Manage designs, categories, and supplementary material requirements'
       }
-    >
-      <div className="space-y-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <SummaryCard icon={<Gem className="h-5 w-5" />} label="Designs" value={designs.length} />
-          <SummaryCard icon={<Grid2X2 className="h-5 w-5" />} label="Categories" value={categories.length} />
-          <SummaryCard icon={<Layers className="h-5 w-5" />} label="Raw Materials" value={rawMaterials.length} />
-        </div>
-
-        {/* Search & View Toggle */}
-        <div className="flex flex-col justify-between gap-4 sm:flex-row">
-          <div className="flex w-full flex-1 gap-2 sm:w-auto">
-            <SearchInput
-              containerClassName="max-w-md flex-1"
-              inputClassName="h-9 rounded-lg border-[#e5e7eb] bg-[#f9fafb] focus:border-[#0F2A4A]"
-              placeholder="Search designs..."
-              value={searchTerm}
-              onChange={event => setSearchTerm(event.target.value)}
-            />
-            {activeFilters > 0 && (
+      action={
+        !viewingDesign ? (
+          <div className="flex flex-wrap gap-2">
+            {canCreate && (
               <button
-                onClick={() => { setFilterCategories([]); setFilterStatus([]); }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[12px] font-semibold text-[#6b7280] hover:bg-[#f3f4f6]"
+                onClick={() => openCategoryForm()}
+                className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold"
               >
-                <X className="h-3.5 w-3.5" />
-                Clear {activeFilters} filter{activeFilters > 1 ? 's' : ''}
+                <Plus className="h-4 w-4" />
+                Add Category
+              </button>
+            )}
+            {canCreate && (
+              <button
+                onClick={() => openDesignForm()}
+                className="inline-flex items-center gap-2 rounded-lg theme-accent-btn px-5 py-2.5 text-sm font-semibold transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Add Design
               </button>
             )}
           </div>
-          <div className="flex shrink-0 gap-2">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`rounded-lg border border-[#e5e7eb] p-2 transition-colors ${viewMode === 'grid' ? 'theme-tab-active' : 'bg-white text-[#6b7280]'}`}
-            >
-              <Grid2X2 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`rounded-lg border border-[#e5e7eb] p-2 transition-colors ${viewMode === 'list' ? 'theme-tab-active' : 'bg-white text-[#6b7280]'}`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-none">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`whitespace-nowrap rounded-full border px-4 py-1.5 text-[13px] font-medium ${!selectedCategory ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
-          >
-            All ({designs.length})
-          </button>
-          {categories.map(category => {
-            const key = category.id as string;
-            const label = category.name || 'Category';
-            const count = designs.filter(d => d.categoryId === key).length;
-            return (
-              <div
-                key={key}
-                className={`flex items-center overflow-hidden rounded-full border ${selectedCategory === key ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
-              >
-                <button
-                  onClick={() => setSelectedCategory(key)}
-                  className="whitespace-nowrap px-4 py-1.5 text-[13px] font-medium"
-                >
-                  {label} ({count})
-                </button>
-                {canUpdate && (
-                  <button
-                    onClick={() => openCategoryForm(category)}
-                    className="border-l border-current/10 px-2 py-1.5"
-                    title="Edit category"
-                  >
-                    <Edit3 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {canDelete && (
-                  <button
-                    onClick={() => deleteCategory(category)}
-                    className="border-l border-current/10 px-2 py-1.5"
-                    title="Deactivate category"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Grid View */}
-        {!loading && viewMode === 'grid' && (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {paginatedDesigns.map(design => (
-              <div key={design.id} className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white theme-card-accent">
-                {/* Card Image Placeholder */}
-                <div className="flex h-40 items-center justify-center border-b border-[#e5e7eb] bg-[#f0f2f5]">
-                  <div className="text-center">
-                    <Gem className="mx-auto mb-2 h-8 w-8 text-[#9ca3af]" />
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6b7280]">
-                      {resolveCategoryName(design, categories)}
-                    </p>
-                  </div>
+        ) : undefined
+      }
+    >
+      {viewingDesign ? (
+        <DesignDetails
+          design={viewingDesign}
+          categories={categories}
+          needs={needsByDesignId[viewingDesign.id as string] || []}
+          onBack={() => setViewingDesign(null)}
+          canUpdate={canUpdate}
+          canDelete={canDelete}
+          onEditDesign={openDesignForm}
+          onDeleteDesign={d => {
+            deleteDesign(d);
+            setViewingDesign(null);
+          }}
+          onAddNeed={openNeedForm}
+          onEditNeed={openNeedForm}
+          onDeleteNeed={deleteNeed}
+        />
+      ) : (
+        <div className="space-y-6">
+          {/* Sticky Filters Container */}
+          <div className="sticky top-0 z-10 -mt-4 sm:-mt-6 pt-4 sm:pt-6 pb-6 -mx-4 sm:-mx-6 px-4 sm:px-6 bg-[#f0f2f5]/95 backdrop-blur-md">
+            <div className="flex flex-col gap-4 rounded-xl border border-[#e5e7eb] bg-white p-4 sm:p-5 shadow-sm">
+              {/* Search & View Toggle */}
+              <div className="flex flex-col justify-between gap-4 sm:flex-row">
+                <div className="flex w-full flex-1 gap-2 sm:w-auto">
+                  <SearchInput
+                    containerClassName="flex-1 sm:flex-none sm:w-[320px]"
+                    placeholder="Search by name, code..."
+                    value={searchTerm}
+                    onChange={event => setSearchTerm(event.target.value)}
+                  />
+                  {activeFilters > 0 && (
+                    <button
+                      onClick={() => {
+                        setFilterCategories([]);
+                        setFilterStatus([]);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-[12px] font-semibold text-[#6b7280] hover:bg-[#f3f4f6]"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Clear {activeFilters} filter{activeFilters > 1 ? 's' : ''}
+                    </button>
+                  )}
                 </div>
+                <ViewToggle />
+              </div>
 
-                <div className="p-5">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <span className="mb-1.5 inline-block rounded bg-[#f3f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#6b7280]">
-                        {designCode(design)}
-                      </span>
-                      <h3 className="text-[16px] font-bold leading-tight theme-text-primary">
-                        {design.name || 'Unnamed Design'}
-                      </h3>
-                      {design.description && (
-                        <p className="mt-1 text-[12px] text-[#6b7280] line-clamp-2">{design.description}</p>
+              {/* Category Filter Pills */}
+              <div className="flex gap-1 overflow-x-auto scrollbar-none pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-[13px] font-medium ${!selectedCategory ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
+                >
+                  All ({designs.length})
+                </button>
+                {categories.map(category => {
+                  const key = category.id as string;
+                  const label = category.name || 'Category';
+                  const count = designs.filter(d => d.categoryId === key).length;
+                  return (
+                    <div
+                      key={key}
+                      className={`flex shrink-0 items-center overflow-hidden rounded-full border ${selectedCategory === key ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
+                    >
+                      <button
+                        onClick={() => setSelectedCategory(key)}
+                        className="whitespace-nowrap px-4 py-1.5 text-[13px] font-medium"
+                      >
+                        {label} ({count})
+                      </button>
+                      {canUpdate && (
+                        <button
+                          onClick={() => openCategoryForm(category)}
+                          className="border-l border-current/10 px-2 py-1.5"
+                          title="Edit category"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => deleteCategory(category)}
+                          className="border-l border-current/10 px-2 py-1.5"
+                          title="Deactivate category"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
-                    <StatusPill status={designStatus(design)} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 border-t border-[#f3f4f6] pt-4">
-                    <Metric label="Selling Price" value={money(design.sellingPrice)} />
-                    <Metric label="Production Cost" value={money(design.productionCost)} />
-                  </div>
-
-                  <SupplementaryNeeds
-                    design={design}
-                    needs={needsByDesignId[design.id as string] || []}
-                    canUpdate={canUpdate}
-                    canDelete={canDelete}
-                    onAdd={openNeedForm}
-                    onEdit={openNeedForm}
-                    onDelete={deleteNeed}
-                  />
-
-                  <div className="mt-4 flex justify-end gap-2 border-t border-[#f3f4f6] pt-4">
-                    {canUpdate && (
-                      <button
-                        onClick={() => openDesignForm(design)}
-                        className="theme-secondary-btn rounded-lg p-2"
-                        title="Edit design"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </button>
-                    )}
-                    {canDelete && (
-                      <button
-                        onClick={() => deleteDesign(design)}
-                        className="theme-danger-btn rounded-lg p-2"
-                        title="Deactivate design"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
           </div>
-        )}
 
-        {/* List View with DataTable */}
-        {(!loading && viewMode === 'list') && (
-          <AdvancedDataTable
-            data={filteredDesigns}
-            searchable={false}
-            loading={loading}
-            emptyIcon={<Gem className="h-6 w-6 text-slate-400" />}
-            emptyTitle="No designs found"
-            emptySubtitle="Try adjusting search or filters."
-            columns={[
-              {
-                field: 'code',
-                header: 'Code',
-                sortable: true,
-                filterable: true,
-                filterType: 'text',
-                render: (row) => (
-                  <div className="flex items-center gap-3">
-                    <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg">
-                      <Gem className="h-4 w-4" />
+          {/* Card View */}
+          {!loading && viewMode === 'card' && (
+            <>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {paginatedDesigns.map(design => (
+                  <div key={design.id} className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white theme-card-accent">
+                    {/* Card Image */}
+                    <div className="relative flex h-40 items-center justify-center overflow-hidden border-b border-[#e5e7eb] bg-[#f0f2f5]">
+                      {primaryDesignImage(design) ? (
+                        <>
+                          <img
+                            src={primaryDesignImage(design)}
+                            alt={design.name || 'Design'}
+                            className="h-full w-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          {(design.images?.length || 0) > 1 && (
+                            <div className="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-[10px] font-bold text-white backdrop-blur">
+                              {design.images.length} Images
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center">
+                          <Gem className="mx-auto mb-2 h-8 w-8 text-[#9ca3af]" />
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6b7280]">
+                            {resolveCategoryName(design, categories)}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    {designCode(row)}
+
+                    <div className="p-5">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="mb-1.5 flex flex-wrap gap-1.5">
+                            <span className="inline-block rounded bg-[#f3f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#6b7280]">
+                              {designCode(design)}
+                            </span>
+                            <span className="inline-block rounded bg-[#f3f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#6b7280]">
+                              {resolveCategoryName(design, categories)}
+                            </span>
+                          </div>
+                          <h3 className="text-[16px] font-bold leading-tight theme-text-primary">
+                            {design.name || 'Unnamed Design'}
+                          </h3>
+                          {design.description && (
+                            <p className="mt-1 text-[12px] text-[#6b7280] line-clamp-2">{design.description}</p>
+                          )}
+                        </div>
+                        <StatusPill status={designStatus(design)} />
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
+                          <span className="block text-[10px] font-semibold uppercase text-slate-500">Selling Price</span>
+                          <span className="font-bold text-slate-900">{money(design.sellingPrice)}</span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
+                          <span className="block text-[10px] font-semibold uppercase text-slate-500">Prod. Cost</span>
+                          <span className="font-bold text-slate-900">{money(design.productionCost)}</span>
+                        </div>
+                      </div>
+
+                      {/* Supplementary Materials */}
+                      {(() => {
+                        const needs = needsByDesignId[design.id as string] || [];
+                        return (
+                          <div className="mt-4 border-t border-slate-100 pt-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                Supplementary
+                                {needs.length > 0 && (
+                                  <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                                    {needs.length}
+                                  </span>
+                                )}
+                              </span>
+                              {canUpdate && (
+                                <button
+                                  onClick={() => openNeedForm(design)}
+                                  className="text-[10px] font-bold text-blue-500 hover:text-blue-700 transition-colors"
+                                  title="Add supplementary need"
+                                >
+                                  + Add
+                                </button>
+                              )}
+                            </div>
+                            {needs.length === 0 ? (
+                              <p className="text-[11px] italic text-slate-300">No materials added.</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {needs.slice(0, 3).map(need => {
+                                  const material = rawMaterials.find(rm => rm.id === need.rawMaterialId);
+                                  return (
+                                    <div
+                                      key={need.id as string}
+                                      className="flex items-center justify-between rounded-md bg-slate-50 px-2 py-1.5 text-xs"
+                                    >
+                                      <span className="font-medium text-slate-600 truncate mr-2">
+                                        {material?.name || need.rawMaterial?.name || 'Material'}
+                                      </span>
+                                      <span className="shrink-0 rounded bg-white border border-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                                        {need.quantityRequired} {need.unit}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                {needs.length > 3 && (
+                                  <p className="text-center text-[10px] font-semibold text-slate-400 pt-0.5">
+                                    +{needs.length - 3} more
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="mt-4 flex items-center justify-end gap-2 border-t border-[#f3f4f6] pt-4">
+                        <button
+                          onClick={() => viewDesign(design)}
+                          className="theme-secondary-btn rounded-lg p-2"
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openNeedForm(design)}
+                          className="theme-secondary-btn rounded-lg p-2"
+                          title="Supplementary materials"
+                        >
+                          <Settings2 className="h-4 w-4" />
+                        </button>
+                        {canUpdate && (
+                          <button
+                            onClick={() => openDesignForm(design)}
+                            className="theme-secondary-btn rounded-lg p-2"
+                            title="Edit design"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => deleteDesign(design)}
+                            className="theme-danger-btn rounded-lg p-2"
+                            title="Deactivate design"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )
-              },
-              {
-                field: 'name',
-                header: 'Name',
-                sortable: true,
-                filterable: true,
-                filterType: 'text',
-                render: (row) => (
-                  <div>
-                    <div className="font-bold text-[#374151]">{row.name || '-'}</div>
-                    {row.description && (
-                      <p className="mt-0.5 text-xs font-normal text-slate-500 max-w-xs truncate">{row.description}</p>
-                    )}
+                ))}
+              </div>
+              {page * itemsPerPage < filteredDesigns.length && (
+                <div ref={observerTarget} className="h-10 w-full" />
+              )}
+              {filteredDesigns.length === 0 && (
+                <div className="rounded-xl border border-[#e5e7eb] bg-white p-12 text-center">
+                  <div className="theme-icon-chip mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
+                    <Gem className="h-6 w-6" />
                   </div>
-                )
-              },
-              {
-                field: 'category',
-                header: 'Category',
-                sortable: true,
-                filterable: true,
-                filterType: 'select',
-                filterOptions: categories.map(c => ({ label: String(c.name), value: String(c.name) })),
-                getValue: (row) => resolveCategoryName(row, categories),
-                render: (row) => (
-                  <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                    {resolveCategoryName(row, categories)}
-                  </span>
-                )
-              },
-              {
-                field: 'sellingPrice',
-                header: 'Selling Price',
-                sortable: true,
-                filterable: true,
-                filterType: 'number',
-                render: (row) => <span className="font-semibold text-[#0F2A4A]">{money(row.sellingPrice)}</span>
-              },
-              {
-                field: 'productionCost',
-                header: 'Production Cost',
-                sortable: true,
-                filterable: true,
-                filterType: 'number',
-                render: (row) => <span className="font-semibold text-[#0F2A4A]">{money(row.productionCost)}</span>
-              },
-              {
-                field: 'status',
-                header: 'Status',
-                sortable: true,
-                filterable: true,
-                filterType: 'boolean',
-                getValue: (row) => designStatus(row) === 'ACTIVE',
-                render: (row) => <StatusPill status={designStatus(row)} />
-              },
-              {
-                field: 'actions',
-                header: 'Actions',
-                render: (row) => (
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => openNeedForm(row)}
-                      className="theme-secondary-btn rounded-lg p-2"
-                      title="Supplementary materials"
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </button>
-                    {canUpdate && (
+                  <p className="text-lg font-bold theme-text-primary">No designs found</p>
+                  <p className="mt-1 text-sm text-[#6b7280]">Try adjusting search or filters.</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* List View with DataTable */}
+          {viewMode === 'list' && (
+            <AdvancedDataTable
+              data={filteredDesigns}
+              searchable={false}
+              hideViewToggle={true}
+              loading={loading}
+              emptyIcon={<Gem className="h-6 w-6 text-slate-400" />}
+              emptyTitle="No designs found"
+              emptySubtitle="Try adjusting search or filters."
+              columns={[
+                {
+                  field: 'code',
+                  header: 'Code',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'text',
+                  render: row => (
+                    <div className="flex items-center gap-3">
+                      <div className="theme-icon-chip flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                        {primaryDesignImage(row) ? (
+                          <img
+                            src={primaryDesignImage(row)}
+                            alt="Design"
+                            className="h-full w-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <Gem className="h-4 w-4" />
+                        )}
+                      </div>
+                      {designCode(row)}
+                    </div>
+                  ),
+                },
+                {
+                  field: 'name',
+                  header: 'Name',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'text',
+                  render: row => (
+                    <div>
+                      <div className="font-bold text-[#374151]">{row.name || '-'}</div>
+                      {row.description && (
+                        <p className="mt-0.5 text-xs font-normal text-slate-500 max-w-xs truncate">
+                          {row.description}
+                        </p>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  field: 'category',
+                  header: 'Category',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'select',
+                  filterOptions: categories.map(c => ({ label: String(c.name), value: String(c.name) })),
+                  getValue: row => resolveCategoryName(row, categories),
+                  render: row => (
+                    <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                      {resolveCategoryName(row, categories)}
+                    </span>
+                  ),
+                },
+                {
+                  field: 'sellingPrice',
+                  header: 'Selling Price',
+                  sortable: true,
+                  render: row => <span className="font-semibold text-[#0F2A4A]">{money(row.sellingPrice)}</span>,
+                },
+                {
+                  field: 'productionCost',
+                  header: 'Production Cost',
+                  sortable: true,
+                  render: row => <span className="font-semibold text-[#0F2A4A]">{money(row.productionCost)}</span>,
+                },
+                {
+                  field: 'status',
+                  header: 'Status',
+                  sortable: true,
+                  filterable: true,
+                  filterType: 'boolean',
+                  getValue: row => designStatus(row) === 'ACTIVE',
+                  render: row => <StatusPill status={designStatus(row)} />,
+                },
+                {
+                  field: 'actions',
+                  header: 'Actions',
+                  render: row => (
+                    <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => openDesignForm(row)}
+                        onClick={() => viewDesign(row)}
                         className="theme-secondary-btn rounded-lg p-2"
-                        title="Edit design"
+                        title="View Details"
                       >
-                        <Edit3 className="h-4 w-4" />
+                        <Eye className="h-4 w-4" />
                       </button>
-                    )}
-                    {canDelete && (
                       <button
-                        onClick={() => deleteDesign(row)}
-                        className="theme-danger-btn rounded-lg p-2"
-                        title="Deactivate design"
+                        onClick={() => openNeedForm(row)}
+                        className="theme-secondary-btn rounded-lg p-2"
+                        title="Supplementary materials"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Settings2 className="h-4 w-4" />
                       </button>
-                    )}
-                  </div>
-                )
-              }
-            ]}
-          />
-        )}
-      </div>
+                      {canUpdate && (
+                        <button
+                          onClick={() => openDesignForm(row)}
+                          className="theme-secondary-btn rounded-lg p-2"
+                          title="Edit design"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => deleteDesign(row)}
+                          className="theme-danger-btn rounded-lg p-2"
+                          title="Deactivate design"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          )}
+        </div>
+      )}
 
       {/* Modals */}
       {modalMode === 'design' && Object.keys(designForm).length > 0 && (
@@ -749,6 +998,7 @@ export default function DesignCataloguePage() {
           fields={editingDesign ? designFields.filter(f => f.name !== 'code') : designFields}
           values={designForm}
           saving={saving}
+          apiError={formError}
           submitLabel={editingDesign ? 'Update Design' : 'Create Design'}
           onChange={(name, value) => setDesignForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
@@ -763,6 +1013,7 @@ export default function DesignCataloguePage() {
           fields={categoryFields}
           values={categoryForm}
           saving={saving}
+          apiError={formError}
           submitLabel={editingCategory ? 'Update Category' : 'Create Category'}
           onChange={(name, value) => setCategoryForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
@@ -777,29 +1028,29 @@ export default function DesignCataloguePage() {
           fields={editingNeed ? needFields.filter(f => f.name !== 'rawMaterialId') : needFields}
           values={needForm}
           saving={saving}
+          apiError={formError}
           submitLabel={editingNeed ? 'Update Need' : 'Add Need'}
           onChange={(name, value) => setNeedForm(form => ({ ...form, [name]: value }))}
           onClose={closeModal}
           onSubmit={saveNeed}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+        isDestructive={true}
+      />
     </DashboardLayout>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 theme-card-accent">
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-[#f0f2f5] text-[#0F2A4A]">
-        {icon}
-      </div>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">{label}</p>
-      <p className="text-2xl font-bold theme-text-primary">{value}</p>
-    </div>
-  );
-}
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
@@ -882,6 +1133,199 @@ function SupplementaryNeeds({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function DesignDetails({
+  design,
+  categories,
+  needs,
+  onBack,
+  canUpdate,
+  canDelete,
+  onEditDesign,
+  onDeleteDesign,
+  onAddNeed,
+  onEditNeed,
+  onDeleteNeed,
+}: {
+  design: BackendRecord;
+  categories: BackendRecord[];
+  needs: BackendRecord[];
+  onBack: () => void;
+  canUpdate: boolean;
+  canDelete: boolean;
+  onEditDesign: (design: BackendRecord) => void;
+  onDeleteDesign: (design: BackendRecord) => void;
+  onAddNeed: (design: BackendRecord) => void;
+  onEditNeed: (design: BackendRecord, need: BackendRecord) => void;
+  onDeleteNeed: (design: BackendRecord, need: BackendRecord) => void;
+}) {
+  const images = design.images || [];
+  const allImages = images.length > 0
+    ? images.map((img: any) => backendAssetUrl(img.url)).filter(Boolean)
+    : [primaryDesignImage(design)].filter(Boolean);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const profit = Number(design.sellingPrice || 0) - Number(design.productionCost || 0);
+  const margin =
+    Number(design.sellingPrice || 0) > 0 ? (profit / Number(design.sellingPrice)) * 100 : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Header Actions */}
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Catalogue
+      </button>
+
+      {/* Header Info */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between rounded-xl bg-white p-6 border border-slate-200 shadow-sm">
+        <div>
+          <div className="mb-2 flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900">{design.name || 'Unnamed Design'}</h1>
+            <StatusPill status={designStatus(design)} />
+          </div>
+          <p className="text-sm font-medium text-slate-500">
+            {designCode(design)} &bull; {resolveCategoryName(design, categories)}
+          </p>
+          {design.description && (
+            <p className="mt-3 text-sm text-slate-600 max-w-2xl">{design.description}</p>
+          )}
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {canUpdate && (
+            <button
+              onClick={() => onEditDesign(design)}
+              className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+            >
+              <Edit3 className="h-4 w-4" /> Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => onDeleteDesign(design)}
+              className="theme-danger-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Left Column: Images & Additional Info */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Image Gallery */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Image Gallery</h3>
+            {allImages.length > 0 ? (
+              <div className="space-y-4">
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-slate-100 flex items-center justify-center">
+                  <img
+                    src={allImages[activeImageIndex]}
+                    alt="Design Preview"
+                    className="h-full w-full object-contain"
+                    onError={e => {
+                      const el = e.target as HTMLImageElement;
+                      el.style.display = 'none';
+                      el.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                    }}
+                  />
+                </div>
+                {allImages.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                    {allImages.map((img: string, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveImageIndex(idx)}
+                        className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border-2 ${activeImageIndex === idx ? 'border-slate-900' : 'border-transparent'} bg-slate-100 transition-all`}
+                      >
+                        <img
+                          src={img}
+                          alt={`Thumbnail ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400">
+                <ImageIcon className="mb-2 h-8 w-8" />
+                <p className="text-sm font-medium">No images uploaded</p>
+              </div>
+            )}
+          </div>
+
+          {/* Additional Info */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Additional Information</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Metric label="Design Code" value={designCode(design)} />
+              <Metric label="Category" value={resolveCategoryName(design, categories)} />
+              <Metric
+                label="Created Date"
+                value={design.createdAt ? new Date(design.createdAt).toLocaleDateString() : '-'}
+              />
+              <Metric
+                label="Last Updated"
+                value={design.updatedAt ? new Date(design.updatedAt).toLocaleDateString() : '-'}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Pricing & Supplementary */}
+        <div className="space-y-6">
+          {/* Pricing Section */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Pricing Details</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-sm font-medium text-slate-500">Selling Price</span>
+                <span className="font-bold text-slate-900">{money(design.sellingPrice)}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-sm font-medium text-slate-500">Production Cost</span>
+                <span className="font-bold text-slate-900">{money(design.productionCost)}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-sm font-medium text-slate-500">Profit Amount</span>
+                <span className={`font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {money(profit)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-500">Profit Margin</span>
+                <span className={`font-bold ${margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {margin.toFixed(2)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Supplementary Materials Section */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Supplementary Materials</h3>
+            <SupplementaryNeeds
+              design={design}
+              needs={needs}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              onAdd={onAddNeed}
+              onEdit={onEditNeed}
+              onDelete={onDeleteNeed}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
