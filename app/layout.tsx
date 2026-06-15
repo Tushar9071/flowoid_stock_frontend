@@ -12,11 +12,11 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { Toaster } from 'sonner'
 import { Toaster as HotToaster } from 'react-hot-toast'
+import Script from 'next/script'
 import { LoaderProvider, useLoader } from '@/context/LoaderContext'
 import { ViewModeProvider } from '@/context/ViewModeContext'
 import AppLoader from '@/components/loader/AppLoader'
 import PageLoader from '@/components/loader/PageLoader'
-import { MobileBottomNav } from '@/components/MobileNav/MobileBottomNav'
 import { PWAInstallBanner } from '@/components/PWAInstallBanner'
 import './globals.css'
 import '../styles/theme.css'
@@ -44,7 +44,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <div className={!appLoading || skipLoader ? 'block landing-animate' : 'hidden'}>
         <PageLoader />
         {children}
-        <MobileBottomNav />
       </div>
     </>
   );
@@ -70,6 +69,29 @@ export default function RootLayout({
       <head>
         {/* ── Theme initializer: reads localStorage and applies class BEFORE first paint ── */}
         <script src="/init-theme.js" />
+        
+        {/* ── Auth redirect: prevent landing page flash for logged-in users ── */}
+        <Script
+          id="auth-redirect-script"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var token = localStorage.getItem('auth_token');
+                  var userStr = localStorage.getItem('flowoid_auth_user');
+                  if (token && userStr && window.location.pathname === '/') {
+                    var user = JSON.parse(userStr);
+                    var role = user.role ? user.role.toLowerCase() : '';
+                    var isAdmin = role === 'super_admin' || role === 'flowoid_admin';
+                    window.location.replace(isAdmin ? '/admin' : '/dashboard');
+                  }
+                } catch (e) {}
+              })();
+            `
+          }}
+        />
+        
         <title>StockFlow - Inventory & Stock Management</title>
         <meta name="description" content="StockFlow is a modern inventory and stock management system for businesses." />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

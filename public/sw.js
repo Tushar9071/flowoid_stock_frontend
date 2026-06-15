@@ -3,7 +3,7 @@
 // Version: bump this string to force cache refresh on deploy
 // ============================================================
 
-const CACHE_VERSION = 'stockflow-v4';
+const CACHE_VERSION = 'stockflow-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;

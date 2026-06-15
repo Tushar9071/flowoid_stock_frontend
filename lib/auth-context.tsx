@@ -142,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith('/demo'));
 
       const storedUserStr = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+      const startTime = Date.now();
 
       try {
         if (storedUserStr) {
@@ -185,6 +186,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Auth initialization failed:', error);
       } finally {
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 400) {
+          await new Promise(resolve => setTimeout(resolve, 400 - elapsed));
+        }
         setIsLoading(false);
       }
     };
@@ -247,15 +252,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    try {
-      await AuthService.logout();
-    } finally {
-      clearAuthStorage();
-      setUser(null);
-      setPermissions([]);
-      setIsFullAccess(false);
-      router.push('/login');
-    }
+    // Fire the API call in the background without waiting
+    AuthService.logout().catch(console.error);
+    
+    // Instantly clear storage and force a hard redirect to cleanly wipe all app state
+    clearAuthStorage();
+    window.location.href = '/login';
   };
 
   const completeAuth = async (userData: User): Promise<string> => {

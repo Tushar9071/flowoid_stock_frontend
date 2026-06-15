@@ -50,6 +50,7 @@ export default function DashboardPage() {
     let isMounted = true;
 
     const loadDashboardData = async () => {
+      const startTime = Date.now();
       try {
         const tenantId = "owner";
 
@@ -166,7 +167,11 @@ export default function DashboardPage() {
         console.error('Error loading dashboard:', error);
       } finally {
         if (isMounted) {
-          setIsDashboardLoading(false);
+          const elapsed = Date.now() - startTime;
+          if (elapsed < 400) {
+            await new Promise(resolve => setTimeout(resolve, 400 - elapsed));
+          }
+          if (isMounted) setIsDashboardLoading(false);
         }
       }
     };

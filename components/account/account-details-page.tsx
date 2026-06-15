@@ -3,11 +3,9 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { AuthService } from '@/lib/services/auth.service';
-import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { useAuth } from '@/lib/auth-context';
-import { BackendTenant } from '@/lib/types';
 import { normalizeRole } from '@/lib/roles';
-import { Building2, CheckCircle2, KeyRound, Loader2, Mail, Phone, Shield, UserRound } from 'lucide-react';
+import { CheckCircle2, KeyRound, Loader2, Mail, Phone, Shield, UserRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 type Mode = 'profile' | 'settings';
@@ -22,29 +20,12 @@ const roleLabels: Record<string, string> = {
 
 export function AccountDetailsPage({ mode, shell }: { mode: Mode; shell: Shell }) {
   const { user, role, permissions, refreshAuth } = useAuth();
-  const [tenant, setTenant] = useState<BackendTenant | null>(null);
-  const [loadingTenant, setLoadingTenant] = useState(shell !== 'admin');
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
-
-  useEffect(() => {
-    if (shell === 'admin') return;
-
-    const loadTenant = async () => {
-      setLoadingTenant(true);
-      const response = await CurrentOwnerService.getCurrentOwner();
-      if (response.success && response.data) {
-        setTenant(response.data);
-      }
-      setLoadingTenant(false);
-    };
-
-    loadTenant();
-  }, [shell]);
 
   const roleKey = normalizeRole(role);
   const roleLabel = roleLabels[roleKey] || String(role || 'User');
@@ -84,7 +65,7 @@ export function AccountDetailsPage({ mode, shell }: { mode: Mode; shell: Shell }
 
   const content = (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-4">
         <section className="theme-surface-card overflow-hidden">
           <div className="border-b border-slate-200 p-5">
             <div className="flex items-center gap-4">
@@ -98,47 +79,11 @@ export function AccountDetailsPage({ mode, shell }: { mode: Mode; shell: Shell }
             </div>
           </div>
 
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
             <InfoCard icon={UserRound} label="Name" value={user?.name || '-'} />
             <InfoCard icon={Shield} label="Role" value={String(role || '-')} />
             <InfoCard icon={Mail} label="Email" value={user?.email || '-'} />
             <InfoCard icon={Phone} label="Phone" value={user?.phone || '-'} />
-          </div>
-        </section>
-
-        <section className="theme-surface-card overflow-hidden">
-          <div className="border-b border-slate-200 p-5">
-            <h3 className="theme-text-primary flex items-center gap-2 text-base font-black">
-              <Building2 className="h-5 w-5" />
-              {shell === 'admin' ? 'Platform Access' : 'Business Tenant'}
-            </h3>
-          </div>
-
-          <div className="p-5">
-            {shell === 'admin' ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                <p className="font-black text-emerald-800">Flowoid platform administrator</p>
-                <p className="mt-1 text-sm text-emerald-700">Can manage tenants, roles, permissions, monitoring and platform settings.</p>
-              </div>
-            ) : loadingTenant ? (
-              <div className="flex items-center gap-2 p-4 text-sm font-semibold text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading tenant details
-              </div>
-            ) : tenant ? (
-              <div className="space-y-3">
-                <InfoLine label="Business" value={tenant.name} />
-                <InfoLine label="Slug" value={tenant.slug} />
-                <InfoLine label="Status" value={tenant.status} />
-                <InfoLine label="Category" value={tenant.businessCategory || '-'} />
-                <InfoLine label="Email" value={tenant.email || '-'} />
-                <InfoLine label="Phone" value={tenant.phone || '-'} />
-              </div>
-            ) : (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                Tenant details are not included in the current backend session response.
-              </div>
-            )}
           </div>
         </section>
       </div>
@@ -210,14 +155,6 @@ function InfoCard({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
   );
 }
 
-function InfoLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <span className="text-xs font-black uppercase tracking-widest text-slate-400">{label}</span>
-      <span className="text-right text-sm font-bold text-slate-900">{value}</span>
-    </div>
-  );
-}
 
 function Field({ label, type, value, onChange }: { label: string; type: string; value: string; onChange: (value: string) => void }) {
   return (

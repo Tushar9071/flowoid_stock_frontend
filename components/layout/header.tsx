@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, LogOut, User, Settings, Loader2 } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Loader2, Menu } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { normalizeRole } from '@/lib/roles';
@@ -39,13 +39,19 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
       <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-3 md:gap-6">
         
         {/* Breadcrumb / Title Area */}
-        <div className="flex sm:hidden items-center w-36 shrink-0">
+        <div className="flex sm:hidden items-center gap-2 w-40 shrink-0">
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+            className="p-1 -ml-1 text-[#0F2A4A] hover:bg-slate-100 rounded-md transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
           <Image
             src="/brand/StockFlow_horizontal_light.svg"
             alt="StockFlow"
             width={2400}
             height={600}
-            className="h-auto w-full object-contain object-left"
+            className="h-auto w-full max-w-[120px] object-contain object-left"
             priority
           />
         </div>
@@ -83,7 +89,7 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
             >
               <Bell className="w-5 h-5 text-[#374151]" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-4 h-4 px-1 flex items-center justify-center bg-[#cc2200] text-white text-[10px] font-bold rounded-full border-2 border-white">
+                <span className="absolute top-1 right-1 min-w-4 h-4 px-1 flex items-center justify-center bg-[#cc2200] text-white text-[10px] font-bold rounded-full border-2 border-white notification-glow">
                   {unreadCount}
                 </span>
               )}

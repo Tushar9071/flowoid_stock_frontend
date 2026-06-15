@@ -45,8 +45,7 @@ export const navigationVisibility: Record<string, string[]> = {
     'design-catalogue',
     'worker-management',
     'inventory',
-    'dealer-management',
-    'supplier-management',
+    'party-management',
     'raw-materials',
     'orders-dispatch',
     'payments-ledger',
@@ -60,8 +59,7 @@ export const navigationVisibility: Record<string, string[]> = {
     'design-catalogue',
     'worker-management',
     'inventory',
-    'dealer-management',
-    'supplier-management',
+    'party-management',
     'raw-materials',
     'orders-dispatch',
     'payments-ledger',
@@ -73,8 +71,7 @@ export const navigationVisibility: Record<string, string[]> = {
     'design-catalogue',
     'worker-management',
     'inventory',
-    'dealer-management',
-    'supplier-management',
+    'party-management',
     'raw-materials',
     'orders-dispatch',
     'reports',
@@ -84,8 +81,7 @@ export const navigationVisibility: Record<string, string[]> = {
     'design-catalogue',
     'worker-management',
     'inventory',
-    'dealer-management',
-    'supplier-management',
+    'party-management',
     'raw-materials',
     'orders-dispatch',
     'payments-ledger',
@@ -163,6 +159,7 @@ export const navigationItems = [
   {
     id: 'dashboard',
     label: 'Dashboard',
+    group: 'Dashboard',
     href: '/dashboard',
     icon: 'LayoutDashboard',
     permission: 'dashboard.read',
@@ -170,6 +167,7 @@ export const navigationItems = [
   {
     id: 'design-catalogue',
     label: 'Design Catalogue',
+    group: 'Operations',
     href: '/dashboard/design-catalogue',
     icon: 'Grid2X2',
     permission: 'designs.read',
@@ -177,55 +175,87 @@ export const navigationItems = [
   {
     id: 'worker-management',
     label: 'Worker Management',
+    group: 'Operations',
     href: '/dashboard/worker-management',
     icon: 'Users',
     permission: 'workers.read',
+    subItems: [
+      { id: 'worker-list', label: 'Worker List', href: '/dashboard/worker-management' },
+      { id: 'assignments', label: 'Assignments', href: '/dashboard/worker-management/assignments' },
+      { id: 'goods-returns', label: 'Goods Returns', href: '/dashboard/worker-management/goods-returns' },
+      { id: 'payments', label: 'Payment Settlement', href: '/dashboard/worker-management/payments' }
+    ]
   },
   {
     id: 'raw-materials',
     label: 'Raw Materials',
+    group: 'Inventory',
     href: '/dashboard/raw-materials',
     icon: 'Package',
     permission: 'raw_materials.read',
+    subItems: [
+      { id: 'rm-stock', label: 'Stock Overview', href: '/dashboard/raw-materials' },
+      { id: 'rm-material-list', label: 'Material List', href: '/dashboard/raw-materials/material-list' },
+      { id: 'rm-stock-in', label: 'Material Purchases', href: '/dashboard/raw-materials/stock-in' },
+      { id: 'rm-stock-out', label: 'Material Usage', href: '/dashboard/raw-materials/stock-out' },
+    ]
   },
   {
     id: 'inventory',
     label: 'Inventory',
+    group: 'Inventory',
     href: '/dashboard/inventory',
     icon: 'Boxes',
     permission: 'stock_items.read',
+    subItems: [
+      { id: 'inv-finished', label: 'Finished Stock', href: '/dashboard/inventory' },
+      { id: 'inv-packaging', label: 'Packaging Batches', href: '/dashboard/inventory/packaging' },
+      { id: 'inv-alerts', label: 'Low Stock Alerts', href: '/dashboard/inventory/alerts' },
+      { id: 'inv-supplementary', label: 'Supplementary Stock', href: '/dashboard/inventory/supplementary' },
+    ]
   },
   {
-    id: 'dealer-management',
-    label: 'Dealer Management',
+    id: 'party-management',
+    label: 'Party Management',
+    group: 'Parties',
     href: '/dashboard/dealers',
     icon: 'Users2',
     permission: 'dealer_management.read',
-  },
-  {
-    id: 'supplier-management',
-    label: 'Supplier Management',
-    href: '/dashboard/suppliers',
-    icon: 'Package',
-    permission: 'supplier_management.read',
+    subItems: [
+      { id: 'pm-dealers', label: 'Dealer Management', href: '/dashboard/dealers' },
+      { id: 'pm-suppliers', label: 'Supplier Management', href: '/dashboard/suppliers' }
+    ]
   },
   {
     id: 'orders-dispatch',
     label: 'Orders & Dispatch',
+    group: 'Sales',
     href: '/dashboard/orders-dispatch',
     icon: 'ShoppingCart',
     permission: 'sales_orders.read',
+    subItems: [
+      { id: 'od-orders', label: 'All Orders', href: '/dashboard/orders-dispatch' },
+      { id: 'od-dispatch', label: 'Dispatch Status', href: '/dashboard/orders-dispatch/dispatch' },
+    ]
   },
   {
     id: 'payments-ledger',
     label: 'Payments & Ledger',
+    group: 'Sales',
     href: '/dashboard/payments-ledger',
     icon: 'CreditCard',
     permission: 'payments.read',
+    subItems: [
+      { id: 'pl-payments', label: 'Payments', href: '/dashboard/payments-ledger' },
+      { id: 'pl-ledger', label: 'Party Ledger', href: '/dashboard/payments-ledger/ledger' },
+      { id: 'pl-ageing', label: 'Ageing', href: '/dashboard/payments-ledger/ageing' },
+      { id: 'pl-cashflow', label: 'Cash Flow', href: '/dashboard/payments-ledger/cashflow' }
+    ]
   },
   {
     id: 'reports',
     label: 'Reports',
+    group: 'Analytics',
     href: '/dashboard/reports',
     icon: 'BarChart3',
     permission: 'reports.read',
@@ -233,6 +263,7 @@ export const navigationItems = [
   {
     id: 'user-management',
     label: 'User Management',
+    group: 'System',
     href: '/dashboard/user-management',
     icon: 'Shield',
     adminOnly: true,
@@ -241,6 +272,7 @@ export const navigationItems = [
   {
     id: 'role-management',
     label: 'Roles & Permissions',
+    group: 'System',
     href: '/dashboard/roles',
     icon: 'Shield',
     adminOnly: true,
@@ -249,6 +281,7 @@ export const navigationItems = [
   {
     id: 'settings',
     label: 'Settings',
+    group: 'System',
     href: '/dashboard/settings',
     icon: 'Settings',
     permission: 'settings.read',
@@ -256,6 +289,7 @@ export const navigationItems = [
   {
     id: 'profile',
     label: 'Profile',
+    group: 'System',
     href: '/dashboard/profile',
     icon: 'Shield',
     permission: 'dashboard.read',

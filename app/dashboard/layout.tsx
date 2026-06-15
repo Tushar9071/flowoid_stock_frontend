@@ -1,8 +1,7 @@
 'use client';
 
-import React from 'react';
 import { AuthGuard } from '@/components/shared/auth-guard';
-
+import { Sidebar } from '@/components/layout/sidebar';
 import { ActivityProvider } from '@/lib/hooks/use-activity-context';
 
 export default function DashboardRootLayout({
@@ -13,7 +12,12 @@ export default function DashboardRootLayout({
   return (
     <AuthGuard>
       <ActivityProvider>
-        {children}
+        <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
+          <Sidebar />
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+            {children}
+          </div>
+        </div>
       </ActivityProvider>
     </AuthGuard>
   );

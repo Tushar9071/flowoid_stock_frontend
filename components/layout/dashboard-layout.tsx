@@ -2,7 +2,6 @@
 
 import React, { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { useAuth } from '@/lib/auth-context';
 import { navigationItems } from '@/lib/constants';
@@ -35,10 +34,8 @@ export function DashboardLayout({ children, title, subtitle, action, breadcrumb 
   const canViewPage = !pagePermission || isFullAccess || hasPermission(pagePermission);
 
   return (
-    <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header breadcrumb={breadcrumb} />
+    <>
+      <Header breadcrumb={breadcrumb} />
 
         {/* Page header banner */}
         {(title || action) && (
@@ -58,20 +55,19 @@ export function DashboardLayout({ children, title, subtitle, action, breadcrumb 
         )}
 
         {/* Scrollable content */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 md:pb-6">
-          {canViewPage ? (
-            children
-          ) : (
-            <div className="mx-auto mt-10 max-w-2xl rounded-xl border border-[#e5e7eb] bg-white p-12 text-center shadow-sm">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#fff0f0]">
-                <Shield className="h-7 w-7 text-[#cc2200]" />
+        <div className="flex-1 overflow-auto bg-[#f8fafc] p-4 md:p-6 theme-bg-main relative" ref={scrollRef}>
+          {canViewPage ? children : (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+                <Shield className="w-8 h-8" />
               </div>
-              <p className="theme-text-primary mb-1 text-[18px] font-bold">Access Denied</p>
-              <p className="text-sm text-[#6b7280]">You do not have permission to view this page.</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h3>
+              <p className="text-gray-500 max-w-md">
+                You don't have permission to access this page. Please contact your administrator if you believe this is a mistake.
+              </p>
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </>
   );
 }
