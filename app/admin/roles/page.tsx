@@ -169,8 +169,8 @@ export default function RolesPage() {
         const nextOwners = ownersRes.data || [];
         setOwners(nextOwners);
         const nextSelected = selectedOwner
-          ? nextOwners.find((owner: ManagedUser) => owner.id === selectedOwner.id) || nextOwners[0] || null
-          : nextOwners[0] || null;
+          ? nextOwners.find((owner: ManagedUser) => owner.id === selectedOwner.id) || nextOwners.find((o: ManagedUser) => o.isActive) || null
+          : nextOwners.find((o: ManagedUser) => o.isActive) || null;
         setSelectedOwner(nextSelected);
         if (nextSelected) await loadOwnerPermissions(nextSelected.id);
       } else {

@@ -797,7 +797,7 @@ export default function RawMaterialsPage({
           materialTypes={types}
           suppliers={suppliers}
           saving={saving}
-          editing={Boolean(selectedPurchase)}
+          editing={purchaseModalMode === 'edit'}
           onClose={() => setPurchaseModalMode(null)}
           onSubmit={savePurchase}
         />

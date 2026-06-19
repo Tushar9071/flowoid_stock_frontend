@@ -80,24 +80,30 @@ export function PremiumSelect({
           style={{ width: 'var(--radix-select-trigger-width)' }}
         >
           <SelectPrimitive.Viewport className="p-1">
-            {options.map((opt, i) => {
-              if (opt.value === '' && i === 0) return null; // Skip placeholder option in the list
-              return (
-                <SelectPrimitive.Item
-                  key={`${opt.value}-${i}`}
-                  value={opt.value}
-                  disabled={opt.disabled}
-                  className="relative flex w-full cursor-pointer select-none items-center rounded-lg py-2.5 pl-9 pr-2 text-sm outline-none hover:bg-slate-100 focus:bg-slate-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:bg-indigo-50 data-[state=checked]:font-semibold data-[state=checked]:text-indigo-900"
-                >
-                  <span className="absolute left-3 flex h-3.5 w-3.5 items-center justify-center">
-                    <SelectPrimitive.ItemIndicator>
-                      <Check className="h-4 w-4 text-indigo-600" />
-                    </SelectPrimitive.ItemIndicator>
-                  </span>
-                  <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
-                </SelectPrimitive.Item>
-              );
-            })}
+            {options.some(opt => opt.value !== '') ? (
+              options.map((opt, i) => {
+                if (opt.value === '' && i === 0) return null; // Skip placeholder option in the list
+                return (
+                  <SelectPrimitive.Item
+                    key={`${opt.value}-${i}`}
+                    value={opt.value}
+                    disabled={opt.disabled}
+                    className="relative flex w-full cursor-pointer select-none items-center rounded-lg py-2.5 pl-9 pr-2 text-sm outline-none hover:bg-slate-100 focus:bg-slate-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:bg-indigo-50 data-[state=checked]:font-semibold data-[state=checked]:text-indigo-900"
+                  >
+                    <span className="absolute left-3 flex h-3.5 w-3.5 items-center justify-center">
+                      <SelectPrimitive.ItemIndicator>
+                        <Check className="h-4 w-4 text-indigo-600" />
+                      </SelectPrimitive.ItemIndicator>
+                    </span>
+                    <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+                  </SelectPrimitive.Item>
+                );
+              })
+            ) : (
+              <div className="py-4 text-center text-sm font-medium text-slate-500">
+                No options found
+              </div>
+            )}
           </SelectPrimitive.Viewport>
         </SelectPrimitive.Content>
       </SelectPrimitive.Portal>

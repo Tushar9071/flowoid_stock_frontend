@@ -277,7 +277,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <SearchInput
             containerClassName="w-full sm:w-80"
             inputClassName="theme-focus-ring rounded-lg border-gray-200 bg-white"
@@ -286,13 +286,13 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
             onChange={event => setSearch(event.target.value)}
           />
 
-          <div className="flex rounded-lg border border-gray-200 bg-white p-1">
+          <div className="flex items-center gap-1">
             {(['all', 'active', 'inactive'] as const).map(status => (
               <button
                 key={status}
                 onClick={() => setActiveFilter(status)}
-                className={`h-8 rounded-md px-3 text-xs font-bold capitalize transition ${
-                  activeFilter === status ? 'theme-accent-btn' : 'text-gray-500 hover:bg-gray-50'
+                className={`flex h-8 items-center justify-center rounded-md px-4 text-[13px] font-bold capitalize transition-all duration-200 ${
+                  activeFilter === status ? 'theme-accent-btn shadow-sm' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {status}

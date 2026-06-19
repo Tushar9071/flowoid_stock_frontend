@@ -9,7 +9,6 @@ import { UseCasesSection } from '@/components/landing/use-cases-section';
 import { FAQSection } from '@/components/landing/faq-section';
 import { CTASection } from '@/components/landing/cta-section';
 import { Footer } from '@/components/landing/footer';
-import { PWAInstallNudge } from '@/components/landing/pwa-install-nudge';
 import { ScrollReveal } from '@/components/landing/scroll-reveal';
 
 export default function Home() {
@@ -47,8 +46,6 @@ export default function Home() {
       <div className="scroll-animate landing-delay-9">
         <Footer />
       </div>
-
-      <PWAInstallNudge delayMs={1200} />
     </div>
   );
 }

@@ -3,9 +3,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { Bell, Shield, LogOut, Settings, User } from 'lucide-react';
+import { Bell, Shield, LogOut, Settings, User, Menu } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
-import { PWAInstallButton } from '@/components/PWAInstallButton';
 import Image from 'next/image';
 import { SearchInput } from '@/components/shared/search-input';
 
@@ -30,14 +29,22 @@ export function AdminHeader() {
       <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-3 md:gap-6">
         
         {/* Title Area removed to prevent duplication with AdminLayout banner */}
-        <div className="flex sm:hidden items-center w-36 shrink-0">
+        <div className="flex sm:hidden items-center gap-2 w-40 shrink-0">
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+            className="p-1 -ml-1 text-[#0F2A4A] hover:bg-slate-100 rounded-md transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
           <Image
             src="/brand/StockFlow_horizontal_light.svg"
             alt="StockFlow"
             width={2400}
             height={600}
-            className="h-auto w-full object-contain object-left"
+            className="h-auto w-full max-w-[120px] object-contain object-left"
+            style={{ height: 'auto' }}
             priority
+            loading="eager"
           />
         </div>
 
@@ -56,9 +63,6 @@ export function AdminHeader() {
           </div>
 
           {/* Theme Switcher */}
-          <div className="hidden sm:block">
-            <PWAInstallButton compact />
-          </div>
           <ThemeSwitcher />
 
           {/* Notifications */}

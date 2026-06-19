@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Bell, LogOut, User, Settings, Loader2, Menu } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
-import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { normalizeRole } from '@/lib/roles';
 import Image from 'next/image';
 import { GlobalSearch } from '@/components/shared/global-search';
@@ -52,7 +51,9 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
             width={2400}
             height={600}
             className="h-auto w-full max-w-[120px] object-contain object-left"
+            style={{ height: 'auto' }}
             priority
+            loading="eager"
           />
         </div>
         <div className="hidden sm:block shrink-0">
@@ -71,9 +72,6 @@ export function Header({ breadcrumb }: { breadcrumb?: React.ReactNode }) {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">
-          <div className="hidden md:block">
-            <PWAInstallButton compact />
-          </div>
 
           {/* Theme Switcher — palette icon only, no label */}
           <ThemeSwitcher />

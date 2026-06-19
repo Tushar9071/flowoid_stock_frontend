@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import Image from "next/image";
-import { PWAInstallButton } from "@/components/PWAInstallButton";
 
 export function LandingHeader() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -45,7 +44,9 @@ export function LandingHeader() {
               width={2400} 
               height={600} 
               className="w-full h-auto object-contain object-left"
+              style={{ height: 'auto' }}
               priority
+              loading="eager"
             />
           </Link>
 
@@ -64,7 +65,6 @@ export function LandingHeader() {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
-            <PWAInstallButton />
             <Link href="/login">
               <Button
                 variant="outline"
@@ -82,7 +82,6 @@ export function LandingHeader() {
 
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center gap-2">
-            <PWAInstallButton compact />
             <button
               className="p-2 text-[#0F1C2E]"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

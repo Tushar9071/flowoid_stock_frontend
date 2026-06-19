@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { PWAInstallButton } from "@/components/PWAInstallButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -87,10 +86,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex w-full h-screen overflow-hidden font-jakarta bg-[#F8F9FC]">
-      <div className="fixed right-4 top-4 z-40 md:right-6 md:top-6">
-        <PWAInstallButton compact />
-      </div>
-      
       {/* LEFT PANEL - Branded Side */}
       <div className="hidden md:flex flex-col w-[45%] h-full relative p-12 overflow-hidden justify-between"
            style={{ background: "radial-gradient(circle at top left, #0D3D56 0%, #1B2D4F 100%)" }}>
@@ -151,7 +146,9 @@ export default function LoginPage() {
             width={270}
             height={300}
             className="h-[220px] lg:h-[270px] w-auto object-contain"
+            style={{ width: 'auto' }}
             priority
+            loading="eager"
           />
         </div>
         

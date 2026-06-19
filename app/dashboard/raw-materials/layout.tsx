@@ -40,7 +40,7 @@ function RawMaterialsModals() {
           materialTypes={types}
           suppliers={suppliers}
           saving={saving}
-          editing={Boolean(purchaseForm.status)}
+          editing={purchaseModalMode === 'edit'}
           onClose={() => setPurchaseModalMode(null)}
           onSubmit={savePurchase}
         />

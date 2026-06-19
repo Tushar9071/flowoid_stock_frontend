@@ -5,20 +5,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { MonitoringService } from '@/lib/services/monitoring.service';
 import { MonitoringMetrics } from '@/lib/types';
+import { io, Socket } from 'socket.io-client';
 import {
   Activity,
   Clock,
   Cpu,
   Database,
   HardDrive,
-  Loader2,
   Route,
   Server,
   Wifi,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { ACCESS_TOKEN_STORAGE_KEY } from '@/lib/api-client';
 
 function formatUptime(seconds: number) {
   const days = Math.floor(seconds / 86400);
@@ -54,15 +54,110 @@ export default function MonitoringPage() {
   };
 
   useEffect(() => {
+    // Initial fetch via REST
     fetchMetrics();
-    const intervalId = window.setInterval(() => fetchMetrics(true), 15000);
-    return () => clearInterval(intervalId);
+
+    // Use URL strictly from environment variables to prevent exposing sensitive endpoints in source code.
+    const socketUrl = process.env.NEXT_PUBLIC_MONITORING_SOCKET_URL;
+    
+    if (!socketUrl) {
+      // If no socket URL is provided in .env, gracefully fallback to HTTP polling immediately
+      setSocketStatus('fallback');
+      const fallbackInterval = window.setInterval(() => fetchMetrics(true), 15000);
+      return () => clearInterval(fallbackInterval);
+    }
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) : null;
+
+    // Connect to Socket.IO backend securely
+    const socket: Socket = io(socketUrl, {
+      auth: { token }, // Pass token for secure connection
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('connect', () => {
+      setSocketStatus('connected');
+      socket.emit('join:monitoring');
+    });
+
+    socket.on('monitoring:update', (data: { status: any; apiStats: any }) => {
+      setSocketStatus('connected');
+      
+      const memoryUsage = data.status?.memoryUsage || {};
+      const heapTotalMb = Math.round(((memoryUsage.heapTotal || 0) / 1024 / 1024) * 100) / 100;
+      const heapUsedMb = Math.round(((memoryUsage.heapUsed || 0) / 1024 / 1024) * 100) / 100;
+      const rssMb = Math.round(((memoryUsage.rss || 0) / 1024 / 1024) * 100) / 100;
+      const memoryUsagePercent = heapTotalMb > 0 ? (heapUsedMb / heapTotalMb) * 100 : 0;
+
+      setMetrics({
+        timestamp: new Date().toISOString(),
+        service: {
+          uptimeSeconds: Number(data.status?.uptime || 0),
+          pid: Number(data.status?.process?.pid || 0),
+          nodeVersion: data.status?.process?.nodeVersion || '',
+          platform: data.status?.process?.platform || '',
+          startedAt: new Date(Date.now() - Number(data.status?.uptime || 0) * 1000).toISOString(),
+        },
+        system: {
+          hostname: '',
+          cpuUsagePercent: 0,
+          cpuCount: 0,
+          loadAverage: [],
+          totalMemoryMb: heapTotalMb,
+          usedMemoryMb: heapUsedMb,
+          freeMemoryMb: Math.max(heapTotalMb - heapUsedMb, 0),
+          memoryUsagePercent,
+        },
+        process: {
+          rssMb,
+          heapTotalMb,
+          heapUsedMb,
+          externalMb: Math.round(((memoryUsage.external || 0) / 1024 / 1024) * 100) / 100,
+        },
+        api: {
+          totalRequests: Number(data.apiStats?.total || 0),
+          activeRequests: 0,
+          averageResponseTimeMs: Number(data.apiStats?.avgResponseTimeMs || 0),
+          statusCodes: {
+            success: Number(data.apiStats?.success || 0),
+            warning: Number(data.apiStats?.warning || 0),
+            error: Number(data.apiStats?.error || 0),
+          },
+          routes: data.apiStats?.routes || {},
+        },
+        database: {
+          status: 'UP',
+          latencyMs: null,
+        },
+      });
+      setIsLoading(false);
+    });
+
+    socket.on('disconnect', () => {
+      setSocketStatus('disconnected');
+    });
+
+    socket.on('connect_error', () => {
+      setSocketStatus('fallback');
+    });
+
+    // Fallback polling if socket fails or disconnects
+    const intervalId = window.setInterval(() => {
+      if (socket.connected) return;
+      fetchMetrics(true);
+    }, 15000);
+
+    return () => {
+      clearInterval(intervalId);
+      socket.disconnect();
+    };
   }, []);
 
   const topRoutes = useMemo(() => {
     if (!metrics?.api?.routes) return [];
     return Object.entries(metrics.api.routes)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
       .slice(0, 8);
   }, [metrics]);
 
@@ -110,9 +205,22 @@ export default function MonitoringPage() {
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3 text-sm font-semibold text-gray-500">
-          <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1.5 text-green-700">
-            <span className={`h-2 w-2 rounded-full ${socketStatus === 'connected' ? 'bg-green-500' : 'bg-amber-500'}`} />
-            {socketStatus === 'connected' ? 'Socket Live' : 'REST Fallback'}
+          <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+            socketStatus === 'connected' ? 'border-green-200 bg-green-50 text-green-700' :
+            socketStatus === 'fallback' ? 'border-amber-200 bg-amber-50 text-amber-700' :
+            socketStatus === 'disconnected' ? 'border-red-200 bg-red-50 text-red-700' :
+            'border-blue-200 bg-blue-50 text-blue-700'
+          }`}>
+            <span className={`h-2 w-2 rounded-full ${
+              socketStatus === 'connected' ? 'bg-green-500' :
+              socketStatus === 'fallback' ? 'bg-amber-500' :
+              socketStatus === 'disconnected' ? 'bg-red-500' :
+              'bg-blue-500 animate-pulse'
+            }`} />
+            {socketStatus === 'connected' ? 'Socket Live' :
+             socketStatus === 'fallback' ? 'REST Fallback' :
+             socketStatus === 'disconnected' ? 'Disconnected' :
+             'Connecting...'}
           </span>
           <span>Updated {new Date(metrics.timestamp).toLocaleString()}</span>
         </div>
@@ -150,7 +258,7 @@ export default function MonitoringPage() {
                     <Route className="h-4 w-4 shrink-0 text-gray-400" />
                     <span className="truncate text-sm font-semibold text-gray-700">{routeName}</span>
                   </div>
-                  <span className="text-sm font-black text-[#0D7377]">{count}</span>
+                  <span className="text-sm font-black text-[#0D7377]">{count as React.ReactNode}</span>
                 </div>
               )) : (
                 <div className="rounded-lg border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
@@ -190,7 +298,7 @@ export default function MonitoringPage() {
           {Object.entries(metrics.api.statusCodes || {}).length > 0 ? Object.entries(metrics.api.statusCodes || {}).map(([code, count]) => (
             <div key={code} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="text-xs font-black uppercase tracking-widest text-gray-400">HTTP {code}</p>
-              <p className="mt-1 text-2xl font-black text-[#0F2A4A]">{count}</p>
+              <p className="mt-1 text-2xl font-black text-[#0F2A4A]">{count as React.ReactNode}</p>
             </div>
           )) : (
             <div className="rounded-lg border border-dashed border-gray-200 p-6 text-sm font-medium text-gray-500 lg:col-span-5">
