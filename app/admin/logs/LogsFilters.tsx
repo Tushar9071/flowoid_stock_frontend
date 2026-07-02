@@ -15,9 +15,119 @@ interface LogsFiltersProps {
   autoRefresh: boolean;
   setAutoRefresh: (val: boolean) => void;
   lastUpdated: Date | null;
-  refreshCountdown: number | null;
   onRefreshNow: () => void;
   isLoading: boolean;
+}
+
+function DebouncedSearch({ 
+  value, 
+  onChange, 
+  placeholder 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  placeholder: string;
+}) {
+  const [localValue, setLocalValue] = useState(value);
+
+  // Sync local state if parent value changes from outside (e.g., clear filters)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localValue !== value) {
+        onChange(localValue);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [localValue, value, onChange]);
+
+  return (
+      <SearchInput
+      containerClassName="flex-1 w-full"
+      inputClassName="bg-gray-50 border-gray-200 h-10 text-[14px]"
+      placeholder={placeholder}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+    />
+  );
+}
+
+function RefreshControls({ 
+  lastUpdated, 
+  autoRefresh, 
+  setAutoRefresh, 
+  onRefreshNow, 
+  isLoading 
+}: {
+  lastUpdated: Date | null;
+  autoRefresh: boolean;
+  setAutoRefresh: (val: boolean) => void;
+  onRefreshNow: () => void;
+  isLoading: boolean;
+}) {
+  const [timeAgo, setTimeAgo] = useState(0);
+  const [localCountdown, setLocalCountdown] = useState(10);
+
+  useEffect(() => {
+    if (!lastUpdated) return;
+
+    setLocalCountdown(10);
+    setTimeAgo(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+
+    const interval = setInterval(() => {
+      setTimeAgo(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+      if (autoRefresh) {
+        setLocalCountdown((prev) => (prev <= 1 ? 10 : prev - 1));
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lastUpdated, autoRefresh]);
+
+  return (
+    <div className="flex flex-wrap items-center gap-4 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+      {lastUpdated && (
+        <div className="flex flex-col">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Last Updated</span>
+          <span className="text-xs font-medium text-gray-700">{timeAgo}s ago</span>
+        </div>
+      )}
+      
+      <div className="w-px h-6 bg-gray-200 hidden sm:block" />
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setAutoRefresh(!autoRefresh)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold transition-colors ${
+            autoRefresh ? 'text-blue-700 bg-blue-100 hover:bg-blue-200' : 'text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          {autoRefresh ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          {autoRefresh ? 'PAUSE REFRESH' : 'RESUME REFRESH'}
+        </button>
+
+        {autoRefresh && (
+          <span className="text-xs font-mono font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 min-w-[50px] text-center">
+            {localCountdown}s
+          </span>
+        )}
+        
+        <Button 
+          variant="default" 
+          size="sm" 
+          onClick={onRefreshNow} 
+          disabled={isLoading}
+          className="h-7 text-xs bg-gray-900 hover:bg-gray-800"
+        >
+          <RefreshCw className={`w-3 h-3 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh Now
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function LogsFilters({ 
@@ -27,23 +137,10 @@ export function LogsFilters({
   autoRefresh, 
   setAutoRefresh, 
   lastUpdated,
-  refreshCountdown,
   onRefreshNow,
   isLoading
 }: LogsFiltersProps) {
-  const [searchInput, setSearchInput] = useState(filters.search || '');
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        setFilters({ ...filters, search: searchInput, page: 1 });
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput, filters, setFilters]);
-
   const handleClear = () => {
-    setSearchInput('');
     setFilters({
       page: 1,
       limit: 50,
@@ -53,27 +150,16 @@ export function LogsFilters({
     });
   };
 
-  const hasActiveFilters = searchInput || (filters.level && filters.level !== 'All') || (filters.category && filters.category !== 'All');
-
-  const [timeAgo, setTimeAgo] = useState(0);
-  useEffect(() => {
-    if (!lastUpdated) return;
-    const interval = setInterval(() => {
-      setTimeAgo(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [lastUpdated]);
+  const hasActiveFilters = filters.search || (filters.level && filters.level !== 'All') || (filters.category && filters.category !== 'All');
 
   return (
     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-4 space-y-4">
       {/* Top Row: Search and Selects */}
       <div className="flex flex-col lg:flex-row items-center gap-4">
-        <SearchInput
-          containerClassName="flex-1 w-full"
-          inputClassName="bg-gray-50 border-gray-200 h-10 text-[14px]"
+        <DebouncedSearch
           placeholder="Search log messages, traces, actions..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
+          value={filters.search || ''}
+          onChange={(val) => setFilters({ ...filters, search: val, page: 1 })}
         />
         
         <div className="flex flex-wrap md:flex-nowrap items-center gap-3 w-full lg:w-auto">
@@ -125,10 +211,10 @@ export function LogsFilters({
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center mr-2">
             <Filter className="w-3.5 h-3.5 mr-1" /> Active Filters:
           </span>
-          {searchInput && (
+          {filters.search && (
             <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 flex items-center gap-1.5 px-2.5 py-1">
-              Search: "{searchInput}"
-              <X className="w-3 h-3 cursor-pointer" onClick={() => setSearchInput('')} />
+              Search: "{filters.search}"
+              <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, search: '', page: 1 })} />
             </Badge>
           )}
           {filters.level && filters.level !== 'All' && (
@@ -160,45 +246,13 @@ export function LogsFilters({
           )}
         </div>
         
-        <div className="flex flex-wrap items-center gap-4 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-          {lastUpdated && (
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Last Updated</span>
-              <span className="text-xs font-medium text-gray-700">{timeAgo}s ago</span>
-            </div>
-          )}
-          
-          <div className="w-px h-6 bg-gray-200 hidden sm:block" />
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold transition-colors ${
-                autoRefresh ? 'text-blue-700 bg-blue-100 hover:bg-blue-200' : 'text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {autoRefresh ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              {autoRefresh ? 'PAUSE REFRESH' : 'RESUME REFRESH'}
-            </button>
-
-            {autoRefresh && refreshCountdown !== null && (
-              <span className="text-xs font-mono font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 min-w-[50px] text-center">
-                {refreshCountdown}s
-              </span>
-            )}
-            
-            <Button 
-              variant="default" 
-              size="sm" 
-              onClick={onRefreshNow} 
-              disabled={isLoading}
-              className="h-7 text-xs bg-gray-900 hover:bg-gray-800"
-            >
-              <RefreshCw className={`w-3 h-3 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Now
-            </Button>
-          </div>
-        </div>
+        <RefreshControls 
+          lastUpdated={lastUpdated} 
+          autoRefresh={autoRefresh} 
+          setAutoRefresh={setAutoRefresh} 
+          onRefreshNow={onRefreshNow} 
+          isLoading={isLoading} 
+        />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LogStatsCards } from './LogStatsCards';
 import { LogsFilters } from './LogsFilters';
 import { LogsTable } from './LogsTable';
@@ -21,7 +21,7 @@ export default function LogsPage() {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const { logs, total, isLoading, refetch, analytics, refreshCountdown } = useLogs(filters, autoRefresh, expandedRowId !== null);
+  const { logs, total, isLoading, refetch, analytics } = useLogs(filters, autoRefresh, expandedRowId !== null);
 
   useEffect(() => {
     if (!isLoading) {
@@ -29,7 +29,7 @@ export default function LogsPage() {
     }
   }, [isLoading, logs]);
 
-  const handleExportCSV = (selectedIds: string[]) => {
+  const handleExportCSV = useCallback((selectedIds: string[]) => {
     try {
       const logsToExport = selectedIds.length > 0 
         ? logs.filter(l => selectedIds.includes(l.id))
@@ -68,9 +68,9 @@ export default function LogsPage() {
     } catch (err) {
       toast.error('Failed to export logs to CSV');
     }
-  };
+  }, [logs]);
 
-  const handleExportJSON = (selectedIds: string[]) => {
+  const handleExportJSON = useCallback((selectedIds: string[]) => {
     try {
       const logsToExport = selectedIds.length > 0 
         ? logs.filter(l => selectedIds.includes(l.id))
@@ -94,7 +94,7 @@ export default function LogsPage() {
     } catch (err) {
       toast.error('Failed to export logs to JSON');
     }
-  };
+  }, [logs]);
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-full pb-20">
@@ -107,7 +107,6 @@ export default function LogsPage() {
         autoRefresh={autoRefresh} 
         setAutoRefresh={setAutoRefresh}
         lastUpdated={lastUpdated}
-        refreshCountdown={refreshCountdown}
         onRefreshNow={refetch}
         isLoading={isLoading}
       />

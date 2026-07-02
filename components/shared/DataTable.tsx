@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { SkeletonTable } from "@/components/skeleton/Skeletons";
 import { createPortal } from "react-dom";
-import { PremiumSelect } from "@/components/ui/PremiumSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useViewMode } from "@/context/ViewModeContext";
 import { ViewToggle } from "@/components/ui/ViewToggle";
 import { SearchInput } from "@/components/shared/search-input";
@@ -148,9 +148,13 @@ export function AdvancedDataTable<T extends Record<string, any>>({
 
         switch (col.filterType) {
           case "select":
-            // filterValue is an array of selected values
-            if (Array.isArray(filterValue) && filterValue.length > 0) {
-              return filterValue.includes(val);
+            // Support both array of selected values (multi-select) and single string (single-select)
+            if (Array.isArray(filterValue)) {
+              if (filterValue.length > 0) return filterValue.includes(val);
+              return true;
+            }
+            if (filterValue !== undefined && filterValue !== null && filterValue !== "") {
+              return String(val) === String(filterValue);
             }
             return true;
           case "text":
@@ -237,7 +241,7 @@ export function AdvancedDataTable<T extends Record<string, any>>({
         <div className="flex items-center gap-4 w-full sm:w-auto">
           {searchable ? (
             <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-slate-400" />
               <input
                 type="text"
                 placeholder={searchPlaceholder}
@@ -246,7 +250,7 @@ export function AdvancedDataTable<T extends Record<string, any>>({
                   setGlobalSearch(e.target.value);
                   setPage(1);
                 }}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F2A4A]/20 focus:border-[#0F2A4A] transition-all"
+                className="w-full !pl-[42px] !pr-4 !py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F2A4A]/20 focus:border-[#0F2A4A] transition-all"
               />
             </div>
           ) : (
@@ -488,20 +492,24 @@ export function AdvancedDataTable<T extends Record<string, any>>({
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-500">Rows:</span>
-              <PremiumSelect
-                value={limit}
-                onChange={(e: any) => {
-                  setLimit(Number(e.target.value));
+              <Select
+                value={String(limit)}
+                onValueChange={(val: any) => {
+                  setLimit(Number(val));
                   setPage(1);
                 }}
-                className="w-[80px]"
               >
-                {[5, 10, 20, 50].map((pageSize) => (
-                  <option key={pageSize} value={pageSize}>
-                    {pageSize}
-                  </option>
-                ))}
-              </PremiumSelect>
+                <SelectTrigger className="w-[80px] h-[36px] bg-white border-slate-200 text-sm font-medium text-slate-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[5, 10, 20, 50].map((pageSize) => (
+                    <SelectItem key={pageSize} value={String(pageSize)} className="font-medium cursor-pointer">
+                      {pageSize}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -564,11 +572,22 @@ function HeaderFilter({
 
   useEffect(() => {
     function handle(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      
+      // Ignore clicks inside Radix UI portals (like the Select dropdown) so they don't close the parent popup
+      if (
+        target.closest('[role="listbox"]') || 
+        target.closest('[data-radix-popper-content-wrapper]') || 
+        target.closest('[data-slot="select-content"]')
+      ) {
+        return;
+      }
+
       if (
         ref.current &&
-        !ref.current.contains(e.target as Node) &&
+        !ref.current.contains(target as Node) &&
         popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node)
+        !popoverRef.current.contains(target as Node)
       ) {
         setOpen(false);
       }
@@ -643,35 +662,41 @@ function HeaderFilter({
               {/* TEXT FILTER */}
               {(!column.filterType || column.filterType === "text") && (
                 <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-[14px] w-[14px] text-slate-400" />
                   <input
                     type="text"
                     autoFocus
                     placeholder={`Search ${column.header}...`}
                     value={draft || ""}
                     onChange={(e) => setDraft(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F2A4A]"
+                    className="w-full !pl-8 !pr-3 !py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F2A4A]"
                   />
                 </div>
               )}
 
               {/* SELECT FILTER */}
               {column.filterType === "select" && column.filterOptions && (
-                <PremiumSelect
-                  value={value || ""}
-                  onChange={(e: any) => {
-                    onChange(e.target.value);
-                    setOpen(false);
-                  }}
-                  className="w-full"
-                >
-                  <option value="">All</option>
-                  {column.filterOptions.map((opt, i) => (
-                    <option key={i} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </PremiumSelect>
+                <div className="mb-2">
+                  <Select
+                    value={draft ? String(draft) : "all"}
+                    onValueChange={(val: any) => {
+                      const newValue = val === "all" ? "" : val;
+                      setDraft(newValue);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-white border-slate-200 text-sm focus:ring-0 focus:ring-offset-0 focus:border-[#0F2A4A] h-[38px] rounded-lg font-medium text-slate-700">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10000]">
+                      <SelectItem value="all" className="font-medium cursor-pointer">All</SelectItem>
+                      {column.filterOptions.map((opt, i) => (
+                        <SelectItem key={i} value={String(opt.value)} className="font-medium cursor-pointer">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
 
               {/* BOOLEAN FILTER */}

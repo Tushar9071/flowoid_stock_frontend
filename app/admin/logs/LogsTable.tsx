@@ -35,7 +35,7 @@ const getLevelBadge = (level: string) => {
   }
 };
 
-export function LogsTable({ 
+export const LogsTable = React.memo(function LogsTable({ 
   logs, 
   total, 
   isLoading, 
@@ -105,8 +105,8 @@ export function LogsTable({
 
       <div className="flex-1 overflow-auto relative scrollbar-thin">
         <Table className="w-full text-left border-collapse min-w-[1000px]">
-          <TableHeader className="sticky top-0 bg-gray-50/95 backdrop-blur-sm z-20 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-            <TableRow className="border-b border-gray-200 hover:bg-transparent">
+          <TableHeader className="sticky top-0 bg-gray-50 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.05)] border-b border-gray-200">
+            <TableRow className="hover:bg-transparent">
               <TableHead className="w-10 px-4">
                 <Checkbox 
                   checked={logs.length > 0 && selectedIds.size === logs.length}
@@ -301,4 +301,4 @@ export function LogsTable({
       </div>
     </div>
   );
-}
+});

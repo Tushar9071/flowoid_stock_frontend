@@ -68,6 +68,96 @@ function downloadCsv(filename: string, rows: BackendRecord[]) {
   URL.revokeObjectURL(url);
 }
 
+async function downloadPdf(filename: string, title: string, rows: BackendRecord[], tenant: BackendTenant | null) {
+  if (!rows.length) {
+    toast.error('No rows available to download');
+    return;
+  }
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
+  let startY = 20;
+
+  if (tenant?.logoUrl) {
+    try {
+      let logoSrc = tenant.logoUrl;
+      if (!/^https?:\/\//i.test(logoSrc)) {
+         let normalized = logoSrc.replace(/\\/g, '/').replace(/^\/?api\//, '/');
+         if (!normalized.startsWith('/')) normalized = '/' + normalized;
+         logoSrc = window.location.origin + normalized;
+      }
+      
+      const imgData = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+             ctx.drawImage(img, 0, 0);
+             resolve(canvas.toDataURL('image/png'));
+          } else reject('no ctx');
+        };
+        img.onerror = reject;
+        img.src = logoSrc;
+      });
+      
+      doc.addImage(imgData, 'PNG', pageWidth / 2 - 15, startY, 30, 30);
+      startY += 35;
+    } catch (err) {
+      console.warn('Failed to load logo for PDF', err);
+    }
+  }
+
+  doc.setFontSize(20);
+  doc.setTextColor(15, 42, 74);
+  const businessName = tenant?.name || 'Business Report';
+  doc.text(businessName, pageWidth / 2, startY, { align: 'center' });
+  startY += 8;
+
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  const details = [
+    tenant?.address,
+    tenant?.phone ? `Ph: ${tenant.phone}` : null,
+    tenant?.email ? `Email: ${tenant.email}` : null
+  ].filter(Boolean).join(' | ');
+
+  if (details) {
+    doc.text(details, pageWidth / 2, startY, { align: 'center' });
+    startY += 8;
+  }
+
+  startY += 10;
+  doc.setFontSize(14);
+  doc.setTextColor(0);
+  doc.text(title, 14, startY);
+  
+  doc.setFontSize(10);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, startY + 7);
+  
+  startY += 12;
+
+  const headers = Object.keys(rows[0]);
+  const data = rows.map(row => headers.map(header => String(row[header] ?? '-')));
+
+  autoTable(doc, {
+    startY: startY,
+    head: [headers.map(h => h.toUpperCase())],
+    body: data,
+    theme: 'striped',
+    headStyles: { fillColor: [15, 42, 74] },
+    styles: { fontSize: 8 },
+  });
+
+  doc.save(filename);
+}
+
 export default function ReportsPage() {
   const { hasPermission } = useAuth();
   const [tenant, setTenant] = useState<BackendTenant | null>(null);
@@ -79,6 +169,7 @@ export default function ReportsPage() {
   const [workers, setWorkers] = useState<BackendRecord[]>([]);
   const [assignments, setAssignments] = useState<BackendRecord[]>([]);
   const [payments, setPayments] = useState<BackendRecord[]>([]);
+  const [workerPayments, setWorkerPayments] = useState<BackendRecord[]>([]);
   const [aging, setAging] = useState<BackendRecord | null>(null);
   const [cashflow, setCashflow] = useState<BackendRecord[]>([]);
   const [designs, setDesigns] = useState<BackendRecord[]>([]);
@@ -112,6 +203,7 @@ export default function ReportsPage() {
         workersRes,
         assignmentsRes,
         paymentsRes,
+        workerPaymentsRes,
         designsRes,
         // Real backend report endpoints
         salesSummaryRes,
@@ -127,6 +219,7 @@ export default function ReportsPage() {
         WorkerService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
         AssignmentService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
         PaymentService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
+        WorkerService.listPayments(tenantRes.data.id, { page: 1, per_page: 100 }),
         DesignService.list(tenantRes.data.id, { page: 1, per_page: 100 }),
         // Real backend dedicated report endpoints
         ReportService.salesSummary(tenantRes.data.id, { ...dateRange, groupBy: 'month' }),
@@ -142,6 +235,7 @@ export default function ReportsPage() {
       if (alertsRes.success) setAlerts(responseItems(alertsRes.data));
       if (workersRes.success) setWorkers(responseItems(workersRes.data));
       if (assignmentsRes.success) setAssignments(responseItems(assignmentsRes.data));
+      if (workerPaymentsRes.success) setWorkerPayments(responseItems(workerPaymentsRes.data));
       if (paymentsRes.success) {
         const pItems = responseItems(paymentsRes.data);
         setPayments(pItems);
@@ -204,8 +298,13 @@ export default function ReportsPage() {
   const salesRows = useMemo(() => orders.map(order => ({
     order: order.orderNo || order.orderNumber || order.id,
     dealer: order.dealer?.name || order.party?.name || order.dealerName || '-',
+    items: order.items?.length || 0,
     status: order.status || order.orderStatus || '-',
+    subtotal: asNumber(order.subtotal || 0),
+    discount: asNumber(order.discount || 0),
+    taxPercent: asNumber(order.taxPercent || 0),
     total: asNumber(order.totalAmount || order.grandTotal || order.totalValue),
+    outstanding: asNumber(order.outstandingAmount || 0),
     orderedAt: prettyDate(order.orderDate || order.createdAt),
   })), [orders]);
 
@@ -213,28 +312,61 @@ export default function ReportsPage() {
     design: item.design?.code || item.designCode || item.code || item.designId || '-',
     name: item.design?.name || item.designName || item.name || '-',
     unpackaged: asNumber(item.unpackagedPieces || item.availablePieces),
-    packaged: asNumber(item.packagedDozens || item.availableDozens),
+    packaged: asNumber(item.packagedDozens || item.totalPackaged),
+    available: asNumber(item.availableDozens),
+    reserved: asNumber(item.reservedDozens),
+    dispatched: asNumber(item.dispatchedDozens),
     threshold: asNumber(item.lowStockAlertAt || item.lowStockThreshold || item.threshold),
     updatedAt: prettyDate(item.updatedAt || item.lastUpdated),
   })), [stock]);
 
   const workerRows = useMemo(() => workers.map(worker => {
     const workerAssignments = assignments.filter(item => item.workerId === worker.id || item.worker?.id === worker.id);
+    const completed = workerAssignments.filter(item => ['completed', 'done', 'returned'].includes(String(item.status || item.assignmentStatus || '').toLowerCase())).length;
+    const pending = workerAssignments.length - completed;
+    const successRatio = workerAssignments.length > 0 ? ((completed / workerAssignments.length) * 100).toFixed(1) + '%' : '0%';
+
+    let totalSalary = 0;
+    workerAssignments.forEach(assignment => {
+      const design = designs.find(d => d.id === assignment.designId || d.id === assignment.design?.id);
+      const pieceRate = asNumber(design?.pieceRateRs || design?.pieceRate || design?.workerRatePerPiece || 0);
+      let piecesReturned = 0;
+      if (assignment.returns && Array.isArray(assignment.returns)) {
+        piecesReturned = assignment.returns.reduce((sum, r) => sum + asNumber(r.piecesReturned), 0);
+      } else {
+        piecesReturned = asNumber(assignment.piecesReturned || assignment.deliveredPieces || 0);
+      }
+      totalSalary += piecesReturned * pieceRate;
+    });
+
+    const workerPaymentsForWorker = workerPayments.filter(p => p.workerId === worker.id || p.party?.id === worker.id || p.partyId === worker.id);
+    const paidAmount = workerPaymentsForWorker.reduce((sum, p) => sum + asNumber(p.amount), 0);
+    const outstandingAmount = totalSalary - paidAmount;
+
     return {
       worker: worker.name || worker.workerName || worker.id,
-      status: worker.isActive === false ? 'Inactive' : 'Active',
-      assignments: workerAssignments.length,
-      pending: workerAssignments.filter(item => ['pending', 'in_progress'].includes(String(item.status || item.assignmentStatus || '').toLowerCase())).length,
       phone: worker.phone || '-',
+      status: worker.isActive === false || worker.status === 'INACTIVE' ? 'Inactive' : 'Active',
+      assignments: workerAssignments.length,
+      pending: pending,
+      completed: completed,
+      successRatio: successRatio,
+      totalSalary: totalSalary,
+      paidAmount: paidAmount,
+      outstandingAmount: outstandingAmount,
+      role: worker.role || '-',
+      joinedAt: prettyDate(worker.joinedAt || worker.createdAt),
     };
-  }), [assignments, workers]);
+  }), [assignments, workers, designs, workerPayments]);
 
   const paymentRows = useMemo(() => payments.map(payment => ({
     payment: payment.paymentNo || payment.id,
     party: payment.party?.name || payment.dealer?.name || payment.supplier?.name || payment.partyName || '-',
     method: payment.paymentMethod || payment.method || '-',
+    nature: payment.nature || payment.paymentNature || '-',
     status: payment.paymentStatus || payment.status || '-',
     amount: asNumber(payment.amount),
+    reference: payment.referenceNo || payment.reference || '-',
     date: prettyDate(payment.paymentDate || payment.paidAt || payment.createdAt),
   })), [payments]);
 
@@ -242,9 +374,13 @@ export default function ReportsPage() {
     code: design.designCode || design.code || design.id,
     name: design.name || '-',
     category: design.category?.name || design.categoryName || '-',
+    hsnCode: design.hsnCode || '-',
+    colors: design.colors?.length || 0,
+    sizes: design.sizes?.length || 0,
     status: design.status || (design.isActive === false ? 'Inactive' : 'Active'),
     pieceRate: asNumber(design.pieceRateRs || design.pieceRate || design.workerRatePerPiece),
     dozenRate: asNumber(design.salePricePerDozen || design.sellingPricePerDozen || design.defaultPricePerDozen || design.pricePerDozen || design.price),
+    createdAt: prettyDate(design.createdAt),
   })), [designs]);
 
   const salesByMonth = useMemo(() => {
@@ -270,7 +406,7 @@ export default function ReportsPage() {
   const totalSales = salesRows.reduce((sum, row) => sum + asNumber(row.total), 0);
   const activeOrders = orders.filter(order => ['confirmed', 'packed', 'partially_dispatched'].includes(String(order.status || order.orderStatus || '').toLowerCase())).length;
   const paymentCollected = paymentRows.reduce((sum, row) => sum + asNumber(row.amount), 0);
-  const lowStockCount = alerts.length || inventoryRows.filter(row => row.threshold > 0 && (row.unpackaged + row.packaged) <= row.threshold).length;
+  const lowStockCount = alerts.length || inventoryRows.filter(row => row.threshold > 0 && row.packaged <= row.threshold).length;
 
   return (
     <DashboardLayout
@@ -281,23 +417,40 @@ export default function ReportsPage() {
       <div className="space-y-6">
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
           {reportTypes.map(report => (
-            <button
+            <div
               key={report.key}
               onClick={() => setActiveReport(report.key)}
-              className={`flex shrink-0 items-center gap-3 rounded-xl border px-4 py-3 transition-all ${activeReport === report.key ? 'border-[#0F2A4A] bg-white shadow-sm' : 'border-[#e5e7eb] bg-white hover:border-[#0F2A4A]/30'}`}
+              role="button"
+              tabIndex={0}
+              className={`flex shrink-0 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-all ${activeReport === report.key ? 'border-[#0F2A4A] bg-white shadow-sm' : 'border-[#e5e7eb] bg-white hover:border-[#0F2A4A]/30'}`}
             >
               <div className="rounded-lg bg-[#f9fafb] p-2">{report.icon}</div>
               <span className="whitespace-nowrap text-sm font-semibold theme-text-primary">{report.label}</span>
               {canExport && (
-                <Download
-                  onClick={event => {
-                    event.stopPropagation();
-                    downloadCsv(`${report.key}-report.csv`, report.rows);
-                  }}
-                  className="ml-2 h-4 w-4 text-[#9ca3af]"
-                />
+                <div className="ml-2 flex items-center gap-1">
+                  <button
+                    onClick={event => {
+                      event.stopPropagation();
+                      downloadCsv(`${report.key}-report.csv`, report.rows);
+                    }}
+                    className="rounded p-1 hover:bg-[#e5e7eb] text-[#9ca3af] transition-colors"
+                    title="Download CSV"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={event => {
+                      event.stopPropagation();
+                      downloadPdf(`${report.key}-report.pdf`, report.label, report.rows, tenant);
+                    }}
+                    className="rounded p-1 hover:bg-[#e5e7eb] text-[#9ca3af] transition-colors"
+                    title="Download PDF"
+                  >
+                    <FileText className="h-4 w-4" />
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
 
@@ -347,11 +500,20 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <AnalysisList
                 title="Inventory Attention"
-                rows={inventoryRows.slice(0, 5).map(row => ({
-                  label: `${row.design} - ${row.name}`,
-                  value: `${row.unpackaged} pcs / ${row.packaged} doz`,
-                  danger: row.threshold > 0 && row.unpackaged + row.packaged <= row.threshold,
-                }))}
+                rows={(alerts.length > 0 ? alerts.map(item => ({
+                  design: item.design?.code || item.designCode || item.code || item.designId || '-',
+                  name: item.design?.name || item.designName || item.name || '-',
+                  unpackaged: asNumber(item.unpackagedPieces || item.availablePieces),
+                  packaged: asNumber(item.packagedDozens || item.availableDozens),
+                  threshold: asNumber(item.lowStockAlertAt || item.lowStockThreshold || item.threshold),
+                })) : [...inventoryRows])
+                  .sort((a, b) => (a.packaged - a.threshold) - (b.packaged - b.threshold))
+                  .slice(0, 5)
+                  .map(row => ({
+                    label: `${row.design} - ${row.name}`,
+                    value: `${row.unpackaged} pcs / ${row.packaged} doz`,
+                    danger: row.threshold > 0 && row.packaged <= row.threshold,
+                  }))}
               />
               <AnalysisList
                 title="Payment Health"
@@ -363,7 +525,12 @@ export default function ReportsPage() {
               />
             </div>
 
-            <ReportTable title={reportTypes.find(report => report.key === activeReport)?.label || 'Report'} rows={activeRows} onDownload={() => downloadCsv(`${activeReport}-report.csv`, activeRows)} />
+            <ReportTable 
+              title={reportTypes.find(report => report.key === activeReport)?.label || 'Report'} 
+              rows={activeRows} 
+              onDownloadCsv={() => downloadCsv(`${activeReport}-report.csv`, activeRows)}
+              onDownloadPdf={() => downloadPdf(`${activeReport}-report.pdf`, reportTypes.find(r => r.key === activeReport)?.label || 'Report', activeRows, tenant)}
+            />
           </>
         )}
       </div>
@@ -398,17 +565,23 @@ function AnalysisList({ title, rows }: { title: string; rows: Array<{ label: str
   );
 }
 
-function ReportTable({ title, rows, onDownload }: { title: string; rows: BackendRecord[]; onDownload: () => void }) {
+function ReportTable({ title, rows, onDownloadCsv, onDownloadPdf }: { title: string; rows: BackendRecord[]; onDownloadCsv: () => void; onDownloadPdf: () => void }) {
   const headers = rows[0] ? Object.keys(rows[0]) : [];
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white theme-card-accent">
       <div className="flex items-center justify-between gap-3 border-b border-[#e5e7eb] p-4">
         <h3 className="text-[16px] font-bold theme-text-primary">{title}</h3>
-        <button onClick={onDownload} className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold">
-          <Download className="h-3.5 w-3.5" />
-          Download CSV
-        </button>
+        <div className="flex gap-2">
+          <button onClick={onDownloadCsv} className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold">
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </button>
+          <button onClick={onDownloadPdf} className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold">
+            <FileText className="h-3.5 w-3.5" />
+            PDF
+          </button>
+        </div>
       </div>
       {headers.length === 0 ? (
         <div className="p-10 text-center text-sm font-medium text-[#6b7280]">No report rows found.</div>

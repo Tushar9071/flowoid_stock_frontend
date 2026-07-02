@@ -148,7 +148,7 @@ export const DesignService = {
     return asItemResponse(await api.put(owner(`/designs/${id}`), omitKeys(data, ['code', 'status', 'images'])), 'design');
   },
   async delete(_tenantId: string, id: string) {
-    return asItemResponse(await api.patch(owner(`/designs/${id}/status`), { status: 'INACTIVE' }), 'design');
+    return asItemResponse(await api.delete(owner(`/designs/${id}`)), 'design');
   },
   async updateStatus(_tenantId: string, id: string, data: { status: string }) {
     return asItemResponse(await api.patch(owner(`/designs/${id}/status`), data), 'design');

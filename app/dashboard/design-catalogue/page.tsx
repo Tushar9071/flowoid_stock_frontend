@@ -528,20 +528,25 @@ function DesignCatalogueContent() {
 
     setConfirmConfig({
       isOpen: true,
-      title: 'Deactivate Design',
+      title: 'Mark Design Inactive',
       message: `Mark "${design.name || designCode(design)}" as inactive?`,
       onConfirm: async () => {
         setConfirmConfig(prev => ({ ...prev, isOpen: false }));
         const response = await DesignService.updateStatus('', design.id as string, { status: 'INACTIVE' });
         if (response.success) {
-          toast.success('Design deactivated');
+          toast.success('Design marked as inactive');
+          if (viewingDesign?.id === design.id) {
+             setViewingDesign(prev => prev ? { ...prev, status: 'INACTIVE' } : null);
+          }
           await loadData();
         } else {
-          toast.error(response.error?.message || 'Failed to deactivate design');
+          toast.error(response.error?.message || 'Failed to mark design inactive');
         }
       },
     });
   };
+
+
 
   // Fetch full design (with ALL images) before showing the details view
   const viewDesign = async (design: BackendRecord) => {
@@ -634,8 +639,8 @@ function DesignCatalogueContent() {
         />
       ) : (
         <div className="space-y-6">
-          {/* Sticky Filters Container */}
-          <div className="sticky top-0 z-10 -mt-4 sm:-mt-6 pt-4 sm:pt-6 pb-6 -mx-4 sm:-mx-6 px-4 sm:px-6 bg-[#f0f2f5]/95 backdrop-blur-md">
+          {/* Filters Container */}
+          <div>
             <div className="flex flex-col gap-4 rounded-xl border border-[#e5e7eb] bg-white p-4 sm:p-5 shadow-sm">
               {/* Search & View Toggle */}
               <div className="flex flex-col justify-between gap-4 sm:flex-row">
@@ -993,13 +998,7 @@ function DesignCatalogueContent() {
                       )}
                       {canDelete && (
                         <>
-                          <button
-                            onClick={() => markDesignInactive(row)}
-                            className="theme-secondary-btn rounded-lg p-2"
-                            title="Mark Inactive"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
-                          </button>
+
                           <button
                             onClick={() => deleteDesign(row)}
                             className="theme-danger-btn rounded-lg p-2"

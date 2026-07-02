@@ -274,17 +274,45 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
 
   const openCreateOrder = () => {
     setSelectedOrder(null); setSelectedItem(null); setFormError(null); setModalMode('create');
-    setForm({ dealerId: dealers[0]?.id || '', designId: designs[0]?.id || '', quantityDozens: 1, pricePerDozen: '', isCreditOrder: true, discountAmount: 0, notes: '' });
+    setForm({
+      dealerId: dealers[0]?.id || '',
+      orderDate: toDateTimeInput(new Date().toISOString()),
+      isCreditOrder: true,
+      discountAmount: 0,
+      taxPercent: 0,
+      notes: '',
+      items: [{
+        designId: designs[0]?.id || '',
+        quantityDozens: 1,
+        pricePerDozen: '',
+        discountPercent: 0,
+        taxPercent: 0,
+        _id: Math.random().toString(36).substring(2, 9)
+      }]
+    });
   };
 
   const openEditOrder = (order: BackendRecord) => {
     setSelectedOrder(order); setSelectedItem(null); setFormError(null); setModalMode('editOrder');
-    setForm({ isCreditOrder: Boolean(order.isCreditOrder), discountAmount: Number(order.discountAmount || 0), notes: order.notes || '' });
+    setForm({
+      orderDate: toDateTimeInput(order.orderDate || order.createdAt || new Date().toISOString()),
+      isCreditOrder: Boolean(order.isCreditOrder),
+      discountAmount: Number(order.discountAmount || 0),
+      taxPercent: Number(order.taxPercent || 0),
+      notes: order.notes || ''
+    });
   };
 
   const openAddItem = (order: BackendRecord) => {
     setSelectedOrder(order); setSelectedItem(null); setFormError(null); setModalMode('addItem');
-    setForm({ designId: designs[0]?.id || '', quantityDozens: 1, pricePerDozen: '', notes: '' });
+    setForm({
+      designId: designs[0]?.id || '',
+      quantityDozens: 1,
+      pricePerDozen: '',
+      discountPercent: 0,
+      taxPercent: 0,
+      notes: ''
+    });
   };
 
   const openEditItem = (order: BackendRecord, item: BackendRecord) => {
@@ -292,6 +320,8 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     setForm({
       quantityDozens: item.quantityDozens || item.quantity || 1,
       pricePerDozen: item.pricePerDozen || item.rate || item.unitPrice || '',
+      discountPercent: Number(item.discountPercent || 0),
+      taxPercent: Number(item.taxPercent || 0),
       notes: item.notes || ''
     });
   };
@@ -304,6 +334,12 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       transportMode: order.transportMode || order.dispatch?.transportMode || order.dispatches?.[0]?.transportDetails || order.dispatches?.[0]?.transportMode || 'Road',
       trackingRef: existingTracker && existingTracker !== 'Pending' ? existingTracker : defaultTracker,
       dispatchedAt: toDateTimeInput(orderDispatchDate(order) || new Date().toISOString()),
+      items: orderItems(order).map((item: any) => ({
+        orderItemId: item.id,
+        quantityDispatched: Number(item.pendingQty || 0),
+        pendingQty: Number(item.pendingQty || 0),
+        designName: item.design?.name || item.designName || item.designId || 'Unknown Design'
+      }))
     });
   };
 
@@ -324,7 +360,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     try {
       if (modalMode === 'create' || modalMode === 'addItem') {
         const reqQty = Number(form.quantityDozens || 1);
-        if (selectedDesignAvailability !== null && reqQty > selectedDesignAvailability) {
+        if (selectedDesignAvailability !== null && reqQty > selectedDesignAvailability && !form.items) {
           setFormError(`Cannot order more than available stock (${selectedDesignAvailability} dozens available).`);
           setSaving(false);
           return;
@@ -333,30 +369,62 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
 
       let response: any;
       if (modalMode === 'create') {
+        const payloadItems = (form.items || []).map((i: any) => ({
+          designId: i.designId,
+          quantityDozens: Number(i.quantityDozens || 1),
+          pricePerDozen: Number(i.pricePerDozen || 0),
+          discountPercent: Number(i.discountPercent || 0),
+          taxPercent: Number(i.taxPercent || 0)
+        }));
         response = await OrderService.create(currentTenant.id, {
-          dealerId: form.dealerId, isCreditOrder: Boolean(form.isCreditOrder),
-          discountAmount: Number(form.discountAmount || 0), notes: form.notes || undefined,
-          items: [{ designId: form.designId, quantityDozens: Number(form.quantityDozens || 1), pricePerDozen: Number(form.pricePerDozen || 0) }],
+          dealerId: form.dealerId,
+          orderDate: form.orderDate ? new Date(form.orderDate).toISOString() : undefined,
+          isCreditOrder: Boolean(form.isCreditOrder),
+          discountAmount: Number(form.discountAmount || 0),
+          taxPercent: Number(form.taxPercent || 0),
+          notes: form.notes || undefined,
+          items: payloadItems,
         });
       } else if (modalMode === 'editOrder' && selectedOrder?.id) {
         response = await OrderService.update(currentTenant.id, selectedOrder.id, {
-          discountAmount: Number(form.discountAmount || 0), notes: form.notes || undefined, isCreditOrder: Boolean(form.isCreditOrder),
+          orderDate: form.orderDate ? new Date(form.orderDate).toISOString() : undefined,
+          discountAmount: Number(form.discountAmount || 0),
+          taxPercent: Number(form.taxPercent || 0),
+          notes: form.notes || undefined,
+          isCreditOrder: Boolean(form.isCreditOrder),
         });
       } else if (modalMode === 'addItem' && selectedOrder?.id) {
         response = await OrderService.addItem(currentTenant.id, selectedOrder.id, {
-          designId: form.designId, quantityDozens: Number(form.quantityDozens || 1),
-          pricePerDozen: form.pricePerDozen === '' ? undefined : Number(form.pricePerDozen || 0), notes: form.notes || undefined,
+          designId: form.designId,
+          quantityDozens: Number(form.quantityDozens || 1),
+          pricePerDozen: form.pricePerDozen === '' ? undefined : Number(form.pricePerDozen || 0),
+          discountPercent: Number(form.discountPercent || 0),
+          taxPercent: Number(form.taxPercent || 0),
+          notes: form.notes || undefined,
         });
       } else if (modalMode === 'editItem' && selectedOrder?.id && selectedItem?.id) {
         response = await OrderService.updateItem(currentTenant.id, selectedOrder.id, selectedItem.id, {
           quantityDozens: Number(form.quantityDozens || 1),
-          pricePerDozen: form.pricePerDozen === '' ? undefined : Number(form.pricePerDozen || 0), notes: form.notes || undefined,
+          pricePerDozen: form.pricePerDozen === '' ? undefined : Number(form.pricePerDozen || 0),
+          discountPercent: Number(form.discountPercent || 0),
+          taxPercent: Number(form.taxPercent || 0),
+          notes: form.notes || undefined,
         });
       } else if (modalMode === 'dispatch' && selectedOrder?.id) {
+        const validItems = (form.items || []).filter((i: any) => Number(i.quantityDispatched) > 0).map((i: any) => ({
+          orderItemId: i.orderItemId,
+          quantityDispatched: Number(i.quantityDispatched)
+        }));
+        if (validItems.length === 0) {
+           setFormError('Please dispatch at least one dozen of an item.');
+           setSaving(false);
+           return;
+        }
         response = await OrderService.dispatch(currentTenant.id, selectedOrder.id, {
-          transportDetails: String(form.transportMode || 'Road'), vehicleNumber: String(form.trackingRef || ''),
+          transportDetails: String(form.transportMode || 'Road'),
+          vehicleNumber: String(form.trackingRef || ''),
           dispatchDate: form.dispatchedAt ? new Date(form.dispatchedAt).toISOString() : new Date().toISOString(),
-          items: orderItems(selectedOrder).map((item: any) => ({ orderItemId: item.id, quantityDispatched: Number(item.pendingQty || 0) })),
+          items: validItems,
         });
       } else if (modalMode === 'cancel' && selectedOrder?.id) {
         response = await OrderService.cancel(currentTenant.id, selectedOrder.id, { cancelReason: form.cancelReason });

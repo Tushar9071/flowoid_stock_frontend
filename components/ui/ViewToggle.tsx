@@ -8,7 +8,7 @@ export function ViewToggle({ className = '' }: { className?: string }) {
   const { viewMode, setViewMode } = useViewMode();
 
   return (
-    <div className={`flex items-center rounded-lg border border-slate-200 bg-white p-1 shadow-sm ${className}`}>
+    <div className={`inline-flex items-center gap-1 ${className}`}>
       <button
         type="button"
         onClick={() => setViewMode('list')}

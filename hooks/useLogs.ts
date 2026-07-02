@@ -34,7 +34,6 @@ export function useLogs(filters: LogFilters, autoRefresh: boolean, isRowExpanded
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshCountdown, setRefreshCountdown] = useState<number | null>(null);
   const [userMap, setUserMap] = useState<Record<string, string>>({});
 
   // Fetch users once to build a mapping of userId -> userName
@@ -109,22 +108,14 @@ export function useLogs(filters: LogFilters, autoRefresh: boolean, isRowExpanded
 
   useEffect(() => {
     if (!autoRefresh || isRowExpanded) {
-      setRefreshCountdown(null);
       return;
     }
     
-    setRefreshCountdown(10);
-    const countdownInterval = setInterval(() => {
-      setRefreshCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          fetchLogs(false);
-          return 10;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const interval = setInterval(() => {
+      fetchLogs(false);
+    }, 10000);
 
-    return () => clearInterval(countdownInterval);
+    return () => clearInterval(interval);
   }, [autoRefresh, isRowExpanded, fetchLogs]);
 
   const analytics = useMemo(() => {
@@ -174,7 +165,6 @@ export function useLogs(filters: LogFilters, autoRefresh: boolean, isRowExpanded
     total, 
     isLoading, 
     error, 
-    refreshCountdown,
     analytics,
     refetch: () => fetchLogs(true) 
   };
