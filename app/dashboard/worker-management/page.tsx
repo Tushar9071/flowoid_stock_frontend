@@ -5,7 +5,8 @@ import { Users, ClipboardList, Wallet, Edit3, Trash2, BookOpen } from 'lucide-re
 import { SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { formatCurrency } from '@/lib/constants';
-import { useWorkerManagement, workerCode, workerEarned, workerPaid, workerOutstanding } from './worker-management-context';
+import { useWorkerManagement } from './worker-management-context';
+import { workerCode, workerEarned, workerPaid, workerOutstanding } from './worker-management-utils';
 
 function StatusPill({ active }: { active: boolean }) {
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? 'bg-[#e6f9f0] text-[#1a7a4a]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>{active ? 'Active' : 'Inactive'}</span>;
@@ -26,7 +27,8 @@ export default function WorkerListPage() {
     openAssignmentForm,
     openPaymentForm,
     openWorkerForm,
-    deleteWorker
+    deleteWorker,
+    updateWorkerStatus
   } = useWorkerManagement();
 
   if (loading) return <SkeletonTable rows={8} cols={7} />;
@@ -39,6 +41,7 @@ export default function WorkerListPage() {
       emptyIcon={<Users className="h-6 w-6 text-slate-400" />}
       emptyTitle="No workers found"
       emptySubtitle="Add a worker or adjust your search."
+      onStatusChange={updateWorkerStatus}
       columns={[
         {
           field: 'name',
@@ -86,28 +89,27 @@ export default function WorkerListPage() {
           field: 'earned',
           header: 'Earned',
           sortable: true,
-          getValue: (row: any) => workerEarned(row, assignments, goodsReturns),
-          render: (row: any) => <div className="text-right font-semibold theme-text-primary">{formatCurrency(workerEarned(row, assignments, goodsReturns))}</div>
+          getValue: (row: any) => workerEarned(row, assignments),
+          render: (row: any) => (
+            <div className="text-right">
+              <p className="font-bold theme-text-primary">{formatCurrency(workerEarned(row, assignments))}</p>
+              <p className="text-[10px] font-medium text-slate-500">(Piece-wise)</p>
+            </div>
+          )
         },
         {
           field: 'financials',
           header: 'Paid / Outst.',
           sortable: true,
-          getValue: (row: any) => workerPaid(row, payments) - workerOutstanding(row, assignments, goodsReturns, payments),
+          getValue: (row: any) => workerPaid(row, payments) - workerOutstanding(row, assignments, payments),
           render: (row: any) => {
             const paid = workerPaid(row, payments);
-            const outst = workerOutstanding(row, assignments, goodsReturns, payments);
-            if (paid === 0 && outst === 0) {
-              return (
-                <div className="text-right">
-                  <p className="font-semibold theme-text-primary">{formatCurrency(0)}</p>
-                </div>
-              );
-            }
+            const outst = workerOutstanding(row, assignments, payments);
             return (
-              <div className="text-right">
-                {paid > 0 && <p className="font-semibold text-[#1d4ed8]">{formatCurrency(paid)}</p>}
-                {outst !== 0 && <p className="text-xs text-[#cc2200] font-bold">{formatCurrency(Math.abs(outst))}</p>}
+              <div className="text-right font-bold text-sm">
+                <span className="text-emerald-600">₹{paid.toLocaleString()}</span>
+                <span className="text-slate-400 mx-1.5 font-normal">/</span>
+                <span className="text-red-500">₹{outst.toLocaleString()}</span>
               </div>
             );
           }
@@ -119,7 +121,6 @@ export default function WorkerListPage() {
           filterable: true,
           filterType: 'boolean',
           getValue: (row: any) => row.isActive !== false && row.status !== 'INACTIVE',
-          render: (row: any) => <StatusPill active={row.isActive !== false && row.status !== 'INACTIVE'} />
         },
         {
           field: 'actions',

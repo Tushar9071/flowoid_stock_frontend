@@ -56,6 +56,7 @@ type InventoryContextValue = {
   formError: any;
   search: string;
   page: number;
+  stockStatusFilter: string;
   canCreate: boolean;
   canUpdate: boolean;
   designOptions: { label: string; value: string }[];
@@ -74,12 +75,14 @@ type InventoryContextValue = {
   itemsPerPage: number;
   setSearch: (v: string) => void;
   setPage: (p: number) => void;
+  setStockStatusFilter: (v: string) => void;
   setStockForm: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   openAdjustmentForm: (item?: BackendRecord) => void;
   openPackagingForm: () => void;
   closeStockForm: () => void;
   saveStock: (event: React.FormEvent) => Promise<any>;
   viewStockByDesign: (item: BackendRecord) => Promise<any>;
+  updateSupplementaryStatus: (id: string, newStatus: string) => Promise<any>;
   loadData: () => Promise<any>;
 };
 
@@ -96,11 +99,12 @@ export function useInventory() {
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const { hasPermission } = useAuth();
   const loadRunRef = useRef(0);
-  const [tenant, setTenant] = useState<BackendTenant | null>(null);
+  const [tenant, setTenant] = useState<BackendTenant | null>({ id: 'owner', name: 'Owner' } as any);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const itemsPerPage = 12;
   const [loading, setLoading] = useState<InventoryLoadingState>(() => createLoadingState(true));
+  const [stockStatusFilter, setStockStatusFilter] = useState('All');
   const [stock, setStock] = useState<BackendRecord[]>([]);
   const [designs, setDesigns] = useState<BackendRecord[]>([]);
   const [rawStock, setRawStock] = useState<RawMaterialStockSummary[]>([]);
@@ -149,8 +153,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         loadSection('rawStock', RawMaterialService.stock(tenantId), data => setRawStock(data || [])),
         loadSection('packagingBatches', InventoryService.listPackagingBatches(tenantId, { page: 1, limit: 100 }), data => setPackagingBatches(responseItems(data))),
         loadSection('alerts', InventoryService.listLowStockAlerts(tenantId, { page: 1, limit: 100 }), data => setAlerts(responseItems(data))),
-        loadSection('supplementary', SupplementaryService.list(tenantId, { page: 1, limit: 100 }), data => setSupplementary(responseItems(data))),
         loadSection('designs', DesignService.list(tenantId, { page: 1, limit: 100 }), data => setDesigns(responseItems(data))),
+        loadSection('supplementary', SupplementaryService.list(tenantId, { page: 1, limit: 100 }), data => setSupplementary(responseItems(data))),
       ]);
     } catch {
       toast.error('Failed to load inventory data');
@@ -176,9 +180,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     : 0;
 
   const currentTypeStock = selectedDesignStock
-    ? stockForm.type === 'PACKAGED'
-      ? (selectedDesignStock.packagedDozens || selectedDesignStock.availableDozens || 0)
-      : (selectedDesignStock.unpackagedPieces || selectedDesignStock.availablePieces || 0)
+    ? (selectedDesignStock.packagedDozens || selectedDesignStock.availableDozens || 0)
     : 0;
 
   const allAlerts = useMemo(() => {
@@ -194,10 +196,26 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   }, [alerts, rawStock]);
 
   const filteredStock = useMemo(() => {
+    let result = stock;
+    
+    if (stockStatusFilter !== 'All') {
+      result = result.filter(item => {
+        const available = item.availableDozens || 0;
+        const threshold = item.lowStockThreshold || item.threshold || 10;
+        if (stockStatusFilter === 'Out of Stock') return available <= 0;
+        if (stockStatusFilter === 'Low Stock') return available > 0 && available <= threshold;
+        if (stockStatusFilter === 'In Stock') return available > threshold;
+        return true;
+      });
+    }
+
     const term = search.toLowerCase();
-    if (!term) return stock;
-    return stock.filter(item => designCode(item).toLowerCase().includes(term) || designName(item).toLowerCase().includes(term));
-  }, [stock, search]);
+    if (term) {
+      result = result.filter(item => designCode(item).toLowerCase().includes(term) || designName(item).toLowerCase().includes(term));
+    }
+    
+    return result;
+  }, [stock, search, stockStatusFilter]);
   const paginatedStock = useMemo(() => filteredStock.slice((page - 1) * itemsPerPage, page * itemsPerPage), [filteredStock, page]);
 
   const filteredBatches = useMemo(() => {
@@ -239,13 +257,16 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   const saveStock = async (event: React.FormEvent) => {
     event.preventDefault();
-    const currentTenant = tenant;
-    if (!currentTenant?.id) return toast.error('Tenant not found');
+    const tenantId = 'owner';
     const designId = stockForm.designId || selectedStock?.designId || selectedStock?.design?.id;
     if (modalMode === 'packaging') {
       const dozens = Number(stockForm.dozensPackaged || 0);
       if (dozens <= 0) return toast.error('Dozens packaged must be greater than zero');
-      if (dozens > maxPackagableDozens) return toast.error(`Cannot pack more than available stock (${maxPackagableDozens} dozens)`);
+      if (maxPackagableDozens === 0) {
+        toast.error(`Not enough unpackaged pieces available for this design. (Requires at least 12 pieces)`);
+        return;
+      }
+      if (dozens > maxPackagableDozens) return toast.error(`Cannot pack ${dozens} dozens. Only enough stock for ${maxPackagableDozens} dozens.`);
     } else if (modalMode === 'adjustment') {
       const adj = Number(stockForm.adjustment || 0);
       if (adj === 0) return toast.error('Adjustment cannot be zero');
@@ -255,9 +276,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     try {
       let response;
       if (modalMode === 'packaging') {
-        response = await InventoryService.createPackagingBatch(currentTenant.id, { designId, dozensPackaged: Number(stockForm.dozensPackaged || 0), notes: stockForm.notes || undefined });
+        response = await InventoryService.createPackagingBatch(tenantId, { designId, dozensPackaged: Number(stockForm.dozensPackaged || 0), notes: stockForm.notes || undefined });
       } else {
-        response = await InventoryService.createAdjustment(currentTenant.id, designId, { type: stockForm.type, adjustment: Number(stockForm.adjustment || 0), notes: stockForm.notes });
+        response = await InventoryService.createAdjustment(tenantId, designId, { type: stockForm.type, adjustment: Number(stockForm.adjustment || 0), notes: stockForm.notes });
       }
       if (!response?.success) { setFormError(response.error); return; }
       toast.success('Inventory updated');
@@ -267,23 +288,33 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   };
 
   const viewStockByDesign = async (item: BackendRecord) => {
-    const currentTenant = tenant;
+    const tenantId = 'owner';
     const designId = item.designId || item.design?.id;
-    if (!currentTenant?.id || !designId) return toast.error('Tenant or design not found');
-    const response = await InventoryService.getStock(currentTenant.id, designId);
+    if (!designId) return toast.error('Design not found');
+    const response = await InventoryService.getStock(tenantId, designId);
     if (response.success) { setSelectedStock({ ...item, details: response.data }); setModalMode('view'); }
     else toast.error('Could not fetch specific stock details');
+  };
+
+  const updateSupplementaryStatus = async (id: string, newStatus: string) => {
+    const tenantId = 'owner';
+
+    const response = await SupplementaryService.updateStatus(tenantId, id, { status: newStatus });
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to update supplementary stock status');
+    }
+    await loadData();
   };
 
   return (
     <InventoryContext.Provider value={{
       tenant, loading, stock, designs, rawStock, packagingBatches, alerts, supplementary,
-      saving, modalMode, selectedStock, stockForm, formError, search, page,
+      saving, modalMode, selectedStock, stockForm, formError, search, page, stockStatusFilter,
       canCreate, canUpdate, designOptions, selectedDesignStock, maxPackagableDozens, currentTypeStock,
       allAlerts, filteredStock, filteredBatches, filteredAlerts, filteredSupplementary,
       paginatedStock, paginatedBatches, paginatedAlerts, paginatedSupplementary, itemsPerPage,
-      setSearch, setPage, setStockForm,
-      openAdjustmentForm, openPackagingForm, closeStockForm, saveStock, viewStockByDesign, loadData,
+      setSearch, setPage, setStockStatusFilter, setStockForm,
+      openAdjustmentForm, openPackagingForm, closeStockForm, saveStock, viewStockByDesign, updateSupplementaryStatus, loadData,
     }}>
       {children}
     </InventoryContext.Provider>

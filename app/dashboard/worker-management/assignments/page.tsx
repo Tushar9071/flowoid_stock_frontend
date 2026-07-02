@@ -1,10 +1,12 @@
 'use client';
 
 import React from 'react';
-import { ClipboardList, PlayCircle, Edit3, RotateCcw, XCircle } from 'lucide-react';
+import { ClipboardList, PlayCircle, Edit3, RotateCcw, XCircle, Trash2, Wallet } from 'lucide-react';
 import { SkeletonTable } from '@/components/skeleton/Skeletons';
+
 import { AdvancedDataTable } from '@/components/shared/DataTable';
-import { useWorkerManagement, workerCode, designLabel, prettyDate } from '../worker-management-context';
+import { useWorkerManagement } from '../worker-management-context';
+import { workerCode, designLabel, prettyDate, assignmentFinancials, moneyNumber, parseAssignmentMetadata, computeAssignmentStatus } from '../worker-management-utils';
 
 function TextPill({ text }: { text: string }) {
   return <span className="rounded-full bg-[#f3f4f6] px-2.5 py-1 text-xs font-semibold uppercase text-[#6b7280]">{text}</span>;
@@ -19,10 +21,13 @@ export default function AssignmentsPage() {
     workers,
     designs,
     rawMaterials,
+    payments,
     markInProgress,
     openAssignmentForm,
     openReturnForm,
     openCloseForm,
+    openDropForm,
+    openPaymentForm,
   } = useWorkerManagement();
 
   if (loading) return <SkeletonTable rows={8} cols={7} />;
@@ -82,8 +87,7 @@ export default function AssignmentsPage() {
             return designObj?.name || designObj?.designCode || designObj?.code || row.designId || '-';
           },
           render: (row: any) => {
-            const matId = row.items?.[0]?.rawMaterialId;
-            const material = rawMaterials.find((m: any) => m.id === matId);
+            const materials = row.items?.map((item: any) => rawMaterials.find((m: any) => m.id === item.rawMaterialId)).filter(Boolean) || [];
             const designObj = designs.find((d: any) => d.id === row.designId) || row.design;
             const dName = designObj?.name || designObj?.designCode || designObj?.code || row.designId || '-';
             const dCode = designObj?.designCode || designObj?.code || row.designId?.slice(0,8);
@@ -91,29 +95,37 @@ export default function AssignmentsPage() {
               <div>
                 <p className="font-bold theme-text-primary">{dName}</p>
                 <p className="text-[11px] text-slate-500 uppercase">{dCode}</p>
-                {material && (
+                {materials.length > 0 && (
                   <p className="text-xs text-[#6b7280]">
-                    {material.name} {material.unit ? `(${material.unit})` : ''}
+                    {materials.length === 1 
+                      ? `${materials[0].name} ${materials[0].unit ? `(${materials[0].unit})` : ''}`
+                      : `${materials.length} Materials`}
                   </p>
                 )}
               </div>
             );
           }
         },
-        {
-          field: 'rawMaterialQty',
-          header: 'Qty Issued',
-          sortable: true,
-          render: (row: any) => <div className="text-right font-semibold">{row.items?.[0]?.quantityIssued || '-'}</div>
-        },
+
         {
           field: 'returnedPieces',
-          header: 'Returned Pcs',
+          header: 'Acc / Ret / Exp',
           sortable: true,
           getValue: (row: any) => row.returns?.reduce((acc: number, r: any) => acc + (r.piecesReturned || 0), 0) || 0,
           render: (row: any) => {
-            const returned = row.returns?.reduce((acc: number, r: any) => acc + (r.piecesReturned || 0), 0) || 0;
-            return <div className="text-right text-[#1a7a4a]">{returned}</div>;
+            const accepted = row.returns?.reduce((acc: number, r: any) => acc + (r.piecesReturned || 0), 0) || 0;
+            const rejected = row.returns?.reduce((acc: number, r: any) => acc + (r.piecesRejected || 0), 0) || 0;
+            const totalReturned = accepted + rejected;
+            const expected = row.expectedPieces || '-';
+            return (
+              <div className="text-right whitespace-nowrap">
+                <span className="text-green-600 font-bold" title="Accepted Pieces">{accepted}</span>
+                <span className="text-slate-400 text-xs mx-1">/</span>
+                <span className="text-blue-600 font-bold" title="Total Returned (Accepted + Rejected)">{totalReturned}</span>
+                <span className="text-slate-400 text-xs mx-1">/</span>
+                <span className="text-slate-500 font-semibold" title="Expected Pieces">{expected}</span>
+              </div>
+            );
           }
         },
         {
@@ -126,37 +138,66 @@ export default function AssignmentsPage() {
           render: (row: any) => <span className="text-[#6b7280]">{prettyDate(row.assignmentDate || row.createdAt)}</span>
         },
         {
+          field: 'pieceRate',
+          header: 'Piece Rate',
+          sortable: true,
+          getValue: (row: any) => parseAssignmentMetadata(row.notes).pieceRate,
+          render: (row: any) => {
+            const rate = parseAssignmentMetadata(row.notes).pieceRate;
+            if (!rate) return <div className="text-right text-slate-400">-</div>;
+            return <div className="text-right font-bold theme-text-primary">₹{rate.toLocaleString()}</div>;
+          }
+        },
+        {
           field: 'status',
           header: 'Status',
           sortable: true,
           filterable: true,
           filterType: 'text',
-          getValue: (row: any) => row.status || 'ISSUED',
-          render: (row: any) => <TextPill text={row.status || 'ISSUED'} />
+          getValue: (row: any) => computeAssignmentStatus(row),
+          render: (row: any) => <TextPill text={computeAssignmentStatus(row)} />
         },
         {
           field: 'actions',
           header: 'Actions',
-          render: (row: any) => (
-            <div className="flex justify-end gap-2">
-              {canUpdateAssignment && (() => {
-                const isIssued = (row.status || 'ISSUED').toUpperCase() === 'ISSUED';
-                return (
+          render: (row: any) => {
+            const computedStatus = computeAssignmentStatus(row);
+            const isIssued = computedStatus === 'ISSUED';
+            const isInProgress = computedStatus === 'IN_PROGRESS';
+            const isCompleted = computedStatus === 'COMPLETED';
+            const isClosed = computedStatus === 'CLOSED';
+            
+            return (
+              <div className="flex justify-end gap-2">
+                {canUpdateAssignment && isIssued && (
                   <button
                     onClick={() => markInProgress(row)}
-                    disabled={!isIssued}
-                    title={isIssued ? 'Mark in progress' : `Cannot start: assignment is ${row.status} (must be ISSUED)`}
-                    className={`rounded-lg p-2 ${isIssued ? 'theme-secondary-btn' : 'cursor-not-allowed bg-gray-100 text-gray-300'}`}
+                    title="Mark in progress"
+                    className="rounded-lg p-2 theme-secondary-btn"
                   >
                     <PlayCircle className="h-4 w-4" />
                   </button>
-                );
-              })()}
-              {canUpdateAssignment && <button onClick={() => openAssignmentForm(row)} className="theme-secondary-btn rounded-lg p-2" title="Edit assignment"><Edit3 className="h-4 w-4" /></button>}
-              {canUpdateAssignment && <button onClick={() => openReturnForm(row)} className="theme-secondary-btn rounded-lg p-2" title="Record goods return"><RotateCcw className="h-4 w-4" /></button>}
-              {canUpdateAssignment && <button onClick={() => openCloseForm(row)} className="theme-danger-btn rounded-lg p-2" title="Close assignment"><XCircle className="h-4 w-4" /></button>}
-            </div>
-          )
+                )}
+                {canUpdateAssignment && <button onClick={() => openAssignmentForm(row)} className="theme-secondary-btn rounded-lg p-2" title="Edit assignment"><Edit3 className="h-4 w-4" /></button>}
+                {canUpdateAssignment && <button onClick={() => openPaymentForm(undefined, row)} className="theme-secondary-btn rounded-lg p-2" title="Record payment"><Wallet className="h-4 w-4" /></button>}
+                {canUpdateAssignment && isInProgress && (
+                  <button onClick={() => openReturnForm(row)} className="theme-secondary-btn rounded-lg p-2" title="Record goods return">
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+                )}
+                {canUpdateAssignment && !isClosed && (
+                  <button onClick={() => openCloseForm(row)} className="theme-danger-btn rounded-lg p-2" title="Close assignment">
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                )}
+                {canUpdateAssignment && !isClosed && (
+                  <button onClick={() => openDropForm(row)} className="theme-danger-btn rounded-lg p-2" title="Drop assignment (cancel & return material)">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            );
+          }
         }
       ]}
     />

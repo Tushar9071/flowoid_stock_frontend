@@ -12,7 +12,7 @@ export default function MaterialListPage() {
     search, setSearch,
     materialFilter, setMaterialFilter,
     canUpdate, canDelete,
-    openTypeModal, deleteType,
+    openTypeModal, deleteType, updateTypeStatus
   } = useRawMaterials();
 
   return (
@@ -47,6 +47,7 @@ export default function MaterialListPage() {
             canDelete={canDelete}
             onEdit={openTypeModal}
             onDelete={deleteType}
+            onStatusChange={updateTypeStatus}
             loading={loading}
             page={page}
             totalPages={pagination.totalPages}

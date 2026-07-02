@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent } from 'react';
+import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Edit3, FileText, Loader2, Package, Trash2, Truck, X } from 'lucide-react';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { PremiumSelect } from '@/components/ui/PremiumSelect';
@@ -59,62 +60,209 @@ export function Metric({ label, value }: { label: string; value: string }) {
 
 // ─── StockGrid ────────────────────────────────────────────────────────────────
 
-export function StockGrid({ stock }: { stock: RawMaterialStockSummary[] }) {
+export function StockGrid({ stock, hasFilter }: { stock: RawMaterialStockSummary[]; hasFilter?: boolean }) {
   if (stock.length === 0) {
-    return <div className="p-12 text-center text-sm font-medium text-slate-500">No stock data found.</div>;
+    return <StockEmptyState hasFilter={!!hasFilter} />;
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 p-4 md:grid-cols-2">
-      {stock.map((item, index) => {
-        const purchased = Number(item.totalPurchased || 0);
-        const current = Number(item.currentStock || 0);
-        const stockPercentage = purchased > 0 ? Math.max(0, (current / purchased) * 100) : 0;
-        const itemKey = item.materialTypeId || (item as any).id || `stock-item-${index}`;
-        return (
-          <div key={itemKey} className={`flex overflow-hidden rounded-2xl border bg-white ${item.isLow ? 'border-l-4 border-l-theme-status-critical' : 'theme-card-accent'}`}>
-            <div className="flex-1 p-5">
-              <div className="mb-4 flex items-start justify-between">
-                <div>
-                  <span className="mb-1.5 inline-block rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">{item.unit}</span>
-                  <h3 className="theme-text-primary text-[18px] font-bold leading-tight">{item.name}</h3>
-                  <p className="mt-1 text-sm text-slate-500">Issued: {item.totalIssued} {item.unit}</p>
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-[24px] p-[24px]">
+        {stock.map((item, index) => {
+          const purchased = Number(item.totalPurchased || 0);
+          const current   = Number(item.currentStock  || 0);
+          const issued    = Number(item.totalIssued   || 0);
+          const stockPct  = purchased > 0 ? Math.max(0, Math.min((current / purchased) * 100, 100)) : 0;
+          const isOut = current <= 0;
+          const isLow = !isOut && (stockPct <= 20 || !!item.isLow);
+
+          const statusColor  = isOut ? '#DC2626' : isLow ? '#D97706' : '#059669';
+          const statusBg     = isOut ? '#FEF2F2'  : isLow ? '#FFF7ED'  : '#ECFDF5';
+          const statusLabel  = isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock';
+          
+          const primaryColor = isOut ? '#EF4444' : isLow ? '#F59E0B' : '#10B981';
+
+          const hintText = isOut
+            ? '✕ Restock Required'
+            : isLow
+            ? '⚠ Running Low'
+            : '✓ Fully Available';
+
+          const itemKey = item.materialTypeId || (item as any).id || `stock-item-${index}`;
+          return (
+            <div
+              key={itemKey}
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '18px',
+                border: '1px solid #E5E7EB',
+                boxShadow: '0 6px 24px rgba(15,23,42,0.06)',
+                padding: '24px',
+                transition: 'transform 250ms ease, box-shadow 250ms ease',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 40px rgba(15,23,42,0.10)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 24px rgba(15,23,42,0.06)'; }}
+            >
+              {/* Status Tag */}
+              <div style={{
+                position: 'absolute',
+                top: '24px',
+                right: '-2px',
+                background: isOut ? '#DC2626' : isLow ? '#D97706' : '#059669',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 800,
+                padding: '6px 12px 6px 16px',
+                zIndex: 10,
+                transform: 'rotate(-3deg)',
+                clipPath: 'polygon(10px 0%, 100% 0%, 100% 100%, 10px 100%, 0% 50%)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <div style={{ width: '4px', height: '4px', background: '#FFFFFF', borderRadius: '50%' }} />
+                {isOut ? 'OUT' : isLow ? 'LOW' : 'ADQ'}
+              </div>
+
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px', paddingRight: '16px' }}>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <div style={{ width: '44px', height: '44px', background: '#F8FAFC', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={primaryColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#111827', margin: 0, lineHeight: 1.2 }}>
+                      {item.name}
+                    </h3>
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: '#6B7280', margin: '4px 0 0 0' }}>
+                      Raw Material • {item.unit}
+                    </p>
+                  </div>
                 </div>
-                {item.isLow ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                    <AlertTriangle className="h-3 w-3" /> Reorder Required
+              </div>
+
+              {/* Main Stock Value */}
+              <div style={{ marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '42px', fontWeight: 800, color: isOut ? '#EF4444' : '#111827', lineHeight: 1 }}>
+                    {current.toLocaleString()}
                   </span>
-                ) : (
-                  <span className="theme-badge-soft inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold">Adequate</span>
-                )}
-              </div>
-              <div className="mb-4 border-t border-slate-100" />
-              <div className="mb-4 grid grid-cols-2 gap-4">
-                <Metric label="Available Stock" value={`${item.currentStock} ${item.unit}`} />
-                <Metric label="Purchased" value={`${item.totalPurchased} ${item.unit}`} />
-              </div>
-              <div>
-                <div className="mb-1 flex justify-between text-[11px] text-slate-500">
-                  <span>Stock Level</span>
-                  <span className="font-semibold text-slate-700">{Math.round(stockPercentage)}%</span>
+                  <span style={{ fontSize: '20px', fontWeight: 600, color: '#6B7280' }}>
+                    {item.unit}
+                  </span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className={`h-full rounded-full ${item.isLow ? 'bg-red-600' : 'bg-emerald-600'}`} style={{ width: `${Math.min(stockPercentage, 100)}%` }} />
+                <div style={{ fontSize: '15px', fontWeight: 500, color: '#6B7280', marginTop: '6px' }}>
+                  Available Stock
                 </div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: primaryColor, marginTop: '8px' }}>
+                  {hintText}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: '1px', background: '#F1F5F9', margin: '0 0 18px 0' }} />
+
+              {/* Statistics Inline Layout */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '4px' }}>Purchased</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>{purchased.toLocaleString()}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280' }}>{item.unit}</span>
+                  </div>
+                </div>
+                <div style={{ width: '1px', height: '32px', background: '#E5E7EB', margin: '0 16px' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '4px' }}>Issued</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>{issued.toLocaleString()}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280' }}>{item.unit}</span>
+                  </div>
+                </div>
+                <div style={{ width: '1px', height: '32px', background: '#E5E7EB', margin: '0 16px' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '4px' }}>Remaining</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>{current.toLocaleString()}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280' }}>{item.unit}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Section */}
+              <div style={{ marginTop: 'auto', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>Inventory Level</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>{Math.round(stockPct)}%</span>
+                </div>
+                <div style={{ height: '6px', background: '#E2E8F0', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', width: `${stockPct}%`,
+                    background: primaryColor,
+                    borderRadius: '999px', transition: 'width 700ms ease'
+                  }} />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#9CA3AF' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                  <span style={{ fontSize: '12px', fontWeight: 500 }}>Updated 2 mins ago</span>
+                </div>
+                <Link href="/dashboard/raw-materials/material-list" style={{ textDecoration: 'none' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6366F1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    View Details <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                  </div>
+                </Link>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function StockEmptyState({ hasFilter }: { hasFilter: boolean }) {
+  if (hasFilter) {
+    return (
+      <div style={{ border: '1px dashed #D6DBE3', borderRadius: '14px', padding: '40px 24px', textAlign: 'center', margin: '16px', fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ width: 52, height: 52, borderRadius: 12, background: '#F1F3F7', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7688" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+          </svg>
+        </div>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0B1629', margin: '0 0 6px' }}>No materials match your search.</h3>
+        <p style={{ fontSize: 13, color: '#6B7688', margin: 0 }}>Try a different term or clear the filter to see all stock.</p>
+      </div>
+    );
+  }
+  return (
+    <div style={{ border: '1px dashed #D6DBE3', borderRadius: '14px', padding: '40px 24px', textAlign: 'center', margin: '16px', fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ width: 52, height: 52, borderRadius: 12, background: '#F1F3F7', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6B7688" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+          <path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" />
+        </svg>
+      </div>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0B1629', margin: '0 0 6px' }}>No raw materials added yet.</h3>
+      <p style={{ fontSize: 13, color: '#6B7688', margin: 0 }}>Add a raw material type first to start tracking stock levels.</p>
     </div>
   );
 }
 
 // ─── TypesTable ───────────────────────────────────────────────────────────────
 
-export function TypesTable({ types, canUpdate, canDelete, onEdit, onDelete, loading, page, totalPages, totalItems, onPageChange }: {
+export function TypesTable({ types, canUpdate, canDelete, onEdit, onDelete, onStatusChange, loading, page, totalPages, totalItems, onPageChange }: {
   types: RawMaterialType[]; canUpdate: boolean; canDelete: boolean;
   onEdit: (material: RawMaterialType) => void; onDelete: (material: RawMaterialType) => void;
+  onStatusChange?: (id: string, newStatus: string) => Promise<any>;
   loading: boolean; page: number; totalPages: number; totalItems: number; onPageChange: (page: number) => void;
 }) {
   return (
@@ -124,6 +272,7 @@ export function TypesTable({ types, canUpdate, canDelete, onEdit, onDelete, load
       loading={loading}
       emptyIcon={<Package className="h-6 w-6 text-slate-400" />}
       emptyTitle="No raw materials found"
+      onStatusChange={onStatusChange}
       columns={[
         {
           field: 'name', header: 'Item', sortable: true, filterable: true, filterType: 'text',
@@ -141,7 +290,6 @@ export function TypesTable({ types, canUpdate, canDelete, onEdit, onDelete, load
         { field: 'currentStock', header: 'Qty / Stock', sortable: true, getValue: (row) => row.currentStock || '0', render: (row) => <div className="font-semibold">{row.currentStock || '0'}</div> },
         {
           field: 'status', header: 'Status', sortable: true, filterable: true, filterType: 'boolean', getValue: (row) => row.isActive,
-          render: (row) => <span className={`rounded-full border px-3 py-1 text-xs font-bold ${row.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{row.isActive ? 'Active' : 'Inactive'}</span>
         },
         { field: 'createdAt', header: 'Date', sortable: true, filterable: true, filterType: 'date', render: (row) => <div className="text-slate-500">{prettyDate(row.createdAt)}</div> },
         {
@@ -228,20 +376,52 @@ export function IssuancesTable({ issuances, types, loading, page, totalPages, to
         {
           field: 'item', header: 'Item', sortable: true, filterable: true, filterType: 'text',
           getValue: (row) => materialLabel(row, types),
-          render: (row) => (
-            <div className="flex items-center gap-3">
-              <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg"><FileText className="h-4 w-4" /></div>
-              <div>
-                <p className="theme-text-primary font-bold">{materialLabel(row, types)}</p>
-                <p className="text-sm text-slate-500">Reference: {row.assignmentId}</p>
+          render: (row) => {
+            const isPurchase = Number(row.quantity) > 0;
+            
+            const formatId = (id?: string, isPur = false) => {
+              if (!id) return '';
+              return id.length > 20 ? `${isPur ? 'PUR' : 'ID'}-${shortId(id).toUpperCase()}` : id;
+            };
+
+            const refText = isPurchase 
+              ? (row.notes?.includes('PUR') ? row.notes : (row.notes === 'INITIAL_STOCK' ? 'Initial Stock' : (formatId(row.assignmentId, true) || 'Purchase')))
+              : (row.assignmentId === 'OWNER' ? 'Owner' : (row.notes || formatId(row.assignmentId, false)));
+
+            return (
+              <div className="flex items-center gap-3">
+                <div className="theme-icon-chip flex h-8 w-8 items-center justify-center rounded-lg"><FileText className="h-4 w-4" /></div>
+                <div>
+                  <p className="theme-text-primary font-bold">{materialLabel(row, types)}</p>
+                  <p className="text-sm text-slate-500">{refText}</p>
+                </div>
               </div>
-            </div>
-          )
+            );
+          }
         },
-        { field: 'quantity', header: 'Qty / Unit', sortable: true, getValue: (row) => `${row.quantity} ${materialUnit(row, types)}`, render: (row) => <div className="font-semibold">{row.quantity} {materialUnit(row, types)}</div> },
+        { field: 'quantity', header: 'Qty / Unit', sortable: true, getValue: (row) => `${Math.abs(Number(row.quantity))} ${materialUnit(row, types)}`, render: (row) => {
+            const isPurchase = Number(row.quantity) > 0;
+            return <div className={`font-semibold ${isPurchase ? 'text-emerald-600' : 'text-red-500'}`}>{isPurchase ? '+' : '-'}{Math.abs(Number(row.quantity))} {materialUnit(row, types)}</div>;
+        } },
         { field: 'issuedAt', header: 'Date', sortable: true, filterable: true, filterType: 'date', getValue: (row) => row.issuedAt, render: (row) => <div className="text-slate-500">{prettyDate(row.issuedAt)}</div> },
-        { field: 'status', header: 'Status', render: () => <span className="rounded-full border px-3 py-1 text-xs font-bold border-indigo-200 bg-indigo-50 text-indigo-700">Issued</span> },
-        { field: 'notes', header: 'Notes', sortable: true, render: (row) => <div className="text-slate-500">{row.notes || '-'}</div> }
+        { field: 'status', header: 'Status', render: (row) => {
+            const isPurchase = Number(row.quantity) > 0;
+            if (isPurchase || row.assignmentId === 'OWNER') {
+              return <span className="rounded-full border px-3 py-1 text-xs font-bold border-emerald-200 bg-emerald-50 text-emerald-700">Purchased</span>;
+            }
+            return <span className="rounded-full border px-3 py-1 text-xs font-bold border-indigo-200 bg-indigo-50 text-indigo-700">Issued</span>;
+        } },
+        { field: 'notes', header: 'Notes', sortable: true, render: (row) => {
+            let displayNotes = row.notes === 'INITIAL_STOCK' || row.notes === 'PURCHASE' || row.notes === 'ASSIGNMENT' ? '-' : (row.notes || '-');
+            
+            const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+            if (displayNotes.match(uuidRegex)) {
+              const prefix = Number(row.quantity) > 0 ? 'PUR' : 'ID';
+              displayNotes = displayNotes.replace(uuidRegex, (match) => `${prefix}-${shortId(match).toUpperCase()}`);
+            }
+            
+            return <div className="text-slate-500">{displayNotes}</div>;
+        } }
       ]}
     />
   );

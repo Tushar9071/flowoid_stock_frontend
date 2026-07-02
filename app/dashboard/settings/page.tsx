@@ -133,6 +133,10 @@ export default function DashboardSettingsPage() {
 
   const uploadLogo = async (file?: File) => {
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size must be less than 5MB');
+      return;
+    }
     if (!canManage) return toast.error('You do not have permission to update settings');
 
     setSavingSection('logo');
@@ -238,7 +242,7 @@ export default function DashboardSettingsPage() {
             {activeSection === 'profile' && (
               <SettingsCard title="Business Profile" saving={savingSection === 'profile'} canManage={canManage} onSave={() => saveSection('profile')}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Business Name" value={settings.businessName || ''} onChange={(value) => updateField('businessName', value)} />
+                  <Field required label="Business Name" value={settings.businessName || ''} onChange={(value) => updateField('businessName', value)} />
                   <Field label="Category" value={settings.category || ''} onChange={(value) => updateField('category', value)} />
                   <Field label="Phone" value={settings.phone || ''} onChange={(value) => updateField('phone', value)} />
                   <Field label="Email" type="email" value={settings.email || ''} onChange={(value) => updateField('email', value)} />
@@ -255,11 +259,11 @@ export default function DashboardSettingsPage() {
             {activeSection === 'documents' && (
               <SettingsCard title="Document Prefixes" saving={savingSection === 'documents'} canManage={canManage} onSave={() => saveSection('documents')}>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <Field label="Invoice Prefix" value={settings.invoicePrefix || ''} onChange={(value) => updateField('invoicePrefix', value.toUpperCase())} />
-                  <Field label="Challan Prefix" value={settings.challanPrefix || ''} onChange={(value) => updateField('challanPrefix', value.toUpperCase())} />
-                  <Field label="Payment Prefix" value={settings.paymentPrefix || ''} onChange={(value) => updateField('paymentPrefix', value.toUpperCase())} />
-                  <Field label="Order Prefix" value={settings.orderPrefix || ''} onChange={(value) => updateField('orderPrefix', value.toUpperCase())} />
-                  <Field label="Purchase Prefix" value={settings.purchasePrefix || ''} onChange={(value) => updateField('purchasePrefix', value.toUpperCase())} />
+                  <Field required label="Invoice Prefix" value={settings.invoicePrefix || ''} onChange={(value) => updateField('invoicePrefix', value.toUpperCase())} />
+                  <Field required label="Challan Prefix" value={settings.challanPrefix || ''} onChange={(value) => updateField('challanPrefix', value.toUpperCase())} />
+                  <Field required label="Payment Prefix" value={settings.paymentPrefix || ''} onChange={(value) => updateField('paymentPrefix', value.toUpperCase())} />
+                  <Field required label="Order Prefix" value={settings.orderPrefix || ''} onChange={(value) => updateField('orderPrefix', value.toUpperCase())} />
+                  <Field required label="Purchase Prefix" value={settings.purchasePrefix || ''} onChange={(value) => updateField('purchasePrefix', value.toUpperCase())} />
                 </div>
               </SettingsCard>
             )}
@@ -267,7 +271,7 @@ export default function DashboardSettingsPage() {
             {activeSection === 'stock' && (
               <SettingsCard title="Stock Rules" saving={savingSection === 'stock'} canManage={canManage} onSave={() => saveSection('stock')}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Low Stock Threshold" type="number" value={String(settings.lowStockThreshold ?? 0)} onChange={(value) => updateField('lowStockThreshold', Number(value))} />
+                  <Field required label="Low Stock Threshold" type="number" value={String(settings.lowStockThreshold ?? 0)} onChange={(value) => updateField('lowStockThreshold', Number(value))} />
                   <label className="flex h-[76px] items-center justify-between rounded-xl border border-gray-200 bg-white px-4">
                     <div>
                       <p className="text-sm font-black text-gray-900">Allow Negative Stock</p>
@@ -342,19 +346,25 @@ function Field({
   onChange,
   type = 'text',
   className = '',
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   className?: string;
+  required?: boolean;
 }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-sm font-black text-gray-900">{label}</span>
+      <span className="mb-1.5 block text-sm font-black text-gray-900">
+        {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
+      </span>
       <input
         type={type}
         value={value}
+        required={required}
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-900 outline-none transition focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent-light)]"
       />

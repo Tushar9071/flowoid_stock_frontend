@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { X, Package, User, Layers, ClipboardList, AlertTriangle } from 'lucide-react';
-import { BackendRecord } from '@/lib/services/business-modules.service';
+import { BackendRecord, DesignService, responseItems } from '@/lib/services/business-modules.service';
 import { PremiumSelect } from '@/components/ui/PremiumSelect';
 
 interface AssignmentModalProps {
@@ -70,30 +70,138 @@ export function AssignmentModal({
       }
     }
     onChange(name, value);
+
+    if (name === 'expectedPieces' && requirements.length > 0 && form.materials) {
+      const pcs = Number(value || 0);
+      const updatedMaterials = form.materials.map((mat: any) => {
+        const req = requirements.find(r => r.rawMaterialId === mat.rawMaterialId);
+        if (req) {
+          const isDozen = String(req.unit).toUpperCase() === 'DOZEN';
+          const multiplier = isDozen ? (pcs / 12) : pcs;
+          return {
+            ...mat,
+            quantityIssued: pcs > 0 ? String(parseFloat((Number(req.quantityRequired || 0) * multiplier).toFixed(3))) : '',
+          };
+        }
+        return mat;
+      });
+      onChange('materials', updatedMaterials);
+    }
   };
   const selectedWorker = workers.find(w => w.id === form.workerId);
   const selectedDesign = designs.find(d => d.id === form.designId);
-  const selectedMaterial = rawMaterials.find(m => m.id === form.rawMaterialTypeId);
-
-  // ── Client-side stock validation ────────────────────────────────────────────
-  const availableStock = selectedMaterial
-    ? Number(
-        selectedMaterial.currentStock ??
-        selectedMaterial.availableStock ??
-        selectedMaterial.stock ??
-        selectedMaterial.quantity ??
-        null,
-      )
-    : null;
+  const selectedMaterials = form.materials
+    ? form.materials.map((m: any) => rawMaterials.find(rm => rm.id === m.rawMaterialId)).filter(Boolean)
+    : [];
+    
+  const hasMaterials = selectedMaterials.length > 0;
+  
+  const materialLabel = selectedMaterials.length === 1 
+    ? selectedMaterials[0].name 
+    : selectedMaterials.length > 1 
+      ? `${selectedMaterials.length} Materials` 
+      : '—';
+      
+  const materialSubLabel = selectedMaterials.length === 1 && selectedMaterials[0].unit 
+    ? `Unit: ${selectedMaterials[0].unit}` 
+    : selectedMaterials.length > 1
+      ? 'Multiple Items'
+      : '';
 
   const requestedQty = form.rawMaterialQty ? Number(form.rawMaterialQty) : 0;
 
-  const stockInsufficient =
-    mode === 'create' &&
-    availableStock !== null &&
-    !Number.isNaN(availableStock) &&
-    requestedQty > 0 &&
-    requestedQty > availableStock;
+  const stockInsufficient = (form.materials || []).some((material: any) => {
+    const selectedMat = rawMaterials.find(m => m.id === material.rawMaterialId);
+    if (!selectedMat) return false;
+    const avail = Number(selectedMat.currentStock ?? selectedMat.availableStock ?? selectedMat.stock ?? selectedMat.quantity ?? 0);
+    const reqQty = material.quantityIssued ? Number(material.quantityIssued) : 0;
+    return mode === 'create' && reqQty > avail;
+  });
+
+  const pieceRate = form.pieceRate !== undefined ? Number(form.pieceRate) : 0;
+  const expectedPieces = Number(form.expectedPieces || 0);
+  const payableAmount = expectedPieces * pieceRate;
+
+  const [lastDesignId, setLastDesignId] = React.useState(form.designId);
+  const [requirements, setRequirements] = React.useState<any[]>([]);
+
+  // Fetch design supplementary materials when designId changes
+  React.useEffect(() => {
+    if (!form.designId || mode !== 'create') {
+      setRequirements([]);
+      return;
+    }
+
+    let active = true;
+    const fetchRequirements = async () => {
+      try {
+        const response = await DesignService.listSupplementaryNeeds('owner', form.designId);
+        if (response.success && active) {
+          const needs = responseItems(response.data);
+          setRequirements(needs);
+          
+          // Auto-populate materials list
+          const pcs = Number(form.expectedPieces || 0);
+          const initialMaterials = needs.map((need: any) => {
+            const isDozen = String(need.unit).toUpperCase() === 'DOZEN';
+            const multiplier = isDozen ? (pcs / 12) : pcs;
+            return {
+              rawMaterialId: need.rawMaterialId,
+              quantityIssued: pcs > 0 ? String(parseFloat((Number(need.quantityRequired || 0) * multiplier).toFixed(3))) : '',
+            };
+          });
+          onChange('materials', initialMaterials);
+        }
+      } catch (err) {
+        console.error('Failed to load design materials', err);
+      }
+    };
+
+    fetchRequirements();
+    return () => { active = false; };
+  }, [form.designId]);
+
+  React.useEffect(() => {
+    if (form.designId !== lastDesignId) {
+      setLastDesignId(form.designId);
+    }
+  }, [form.designId, lastDesignId]);
+
+  React.useEffect(() => {
+    if (mode === 'create') {
+      onChange('estimatedAmount', payableAmount);
+      if (!form.finalAmount || form.finalAmount === form.estimatedAmount) {
+        onChange('finalAmount', payableAmount);
+      }
+    }
+  }, [payableAmount]);
+
+  const handleAddMaterial = () => {
+    const materials = form.materials ? [...form.materials] : [];
+    materials.push({ rawMaterialId: '', quantityIssued: '' });
+    handleChange('materials', materials);
+  };
+
+  const handleRemoveMaterial = (index: number) => {
+    const materials = [...form.materials];
+    materials.splice(index, 1);
+    handleChange('materials', materials);
+  };
+
+  const handleMaterialChange = (index: number, field: string, value: any) => {
+    const materials = [...form.materials];
+    materials[index] = { ...materials[index], [field]: value };
+    if (field === 'rawMaterialId' && value) {
+      const req = requirements.find(r => r.rawMaterialId === value);
+      if (req) {
+        const pcs = Number(form.expectedPieces || 0);
+        const isDozen = String(req.unit).toUpperCase() === 'DOZEN';
+        const multiplier = isDozen ? (pcs / 12) : pcs;
+        materials[index].quantityIssued = pcs > 0 ? String(parseFloat((Number(req.quantityRequired || 0) * multiplier).toFixed(3))) : '';
+      }
+    }
+    handleChange('materials', materials);
+  };
 
   return (
     <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/50 p-3 sm:items-center sm:p-6">
@@ -135,7 +243,7 @@ export function AssignmentModal({
           {mode === 'create' ? (
             <div className="p-6 space-y-6">
               {/* Context preview bar */}
-              {(selectedWorker || selectedDesign || selectedMaterial) && (
+              {(selectedWorker || selectedDesign || hasMaterials) && (
                 <div className="grid grid-cols-3 gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
                   <ContextCard
                     icon={<User className="h-4 w-4 text-indigo-500" />}
@@ -152,8 +260,8 @@ export function AssignmentModal({
                   <ContextCard
                     icon={<Package className="h-4 w-4 text-amber-500" />}
                     label="Raw Material"
-                    value={selectedMaterial?.name || '—'}
-                    sub={selectedMaterial?.unit ? `Unit: ${selectedMaterial.unit}` : ''}
+                    value={materialLabel}
+                    sub={materialSubLabel}
                   />
                 </div>
               )}
@@ -192,68 +300,173 @@ export function AssignmentModal({
                 </Field>
               </div>
 
-              {/* Raw Material section */}
-              <div className={`rounded-xl border p-4 ${stockInsufficient ? 'border-red-200 bg-red-50/50' : 'border-amber-100 bg-amber-50/50'}`}>
-                <p className={`mb-3 text-xs font-bold uppercase tracking-wide ${stockInsufficient ? 'text-red-700' : 'text-amber-700'}`}>
-                  Raw Material Issued to Worker
-                </p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Raw Material Type" required>
-                    <PremiumSelect
-                      value={form.rawMaterialTypeId || ''}
-                      onChange={(e: any) => handleChange('rawMaterialTypeId', e.target.value)}
-                      className={`h-10 w-full rounded-lg border ${fieldErrors.rawMaterialTypeId ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
-                      data-invalid={!!fieldErrors.rawMaterialTypeId}
-                    >
-                      <option value="">None (No Material Issue)</option>
-                      {rawMaterials.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.name || m.materialName} ({m.currentStock ?? m.availableStock ?? 0} {m.unit || 'units'} avail)
-                        </option>
-                      ))}
-                    </PremiumSelect>
-                    {fieldErrors.rawMaterialTypeId && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.rawMaterialTypeId}</p>}
-                  </Field>
-                  <div>
-                    <Field label={`Qty Issued${selectedMaterial?.unit ? ` (${selectedMaterial.unit})` : ''}`} required>
+              {/* Expected Pieces & Amounts (only on create) */}
+              {mode === 'create' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Expected Pieces" required>
                       <input
                         type="number"
-                        min="0.1"
-                        step="0.1"
-                        required={!!form.rawMaterialTypeId}
-                        value={form.rawMaterialQty || ''}
-                        onChange={e => handleChange('rawMaterialQty', e.target.value)}
-                        className={`h-10 w-full rounded-lg border ${fieldErrors.rawMaterialQty ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
-                        placeholder="e.g. 50"
-                        data-invalid={!!fieldErrors.rawMaterialQty}
+                        min="1"
+                        step="1"
+                        required
+                        value={form.expectedPieces || ''}
+                        onChange={e => handleChange('expectedPieces', e.target.value)}
+                        className={`h-10 w-full rounded-lg border ${fieldErrors.expectedPieces ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                        placeholder="e.g. 100"
+                        data-invalid={!!fieldErrors.expectedPieces}
                       />
-                      {fieldErrors.rawMaterialQty && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.rawMaterialQty}</p>}
+                      {fieldErrors.expectedPieces && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.expectedPieces}</p>}
                     </Field>
-                    {/* Available stock hint */}
-                    {availableStock !== null && !Number.isNaN(availableStock) && (
-                      <p className={`mt-1.5 text-xs font-medium ${stockInsufficient ? 'text-red-600' : 'text-slate-500'}`}>
-                        {stockInsufficient ? (
-                          <span className="flex items-center gap-1">
-                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                            Insufficient stock — available: <strong>{availableStock.toLocaleString()} {selectedMaterial?.unit || 'pcs'}</strong>, required: <strong>{requestedQty.toLocaleString()}</strong>
-                          </span>
-                        ) : (
-                          <>Available stock: <strong>{availableStock.toLocaleString()} {selectedMaterial?.unit || 'pcs'}</strong></>
-                        )}
-                      </p>
-                    )}
+                    <Field label="Piece Rate (₹)" required>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={form.pieceRate === undefined ? '' : form.pieceRate}
+                        onChange={e => handleChange('pieceRate', e.target.value)}
+                        className={`h-10 w-full rounded-lg border ${fieldErrors.pieceRate ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                        placeholder="e.g. 18"
+                      />
+                    </Field>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-1">
+                    <Field label="Total Worker Amount (Auto Calculated)">
+                      <div className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 flex items-center justify-between">
+                        <span>₹ {payableAmount.toLocaleString()}</span>
+                        <span className="text-[10px] uppercase text-slate-400 font-medium">({expectedPieces} pcs × ₹{pieceRate})</span>
+                      </div>
+                    </Field>
                   </div>
                 </div>
+              )}
 
-                {/* Prominent stock error banner */}
-                {stockInsufficient && (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-100 px-3 py-2.5 text-sm text-red-700">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>
-                      <strong>Insufficient stock:</strong> Only <strong>{availableStock?.toLocaleString()} {selectedMaterial?.unit || 'pieces'}</strong> of <strong>{selectedMaterial?.name}</strong> are available, but you are requesting <strong>{requestedQty.toLocaleString()}</strong>. Please reduce the quantity or top up stock first.
-                    </span>
-                  </div>
-                )}
+              {/* Raw Material section */}
+              <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                    Raw Materials Issued to Worker
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAddMaterial}
+                    className="text-xs font-semibold text-amber-700 hover:text-amber-900 bg-amber-100/50 px-2 py-1 rounded-md transition-colors"
+                  >
+                    + Add Material
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  {(form.materials || []).map((material: any, index: number) => {
+                    const selectedMat = rawMaterials.find(m => m.id === material.rawMaterialId);
+                    const avail = selectedMat ? Number(selectedMat.currentStock ?? selectedMat.availableStock ?? selectedMat.stock ?? selectedMat.quantity ?? null) : null;
+                    const req = requirements.find(r => r.rawMaterialId === material.rawMaterialId);
+                    const reqQty = material.quantityIssued ? Number(material.quantityIssued) : 0;
+                    const isInsufficient = mode === 'create' && avail !== null && !Number.isNaN(avail) && reqQty > 0 && reqQty > avail;
+
+                    return (
+                      <div key={index} className={`relative rounded-lg border p-3 ${isInsufficient ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMaterial(index)}
+                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600 border border-slate-200 shadow-sm"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                        
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <Field label="Raw Material Type" required>
+                            <PremiumSelect
+                              value={material.rawMaterialId || ''}
+                              onChange={(e: any) => handleMaterialChange(index, 'rawMaterialId', e.target.value)}
+                              className={`h-10 w-full rounded-lg border ${fieldErrors[`materials.${index}.rawMaterialId`] ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                            >
+                              <option value="">Select Material...</option>
+                              {rawMaterials.map(m => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name || m.materialName} ({m.currentStock ?? m.availableStock ?? 0} {m.unit || 'units'} avail)
+                                </option>
+                              ))}
+                            </PremiumSelect>
+                          </Field>
+                          <div>
+                            <Field label={`Qty Issued${selectedMat?.unit ? ` (${selectedMat.unit})` : ''}`} required>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                required={!!material.rawMaterialId}
+                                value={material.quantityIssued || ''}
+                                onChange={e => handleMaterialChange(index, 'quantityIssued', e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === '.') e.preventDefault();
+                                }}
+                                className={`h-10 w-full rounded-lg border ${fieldErrors[`materials.${index}.quantityIssued`] ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                                placeholder="e.g. 50 (no decimals)"
+                              />
+                            </Field>
+                          </div>
+                        </div>
+
+                        {/* Redesigned Formula Preview, Stock, & Expected Production */}
+                        {selectedMat && (
+                          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                            <div className="space-y-1.5">
+                              <p className="theme-text-secondary">
+                                <span className="font-bold text-slate-400 block uppercase text-[10px] tracking-wide">Formula</span>
+                                <span className="font-semibold text-slate-800">
+                                  {req ? (
+                                    <>
+                                      {req.quantityRequired} {selectedMat.unit} per {req.unit === 'DOZEN' ? 'Dozen' : 'Piece'}
+                                    </>
+                                  ) : (
+                                    'Manual allocation (no formula)'
+                                  )}
+                                </span>
+                              </p>
+                              <p className="theme-text-secondary">
+                                <span className="font-bold text-slate-400 block uppercase text-[10px] tracking-wide">Expected Production</span>
+                                <span className="font-semibold text-slate-800">
+                                  {expectedPieces} {expectedPieces === 1 ? 'Piece' : 'Pieces'}
+                                </span>
+                              </p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="theme-text-secondary">
+                                <span className="font-bold text-slate-400 block uppercase text-[10px] tracking-wide font-semibold">Required</span>
+                                <span className="font-semibold text-slate-800">
+                                  {reqQty} {selectedMat.unit}
+                                </span>
+                              </p>
+                              <p className="theme-text-secondary">
+                                <span className="font-bold text-slate-400 block uppercase text-[10px] tracking-wide font-semibold">Available</span>
+                                <span className={`font-bold ${isInsufficient ? 'text-red-600' : 'text-slate-800'}`}>
+                                  {avail ?? 0} {selectedMat.unit}
+                                </span>
+                              </p>
+                            </div>
+
+                            {/* Warning block if insufficient */}
+                            {isInsufficient && (
+                              <div className="sm:col-span-2 mt-2 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 p-2 font-bold text-red-600">
+                                <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+                                <span>Insufficient Stock — Please top up stock or decrease expected pieces</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {(!form.materials || form.materials.length === 0) && (
+                    <div className="text-center py-4 rounded-lg border border-dashed border-amber-200 bg-amber-50/30">
+                      <p className="text-xs text-amber-700">No raw materials issued. Click "Add Material" to issue items from stock.</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Dates + Notes */}
@@ -275,15 +488,37 @@ export function AssignmentModal({
                     className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-500"
                   />
                 </Field>
-                <Field label="Notes">
+                <Field label="Due Date">
                   <input
-                    type="text"
-                    value={form.notes || ''}
-                    placeholder="Optional notes"
-                    onChange={e => onChange('notes', e.target.value)}
+                    type="date"
+                    value={form.dueDate || ''}
+                    onChange={e => onChange('dueDate', e.target.value)}
                     className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-500"
                   />
                 </Field>
+                <Field label="Priority">
+                  <PremiumSelect
+                    value={form.priority || 'Normal'}
+                    onChange={(e: any) => onChange('priority', e.target.value)}
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Normal">Normal</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                  </PremiumSelect>
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Notes">
+                    <input
+                      type="text"
+                      value={form.notes || ''}
+                      placeholder="Optional notes"
+                      onChange={e => onChange('notes', e.target.value)}
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-500"
+                    />
+                  </Field>
+                </div>
               </div>
             </div>
           ) : (
@@ -322,6 +557,35 @@ export function AssignmentModal({
                     className="h-10 w-full text-sm"
                   />
                 </Field>
+              </div>
+            </div>
+          )}
+
+          {/* Assignment Summary (Create Mode) */}
+          {mode === 'create' && (
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 shadow-sm mb-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-800 mb-3 border-b border-indigo-100 pb-2">Assignment Summary</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-4 text-sm">
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase text-indigo-400">Worker</span>
+                  <span className="font-semibold text-slate-800">{selectedWorker?.name || '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase text-indigo-400">Design</span>
+                  <span className="font-semibold text-slate-800">{selectedDesign?.designCode || selectedDesign?.code || '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase text-indigo-400">Quantity</span>
+                  <span className="font-semibold text-slate-800">{form.expectedPieces || '0'} pcs</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase text-indigo-400">Total Amount</span>
+                  <span className="font-bold text-indigo-700">₹ {Number(form.estimatedAmount || 0).toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase text-indigo-400">Due Date</span>
+                  <span className="font-semibold text-slate-800">{form.dueDate ? new Date(form.dueDate).toLocaleDateString('en-IN') : '—'}</span>
+                </div>
               </div>
             </div>
           )}

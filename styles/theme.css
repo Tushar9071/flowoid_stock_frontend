@@ -25,122 +25,137 @@
 /* ─── Default: CSS variables are undefined so components fall back to existing values ─── */
 :root {
   /* ─── Default Executive Navy + Gold ─── */
-  --color-accent:         #D4AF37; /* Premium Gold */
-  --color-accent-dark:    #B8860B; /* Deep Gold */
-  --color-accent-light:   #FEF08A; /* Soft Gold Tint */
-  --color-sidebar-bg:     #0B1F3A; /* Executive Navy */
-  --color-sidebar-active: #D4AF37; /* Premium Gold */
+  --color-accent: #D4AF37;
+  /* Premium Gold */
+  --color-accent-dark: #B8860B;
+  /* Deep Gold */
+  --color-accent-light: #FEF08A;
+  /* Soft Gold Tint */
+  --color-sidebar-bg: #0B1F3A;
+  /* Executive Navy */
+  --color-sidebar-active: #D4AF37;
+  /* Premium Gold */
   --color-sidebar-active-text: #0B1F3A;
-  --color-chart-fill:     #D4AF37;
-  --color-badge-bg:       #FEF08A;
-  --color-badge-text:     #854D0E;
-  --color-text-primary:   #0B1F3A;
-  --color-progress-fill:  #D4AF37;
-  --color-border-accent:  #D4AF37;
-  --color-icon-active:    #D4AF37;
-  --color-button-bg:      #0B1F3A; /* Professional matching base */
-  --color-button-text:    #FFFFFF;
-  --color-button-hover:   #071426; /* Deeper Navy */
+  --color-chart-fill: #D4AF37;
+  --color-badge-bg: #FEF08A;
+  --color-badge-text: #854D0E;
+  --color-text-primary: #0B1F3A;
+  --color-progress-fill: #D4AF37;
+  --color-border-accent: #D4AF37;
+  --color-icon-active: #D4AF37;
+  --color-button-bg: #0B1F3A;
+  /* Professional matching base */
+  --color-button-text: #FFFFFF;
+  --color-button-hover: #071426;
+  /* Deeper Navy */
 }
 
 /* ─── Theme 2: Enterprise Emerald ─── */
 body.theme-emerald {
-  --color-sidebar-bg:     #022C22; /* Deep Premium Emerald Base */
-  --color-sidebar-active: #059669; /* Refined Professional Emerald */
+  --color-sidebar-bg: #022C22;
+  /* Deep Premium Emerald Base */
+  --color-sidebar-active: #059669;
+  /* Refined Professional Emerald */
   --color-sidebar-active-text: #FFFFFF;
-  --color-button-bg:      #059669;
-  --color-button-text:    #FFFFFF;
-  --color-button-hover:   #047857;
-  --color-accent:         #059669;
-  --color-accent-dark:    #047857;
-  --color-accent-light:   #D1FAE5;
-  --color-chart-fill:     #059669;
-  --color-badge-bg:       #D1FAE5;
-  --color-badge-text:     #065F46;
-  --color-text-primary:   #022C22;
-  --color-progress-fill:  #059669;
-  --color-border-accent:  #059669;
-  --color-icon-active:    #059669;
+  --color-button-bg: #059669;
+  --color-button-text: #FFFFFF;
+  --color-button-hover: #047857;
+  --color-accent: #059669;
+  --color-accent-dark: #047857;
+  --color-accent-light: #D1FAE5;
+  --color-chart-fill: #059669;
+  --color-badge-bg: #D1FAE5;
+  --color-badge-text: #065F46;
+  --color-text-primary: #022C22;
+  --color-progress-fill: #059669;
+  --color-border-accent: #059669;
+  --color-icon-active: #059669;
 }
 
 /* ─── Theme 3: Indigo SaaS ─── */
 body.theme-indigo {
-  --color-sidebar-bg:     #111827; /* Corporate Charcoal/Slate */
-  --color-sidebar-active: #4338CA; /* Deeper Professional Indigo */
+  --color-sidebar-bg: #111827;
+  /* Corporate Charcoal/Slate */
+  --color-sidebar-active: #4338CA;
+  /* Deeper Professional Indigo */
   --color-sidebar-active-text: #FFFFFF;
-  --color-button-bg:      #4338CA;
-  --color-button-text:    #FFFFFF;
-  --color-button-hover:   #3730A3;
-  --color-accent:         #4338CA;
-  --color-accent-dark:    #3730A3;
-  --color-accent-light:   #E0E7FF;
-  --color-chart-fill:     #4338CA;
-  --color-badge-bg:       #E0E7FF;
-  --color-badge-text:     #312E81;
-  --color-text-primary:   #111827;
-  --color-progress-fill:  #4338CA;
-  --color-border-accent:  #4338CA;
-  --color-icon-active:    #4338CA;
+  --color-button-bg: #4338CA;
+  --color-button-text: #FFFFFF;
+  --color-button-hover: #3730A3;
+  --color-accent: #4338CA;
+  --color-accent-dark: #3730A3;
+  --color-accent-light: #E0E7FF;
+  --color-chart-fill: #4338CA;
+  --color-badge-bg: #E0E7FF;
+  --color-badge-text: #312E81;
+  --color-text-primary: #111827;
+  --color-progress-fill: #4338CA;
+  --color-border-accent: #4338CA;
+  --color-icon-active: #4338CA;
 }
 
 /* ─── Theme 4: Charcoal Orange Professional ─── */
 body.theme-orange {
-  --color-sidebar-bg:     #111827; /* Deep Charcoal */
-  --color-sidebar-active: #EA580C; /* Refined Burnt Orange */
+  --color-sidebar-bg: #111827;
+  /* Deep Charcoal */
+  --color-sidebar-active: #EA580C;
+  /* Refined Burnt Orange */
   --color-sidebar-active-text: #FFFFFF;
-  --color-button-bg:      #EA580C;
-  --color-button-text:    #FFFFFF;
-  --color-button-hover:   #C2410C;
-  --color-accent:         #EA580C;
-  --color-accent-dark:    #C2410C;
-  --color-accent-light:   #FFEDD5;
-  --color-chart-fill:     #EA580C;
-  --color-badge-bg:       #FFEDD5;
-  --color-badge-text:     #9A3412;
-  --color-text-primary:   #111827;
-  --color-progress-fill:  #EA580C;
-  --color-border-accent:  #EA580C;
-  --color-icon-active:    #EA580C;
+  --color-button-bg: #EA580C;
+  --color-button-text: #FFFFFF;
+  --color-button-hover: #C2410C;
+  --color-accent: #EA580C;
+  --color-accent-dark: #C2410C;
+  --color-accent-light: #FFEDD5;
+  --color-chart-fill: #EA580C;
+  --color-badge-bg: #FFEDD5;
+  --color-badge-text: #9A3412;
+  --color-text-primary: #111827;
+  --color-progress-fill: #EA580C;
+  --color-border-accent: #EA580C;
+  --color-icon-active: #EA580C;
 }
 
 /* ─── Theme 5: Slate Teal Premium ─── */
 body.theme-teal {
-  --color-sidebar-bg:     #0F172A; /* Rich Slate */
-  --color-sidebar-active: #0D9488; /* Sophisticated Teal */
+  --color-sidebar-bg: #0F172A;
+  /* Rich Slate */
+  --color-sidebar-active: #0D9488;
+  /* Sophisticated Teal */
   --color-sidebar-active-text: #FFFFFF;
-  --color-button-bg:      #0D9488;
-  --color-button-text:    #FFFFFF;
-  --color-button-hover:   #0F766E;
-  --color-accent:         #0D9488;
-  --color-accent-dark:    #0F766E;
-  --color-accent-light:   #CCFBF1;
-  --color-chart-fill:     #0D9488;
-  --color-badge-bg:       #CCFBF1;
-  --color-badge-text:     #115E59;
-  --color-text-primary:   #0F172A;
-  --color-progress-fill:  #0D9488;
-  --color-border-accent:  #0D9488;
-  --color-icon-active:    #0D9488;
+  --color-button-bg: #0D9488;
+  --color-button-text: #FFFFFF;
+  --color-button-hover: #0F766E;
+  --color-accent: #0D9488;
+  --color-accent-dark: #0F766E;
+  --color-accent-light: #CCFBF1;
+  --color-chart-fill: #0D9488;
+  --color-badge-bg: #CCFBF1;
+  --color-badge-text: #115E59;
+  --color-text-primary: #0F172A;
+  --color-progress-fill: #0D9488;
+  --color-border-accent: #0D9488;
+  --color-icon-active: #0D9488;
 }
 
 /* ─── Theme 6: Custom Brand Theme (Live Color Picker) ─── */
 body.theme-custom {
-  --color-sidebar-bg:     #111827;
-  --color-accent:         var(--color-custom-accent, #4F46E5);
-  --color-accent-dark:    color-mix(in srgb, var(--color-custom-accent, #4F46E5) 80%, black);
-  --color-accent-light:   color-mix(in srgb, var(--color-custom-accent, #4F46E5) 12%, white);
+  --color-sidebar-bg: #111827;
+  --color-accent: var(--color-custom-accent, #4F46E5);
+  --color-accent-dark: color-mix(in srgb, var(--color-custom-accent, #4F46E5) 80%, black);
+  --color-accent-light: color-mix(in srgb, var(--color-custom-accent, #4F46E5) 12%, white);
   --color-sidebar-active: var(--color-custom-accent, #4F46E5);
   --color-sidebar-active-text: #FFFFFF;
-  --color-button-bg:      var(--color-custom-accent, #4F46E5);
-  --color-button-text:    #FFFFFF;
-  --color-button-hover:   color-mix(in srgb, var(--color-custom-accent, #4F46E5) 85%, black);
-  --color-chart-fill:     var(--color-custom-accent, #4F46E5);
-  --color-badge-bg:       color-mix(in srgb, var(--color-custom-accent, #4F46E5) 15%, white);
-  --color-badge-text:     var(--color-custom-accent, #4F46E5);
-  --color-text-primary:   #111827;
-  --color-progress-fill:  var(--color-custom-accent, #4F46E5);
-  --color-border-accent:  var(--color-custom-accent, #4F46E5);
-  --color-icon-active:    var(--color-custom-accent, #4F46E5);
+  --color-button-bg: var(--color-custom-accent, #4F46E5);
+  --color-button-text: #FFFFFF;
+  --color-button-hover: color-mix(in srgb, var(--color-custom-accent, #4F46E5) 85%, black);
+  --color-chart-fill: var(--color-custom-accent, #4F46E5);
+  --color-badge-bg: color-mix(in srgb, var(--color-custom-accent, #4F46E5) 15%, white);
+  --color-badge-text: var(--color-custom-accent, #4F46E5);
+  --color-text-primary: #111827;
+  --color-progress-fill: var(--color-custom-accent, #4F46E5);
+  --color-border-accent: var(--color-custom-accent, #4F46E5);
+  --color-icon-active: var(--color-custom-accent, #4F46E5);
 }
 
 /* ─── Global smooth transitions for all themed properties ─── */
@@ -237,9 +252,10 @@ body * {
   color: #6B7280 !important;
   background-color: transparent !important;
 }
+
 .theme-tab-inactive:hover {
   color: var(--color-sidebar-bg) !important;
-  background-color: rgba(255,255,255,0.6) !important;
+  background-color: rgba(255, 255, 255, 0.6) !important;
 }
 
 /* Premium Card with left accent border */
@@ -253,32 +269,36 @@ body * {
   background-color: var(--color-accent-light) !important;
   color: var(--color-accent-dark) !important;
   font-weight: 700 !important;
-  border: 1px solid rgba(0,0,0,0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
 }
 
 /* Refined primary buttons with premium shadow */
 .theme-accent-btn {
   background-color: var(--color-button-bg) !important;
   color: var(--color-button-text) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
 }
+
 .theme-accent-btn:hover {
   background-color: var(--color-button-hover) !important;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
   transform: translateY(-1px);
 }
+
 .theme-accent-btn:active {
   transform: translateY(0);
 }
 
 /* Theme text utilities */
 .theme-text-primary {
-  color: var(--color-sidebar-bg) !important; /* Grounded text */
+  color: var(--color-sidebar-bg) !important;
+  /* Grounded text */
 }
 
 .theme-text-accent {
-  color: var(--color-accent-dark) !important; /* Bold accents */
+  color: var(--color-accent-dark) !important;
+  /* Bold accents */
 }
 
 .theme-surface-card {
@@ -341,20 +361,27 @@ body * {
 /* ─── Premium Dropdown & Select System (Stripe/Linear Style) ─── */
 
 /* Global Dropdown Panels */
-[class*="dropdown"], 
+[class*="dropdown"],
 .dropdown-menu,
 .dropdown-panel {
   border-radius: 14px !important;
   border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
   background-color: white !important;
   overflow: hidden !important;
   animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 @keyframes dropdownFadeIn {
-  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 /* Dropdown Menu Items */
@@ -393,10 +420,10 @@ body * {
 }
 
 /* Global Select Boxes & Inputs */
-select, 
-input[type="text"], 
-input[type="number"], 
-input[type="email"], 
+select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
 input[type="password"] {
   border-radius: 10px !important;
   border: 1px solid #e2e8f0 !important;
@@ -415,7 +442,7 @@ select {
   padding-right: 2.5rem !important;
 }
 
-select:focus, 
+select:focus,
 input:focus {
   background-color: white !important;
   border-color: var(--color-accent) !important;

@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { useBackupList } from '@/hooks/useBackup';
 import { Skeleton } from '@/components/ui/skeleton';
+import { confirmAction } from '@/components/shared/confirm-action';
 import { backupApi } from '@/lib/api/backup';
 import { DatabaseBackup, HardDrive, CheckCircle2, XCircle, Download, Trash2, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -49,7 +50,7 @@ export function BackupList({ refreshTrigger }: BackupListProps) {
 
   const deleteBackup = async (backupId?: string) => {
     if (!backupId) return toast.error('Backup id missing');
-    if (!window.confirm('Delete this backup record and file?')) return;
+    if (!(await confirmAction('Are you sure you want to delete this backup record and file?'))) return;
 
     setDeletingId(backupId);
     const response = await backupApi.deleteBackup(backupId);

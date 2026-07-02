@@ -4,6 +4,7 @@ import React from 'react';
 import { X, RotateCcw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { BackendRecord } from '@/lib/services/business-modules.service';
 import { formatCurrency } from '@/lib/constants';
+import { parseAssignmentMetadata } from '@/app/dashboard/worker-management/worker-management-utils';
 
 interface GoodsReturnModalProps {
   assignment: BackendRecord;
@@ -75,7 +76,7 @@ export function GoodsReturnModal({
   const piecesNow = Number(form.piecesReturned || 0);
   const rejectedNow = Number(form.rejectedPieces || 0);
   const acceptedNow = Math.max(0, piecesNow - rejectedNow);
-  const pieceRate = moneyNumber(assignment.pieceRateAtAssignment);
+  const pieceRate = parseAssignmentMetadata(assignment.notes).pieceRate;
   const earnedNow = acceptedNow * pieceRate;
 
   // progress
@@ -156,10 +157,11 @@ export function GoodsReturnModal({
             </div>
 
             {/* Piece count stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <StatBox label="Returned" value={alreadyReturned} color="text-green-600" />
+            <div className="grid grid-cols-4 gap-3">
+              <StatBox label="Expected" value={expected} color="text-slate-700" />
+              <StatBox label="Returned" value={alreadyReturned + alreadyRejected} color="text-green-600" />
               <StatBox label="Rejected" value={alreadyRejected} color="text-red-500" />
-              <StatBox label="Total Produced" value={alreadyReturned + alreadyRejected} color="text-slate-700" />
+              <StatBox label="Remaining" value={Math.max(0, expected - (alreadyReturned + alreadyRejected))} color="text-blue-600" />
             </div>
 
             {/* Raw material info */}

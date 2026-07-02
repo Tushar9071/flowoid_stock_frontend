@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import { SkeletonCard, SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable, ColumnDef } from '@/components/shared/DataTable';
 import { SimpleRecordModal, SimpleField } from '@/components/shared/simple-record-modal';
+import { PremiumSelect } from '@/components/ui/PremiumSelect';
 import { ConfirmModal } from '@/components/shared/confirm-modal';
 import { SearchInput } from '@/components/shared/search-input';
 import { formatCurrency } from '@/lib/constants';
@@ -232,24 +233,23 @@ function DesignCatalogueContent() {
       label: 'Raw Material',
       type: 'select',
       required: true,
-      options: rawMaterials.map(item => ({
-        label: `${item.name || 'Material'} (${item.unit || 'unit'})`,
-        value: item.id,
-      })),
+      options: rawMaterials.map(item => {
+        const avail = item.currentStock ?? item.stock?.quantityAvailable ?? 0;
+        return {
+          label: `${item.name || 'Material'} (${item.unit || 'unit'}) — ${Number(avail).toLocaleString()} avail`,
+          value: item.id,
+        };
+      }),
     },
     { name: 'quantityRequired', label: 'Quantity Required', type: 'number', required: true },
     {
       name: 'unit',
-      label: 'Unit',
+      label: 'Unit Basis',
       type: 'select',
       required: true,
       options: [
-        { label: 'KG', value: 'KG' },
-        { label: 'Gram', value: 'GRAM' },
-        { label: 'Piece', value: 'PIECE' },
-        { label: 'Meter', value: 'METER' },
-        { label: 'Dozen', value: 'DOZEN' },
-        { label: 'Other', value: 'OTHER' },
+        { label: 'Per Piece', value: 'PIECE' },
+        { label: 'Per Dozen', value: 'DOZEN' },
       ],
     },
     { name: 'notes', label: 'Notes', type: 'textarea' },
@@ -295,21 +295,22 @@ function DesignCatalogueContent() {
     setSelectedDesign(design);
     setEditingNeed(need || null);
     setModalMode('need');
-    setNeedForm(
-      need
-        ? {
-            rawMaterialId: need.rawMaterialId || need.rawMaterial?.id || '',
-            quantityRequired: need.quantityRequired || '',
-            unit: need.unit || 'PIECE',
-            notes: need.notes || '',
-          }
-        : {
-            rawMaterialId: rawMaterials[0]?.id || '',
-            quantityRequired: '',
-            unit: 'PIECE',
-            notes: '',
-          }
-    );
+    
+    const initialRawMaterialId = need
+      ? (need.rawMaterialId || need.rawMaterial?.id || '')
+      : (rawMaterials[0]?.id || '');
+      
+    const rawUnit = rawMaterials.find(m => m.id === initialRawMaterialId)?.unit;
+    const initialUnit = need
+      ? (need.unit === 'DOZEN' ? 'DOZEN' : 'PIECE')
+      : (rawUnit === 'DOZEN' ? 'DOZEN' : 'PIECE');
+
+    setNeedForm({
+      rawMaterialId: initialRawMaterialId,
+      quantityRequired: need?.quantityRequired || '',
+      unit: initialUnit,
+      notes: need?.notes || '',
+    });
   };
 
   const closeModal = () => {
@@ -432,6 +433,21 @@ function DesignCatalogueContent() {
   const saveNeed = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedDesign?.id) return toast.error('Design not found');
+
+    // Frontend duplicate check for raw material within this specific design
+    if (!editingNeed?.id) {
+      const existingNeeds = needsByDesignId[selectedDesign.id] || [];
+      const isDuplicate = existingNeeds.some((n: any) => n.rawMaterialId === needForm.rawMaterialId);
+      if (isDuplicate) {
+        const matchedMat = rawMaterials.find(m => m.id === needForm.rawMaterialId);
+        const materialName = matchedMat?.name || 'This raw material';
+        setFormError({
+          message: `${materialName} is already configured as a supplementary material for this design.`,
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -492,11 +508,31 @@ function DesignCatalogueContent() {
 
     setConfirmConfig({
       isOpen: true,
-      title: 'Deactivate Design',
-      message: `Deactivate "${design.name || designCode(design)}"?`,
+      title: 'Delete Design',
+      message: `Delete "${design.name || designCode(design)}"? (Soft Delete)`,
       onConfirm: async () => {
         setConfirmConfig(prev => ({ ...prev, isOpen: false }));
         const response = await DesignService.delete('', design.id as string);
+        if (response.success) {
+          toast.success('Design deleted');
+          await loadData();
+        } else {
+          toast.error(response.error?.message || 'Failed to delete design');
+        }
+      },
+    });
+  };
+
+  const markDesignInactive = async (design: BackendRecord) => {
+    if (!design.id) return toast.error('Design not found');
+
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Deactivate Design',
+      message: `Mark "${design.name || designCode(design)}" as inactive?`,
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        const response = await DesignService.updateStatus('', design.id as string, { status: 'INACTIVE' });
         if (response.success) {
           toast.success('Design deactivated');
           await loadData();
@@ -566,15 +602,6 @@ function DesignCatalogueContent() {
           <div className="flex flex-wrap gap-2">
             {canCreate && (
               <button
-                onClick={() => openCategoryForm()}
-                className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold"
-              >
-                <Plus className="h-4 w-4" />
-                Add Category
-              </button>
-            )}
-            {canCreate && (
-              <button
                 onClick={() => openDesignForm()}
                 className="inline-flex items-center gap-2 rounded-lg theme-accent-btn px-5 py-2.5 text-sm font-semibold transition-colors"
               >
@@ -591,6 +618,7 @@ function DesignCatalogueContent() {
           design={viewingDesign}
           categories={categories}
           needs={needsByDesignId[viewingDesign.id as string] || []}
+          rawMaterials={rawMaterials}
           onBack={() => setViewingDesign(null)}
           canUpdate={canUpdate}
           canDelete={canDelete}
@@ -602,6 +630,7 @@ function DesignCatalogueContent() {
           onAddNeed={openNeedForm}
           onEditNeed={openNeedForm}
           onDeleteNeed={deleteNeed}
+          onMarkInactive={markDesignInactive}
         />
       ) : (
         <div className="space-y-6">
@@ -634,7 +663,7 @@ function DesignCatalogueContent() {
               </div>
 
               {/* Category Filter Pills */}
-              <div className="flex gap-1 overflow-x-auto scrollbar-none pt-2 border-t border-slate-100">
+              <div className="flex gap-1.5 flex-wrap pt-2 border-t border-slate-100">
                 <button
                   onClick={() => setSelectedCategory(null)}
                   className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-[13px] font-medium ${!selectedCategory ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
@@ -646,35 +675,13 @@ function DesignCatalogueContent() {
                   const label = category.name || 'Category';
                   const count = designs.filter(d => d.categoryId === key).length;
                   return (
-                    <div
+                    <button
                       key={key}
-                      className={`flex shrink-0 items-center overflow-hidden rounded-full border ${selectedCategory === key ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
+                      onClick={() => setSelectedCategory(key)}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-[13px] font-medium ${selectedCategory === key ? 'theme-tab-active' : 'border-[#e5e7eb] bg-white text-[#6b7280]'}`}
                     >
-                      <button
-                        onClick={() => setSelectedCategory(key)}
-                        className="whitespace-nowrap px-4 py-1.5 text-[13px] font-medium"
-                      >
-                        {label} ({count})
-                      </button>
-                      {canUpdate && (
-                        <button
-                          onClick={() => openCategoryForm(category)}
-                          className="border-l border-current/10 px-2 py-1.5"
-                          title="Edit category"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => deleteCategory(category)}
-                          className="border-l border-current/10 px-2 py-1.5"
-                          title="Deactivate category"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+                      {label} ({count})
+                    </button>
                   );
                 })}
               </div>
@@ -825,13 +832,22 @@ function DesignCatalogueContent() {
                           </button>
                         )}
                         {canDelete && (
-                          <button
-                            onClick={() => deleteDesign(design)}
-                            className="theme-danger-btn rounded-lg p-2"
-                            title="Deactivate design"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => markDesignInactive(design)}
+                              className="theme-secondary-btn rounded-lg p-2"
+                              title="Mark Inactive"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+                            </button>
+                            <button
+                              onClick={() => deleteDesign(design)}
+                              className="theme-danger-btn rounded-lg p-2"
+                              title="Delete design"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -863,6 +879,14 @@ function DesignCatalogueContent() {
               emptyIcon={<Gem className="h-6 w-6 text-slate-400" />}
               emptyTitle="No designs found"
               emptySubtitle="Try adjusting search or filters."
+              onStatusChange={async (id, newStatus) => {
+                const response = await DesignService.updateStatus('', id, { status: newStatus });
+                if (!response.success) {
+                  throw new Error(response.error?.message || 'Failed to update status');
+                }
+                // Reload data gently in the background without a full loading spinner if possible
+                loadData();
+              }}
               columns={[
                 {
                   field: 'code',
@@ -938,7 +962,6 @@ function DesignCatalogueContent() {
                   filterable: true,
                   filterType: 'boolean',
                   getValue: row => designStatus(row) === 'ACTIVE',
-                  render: row => <StatusPill status={designStatus(row)} />,
                 },
                 {
                   field: 'actions',
@@ -969,13 +992,22 @@ function DesignCatalogueContent() {
                         </button>
                       )}
                       {canDelete && (
-                        <button
-                          onClick={() => deleteDesign(row)}
-                          className="theme-danger-btn rounded-lg p-2"
-                          title="Deactivate design"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => markDesignInactive(row)}
+                            className="theme-secondary-btn rounded-lg p-2"
+                            title="Mark Inactive"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+                          </button>
+                          <button
+                            onClick={() => deleteDesign(row)}
+                            className="theme-danger-btn rounded-lg p-2"
+                            title="Delete design"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   ),
@@ -1006,35 +1038,175 @@ function DesignCatalogueContent() {
         />
       )}
 
-      {modalMode === 'category' && Object.keys(categoryForm).length > 0 && (
-        <SimpleRecordModal
-          title={editingCategory ? 'Edit Category' : 'Add Category'}
-          subtitle="Category name must be unique"
-          fields={categoryFields}
-          values={categoryForm}
-          saving={saving}
-          apiError={formError}
-          submitLabel={editingCategory ? 'Update Category' : 'Create Category'}
-          onChange={(name, value) => setCategoryForm(form => ({ ...form, [name]: value }))}
-          onClose={closeModal}
-          onSubmit={saveCategory}
-        />
-      )}
+      {modalMode === 'need' && Object.keys(needForm).length > 0 && (() => {
+        const selectedMat = rawMaterials.find(m => m.id === needForm.rawMaterialId);
+        const matUnit = selectedMat?.unit || '';
+        const matName = selectedMat?.name || 'selected raw material';
+        const isDozen = needForm.unit === 'DOZEN';
+        const quantity = needForm.quantityRequired || 0;
+        
+        const formulaPreview = isDozen
+          ? `1 Dozen requires ${quantity} ${matUnit} of ${matName}.`
+          : `1 Finished Piece requires ${quantity} ${matUnit} of ${matName}.`;
 
-      {modalMode === 'need' && Object.keys(needForm).length > 0 && (
-        <SimpleRecordModal
-          title={editingNeed ? 'Edit Supplementary Need' : 'Add Supplementary Need'}
-          subtitle={selectedDesign ? `Design: ${selectedDesign.name || designCode(selectedDesign)}` : 'Supplementary need'}
-          fields={editingNeed ? needFields.filter(f => f.name !== 'rawMaterialId') : needFields}
-          values={needForm}
-          saving={saving}
-          apiError={formError}
-          submitLabel={editingNeed ? 'Update Need' : 'Add Need'}
-          onChange={(name, value) => setNeedForm(form => ({ ...form, [name]: value }))}
-          onClose={closeModal}
-          onSubmit={saveNeed}
-        />
-      )}
+        return (
+          <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
+            <form onSubmit={saveNeed} className="theme-modal-panel flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 p-4">
+                <div>
+                  <h2 className="text-xl font-bold theme-text-primary">
+                    {editingNeed ? 'Edit Supplementary Need' : 'Add Supplementary Need'}
+                  </h2>
+                  {selectedDesign && (
+                    <p className="text-sm text-slate-500">
+                      Design: {selectedDesign.name || designCode(selectedDesign)}
+                    </p>
+                  )}
+                </div>
+                <button type="button" onClick={closeModal} className="theme-secondary-btn rounded-lg p-2">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {formError && (
+                <div className="mx-4 mt-4 whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                  {formError.message || 'Validation failed. Please correct the highlighted fields and try again.'}
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Raw Material Select / Label */}
+                  {editingNeed ? (
+                    <div className="md:col-span-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Raw Material
+                        </span>
+                        <div className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 flex items-center">
+                          {matName}
+                        </div>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Raw Material <span className="text-red-500">*</span>
+                        </span>
+                        <PremiumSelect
+                          required
+                          value={needForm.rawMaterialId || ''}
+                          onChange={(e: any) => {
+                            const val = e.target.value;
+                            setNeedForm(form => {
+                              const updated = { ...form, rawMaterialId: val } as any;
+                              const selectedMat = rawMaterials.find(m => m.id === val);
+                              if (selectedMat) {
+                                updated.unit = selectedMat.unit === 'DOZEN' ? 'DOZEN' : 'PIECE';
+                              }
+                              return updated;
+                            });
+                          }}
+                          className="h-10 w-full text-sm font-semibold rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-[var(--color-accent)]"
+                        >
+                          <option value="">Select Raw Material</option>
+                          {rawMaterials.map(item => {
+                            const avail = item.currentStock ?? item.stock?.quantityAvailable ?? 0;
+                            return (
+                              <option key={item.id} value={item.id}>
+                                {item.name || 'Material'} ({item.unit || 'unit'}) — {Number(avail).toLocaleString()} avail
+                              </option>
+                            );
+                          })}
+                        </PremiumSelect>
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Consumption Quantity */}
+                  <div>
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Consumption Quantity <span className="text-red-500">*</span>
+                      </span>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          step="any"
+                          required
+                          value={needForm.quantityRequired ?? ''}
+                          onChange={e => setNeedForm(form => ({ ...form, quantityRequired: e.target.value }))}
+                          className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-16 text-sm outline-none focus:border-[var(--color-accent)]"
+                          placeholder="e.g. 0.5"
+                        />
+                        {matUnit && (
+                          <div className="absolute right-0 flex h-full items-center text-xs font-bold text-slate-500 bg-slate-50 border-l border-slate-200 px-3 rounded-r-lg">
+                            {matUnit}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Production Basis */}
+                  <div>
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Production Basis <span className="text-red-500">*</span>
+                      </span>
+                      <PremiumSelect
+                        required
+                        value={needForm.unit || 'PIECE'}
+                        onChange={(e: any) => setNeedForm(form => ({ ...form, unit: e.target.value }))}
+                        className="h-10 w-full text-sm font-semibold rounded-lg border border-slate-200 bg-white px-3 outline-none focus:border-[var(--color-accent)]"
+                      >
+                        <option value="PIECE">Per Piece</option>
+                        <option value="DOZEN">Per Dozen</option>
+                      </PremiumSelect>
+                    </label>
+                  </div>
+
+                  {/* Notes */}
+                  <div className="md:col-span-2">
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Notes
+                      </span>
+                      <textarea
+                        value={needForm.notes || ''}
+                        onChange={e => setNeedForm(form => ({ ...form, notes: e.target.value }))}
+                        rows={2}
+                        placeholder="Optional notes"
+                        className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-[var(--color-accent)]"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Formula Preview Block */}
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">
+                    Formula Preview
+                  </span>
+                  <p className="text-sm font-bold text-indigo-900">
+                    Formula: <span className="font-semibold text-slate-800">{formulaPreview}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex shrink-0 justify-end gap-3 border-t border-slate-200 p-4">
+                <button type="button" onClick={closeModal} className="theme-secondary-btn rounded-lg px-4 py-2 text-sm font-semibold">
+                  Cancel
+                </button>
+                <button disabled={saving} className="theme-accent-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60">
+                  {saving ? 'Saving...' : editingNeed ? 'Update Need' : 'Add Need'}
+                </button>
+              </div>
+            </form>
+          </div>
+        );
+      })()}
 
       <ConfirmModal
         isOpen={confirmConfig.isOpen}
@@ -1069,6 +1241,7 @@ function SupplementaryNeeds({
   onAdd,
   onEdit,
   onDelete,
+  rawMaterials = [],
 }: {
   design: BackendRecord;
   needs: BackendRecord[];
@@ -1077,6 +1250,7 @@ function SupplementaryNeeds({
   onAdd: (design: BackendRecord) => void;
   onEdit: (design: BackendRecord, need: BackendRecord) => void;
   onDelete: (design: BackendRecord, need: BackendRecord) => void;
+  rawMaterials?: BackendRecord[];
 }) {
   return (
     <div className="mt-4 rounded-lg border border-[#f3f4f6] bg-[#fafafa] p-3">
@@ -1098,39 +1272,44 @@ function SupplementaryNeeds({
         <p className="text-xs text-[#6b7280]">No supplementary materials assigned.</p>
       ) : (
         <div className="space-y-2">
-          {needs.map(need => (
-            <div
-              key={need.id || `${need.rawMaterialId}-${need.quantityRequired}`}
-              className="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-xs"
-            >
-              <div>
-                <p className="font-semibold theme-text-primary">{materialName(need)}</p>
-                <p className="text-[#6b7280]">
-                  Qty: {need.quantityRequired || '-'} {need.unit || ''}
-                </p>
+          {needs.map(need => {
+            const material = rawMaterials.find(rm => rm.id === need.rawMaterialId);
+            return (
+              <div
+                key={need.id || `${need.rawMaterialId}-${need.quantityRequired}`}
+                className="flex items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-xs"
+              >
+                <div>
+                  <p className="font-semibold theme-text-primary">
+                    {material?.name || need.rawMaterial?.name || materialName(need)}
+                  </p>
+                  <p className="text-[#6b7280]">
+                    Qty: {need.quantityRequired || '-'} {need.unit || ''}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  {canUpdate && (
+                    <button
+                      onClick={() => onEdit(design, need)}
+                      className="rounded-md p-1 text-[#6b7280] hover:bg-[#f3f4f6]"
+                      title="Edit need"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => onDelete(design, need)}
+                      className="rounded-md p-1 text-[#cc2200] hover:bg-[#fff0f0]"
+                      title="Remove need"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-1">
-                {canUpdate && (
-                  <button
-                    onClick={() => onEdit(design, need)}
-                    className="rounded-md p-1 text-[#6b7280] hover:bg-[#f3f4f6]"
-                    title="Edit need"
-                  >
-                    <Edit3 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                {canDelete && (
-                  <button
-                    onClick={() => onDelete(design, need)}
-                    className="rounded-md p-1 text-[#cc2200] hover:bg-[#fff0f0]"
-                    title="Remove need"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -1141,11 +1320,13 @@ function DesignDetails({
   design,
   categories,
   needs,
+  rawMaterials = [],
   onBack,
   canUpdate,
   canDelete,
   onEditDesign,
   onDeleteDesign,
+  onMarkInactive,
   onAddNeed,
   onEditNeed,
   onDeleteNeed,
@@ -1153,11 +1334,13 @@ function DesignDetails({
   design: BackendRecord;
   categories: BackendRecord[];
   needs: BackendRecord[];
+  rawMaterials?: BackendRecord[];
   onBack: () => void;
   canUpdate: boolean;
   canDelete: boolean;
   onEditDesign: (design: BackendRecord) => void;
   onDeleteDesign: (design: BackendRecord) => void;
+  onMarkInactive?: (design: BackendRecord) => void;
   onAddNeed: (design: BackendRecord) => void;
   onEditNeed: (design: BackendRecord, need: BackendRecord) => void;
   onDeleteNeed: (design: BackendRecord, need: BackendRecord) => void;
@@ -1204,6 +1387,16 @@ function DesignDetails({
               className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
             >
               <Edit3 className="h-4 w-4" /> Edit
+            </button>
+          )}
+          {canDelete && onMarkInactive && (
+            <button
+              onClick={() => onMarkInactive(design)}
+              className="theme-secondary-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
+              title="Mark Inactive"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+              Inactive
             </button>
           )}
           {canDelete && (
@@ -1317,6 +1510,7 @@ function DesignDetails({
             <SupplementaryNeeds
               design={design}
               needs={needs}
+              rawMaterials={rawMaterials}
               canUpdate={canUpdate}
               canDelete={canDelete}
               onAdd={onAddNeed}

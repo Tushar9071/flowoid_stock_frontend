@@ -12,7 +12,7 @@ function StatusPill({ active }: { active: boolean }) {
 }
 
 export default function SupplementaryPage() {
-  const { loading, filteredSupplementary, search, setSearch } = useInventory();
+  const { loading, filteredSupplementary, search, setSearch, updateSupplementaryStatus } = useInventory();
 
   return (
     <div className="space-y-6">
@@ -34,6 +34,7 @@ export default function SupplementaryPage() {
           loading={loading.supplementary}
           emptyIcon={<Plus className="h-6 w-6 text-slate-400" />}
           emptyTitle="No supplementary stock found"
+          onStatusChange={updateSupplementaryStatus}
           columns={[
             {
               field: 'name', header: 'Item', sortable: true, filterable: true, filterType: 'text',
@@ -54,7 +55,7 @@ export default function SupplementaryPage() {
                 return <div className="text-center font-bold text-[#1a7a4a]">{qty}</div>;
               }
             },
-            { field: 'status', header: 'Status', sortable: true, filterable: true, filterType: 'boolean', getValue: (row) => row.isActive !== false, render: (row) => <StatusPill active={row.isActive !== false} /> },
+            { field: 'status', header: 'Status', sortable: true, filterable: true, filterType: 'boolean', getValue: (row) => row.isActive !== false },
             { field: 'updatedAt', header: 'Updated', sortable: true, filterable: true, filterType: 'date', getValue: (row) => row.updatedAt || row.createdAt, render: (row) => <div className="text-center text-[#6b7280]">{prettyDate(row.updatedAt || row.createdAt)}</div> }
           ]}
         />

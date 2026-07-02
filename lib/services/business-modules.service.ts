@@ -195,6 +195,9 @@ export const SupplementaryService = {
   async delete(_tenantId: string, id: string) {
     return asItemResponse(await api.patch(owner(`/raw-material-types/${id}/status`), { status: 'INACTIVE' }), 'type');
   },
+  async updateStatus(_tenantId: string, id: string, data: { status: string }) {
+    return asItemResponse(await api.patch(owner(`/raw-material-types/${id}/status`), data), 'type');
+  },
   async adjustStock(_tenantId: string, id: string, data: BackendRecord) {
     return asItemResponse(await api.post(owner('/inventory/adjustments'), { ...data, rawMaterialTypeId: id }), 'adjustment');
   },
@@ -215,6 +218,9 @@ export const WorkerService = {
   },
   async delete(_tenantId: string, id: string) {
     return asItemResponse(await api.patch(owner(`/workers/${id}/status`), { status: 'INACTIVE' }), 'worker');
+  },
+  async updateStatus(_tenantId: string, id: string, data: { status: string }) {
+    return asItemResponse(await api.patch(owner(`/workers/${id}/status`), data), 'worker');
   },
   async listAssignments(_tenantId: string, id: string, query: QueryParams = {}) {
     return asListResponse(await api.get(owner(`/workers/${id}/assignments${buildQuery(query)}`)), 'assignments');
@@ -256,11 +262,13 @@ export const AssignmentService = {
   async updateStatus(_tenantId: string, id: string, data: BackendRecord) {
     const status = String(data.status || '').toUpperCase();
     if (status === 'CLOSED') return this.close(_tenantId, id, data);
-    // No direct status update endpoint — return current state
-    return asItemResponse(await api.get(owner(`/assignments/${id}`)), 'assignment');
+    return asItemResponse(await api.patch(owner(`/assignments/${id}/status`), { status }), 'assignment');
   },
   async close(_tenantId: string, id: string, data: BackendRecord = {}) {
     return asItemResponse(await api.patch(owner(`/assignments/${id}/close`), { force: Boolean(data.force) }), 'assignment');
+  },
+  async dropAssignment(_tenantId: string, id: string, data: BackendRecord) {
+    return asItemResponse(await api.post(owner(`/assignments/${id}/drop`), data), 'assignment');
   },
   // Global goods-returns listing = list assignments (returns are nested per assignment)
   async listGoodsReturns(_tenantId: string, query: QueryParams = {}) {

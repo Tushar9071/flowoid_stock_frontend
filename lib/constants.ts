@@ -171,6 +171,10 @@ export const navigationItems = [
     href: '/dashboard/design-catalogue',
     icon: 'Grid2X2',
     permission: 'designs.read',
+    subItems: [
+      { id: 'dc-designs', label: 'Designs', href: '/dashboard/design-catalogue' },
+      { id: 'dc-categories', label: 'Categories', href: '/dashboard/design-catalogue/categories' }
+    ]
   },
   {
     id: 'worker-management',
@@ -210,7 +214,6 @@ export const navigationItems = [
     subItems: [
       { id: 'inv-finished', label: 'Finished Stock', href: '/dashboard/inventory' },
       { id: 'inv-packaging', label: 'Packaging Batches', href: '/dashboard/inventory/packaging' },
-      { id: 'inv-alerts', label: 'Low Stock Alerts', href: '/dashboard/inventory/alerts' },
       { id: 'inv-supplementary', label: 'Supplementary Stock', href: '/dashboard/inventory/supplementary' },
     ]
   },

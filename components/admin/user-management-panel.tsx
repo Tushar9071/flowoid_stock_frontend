@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SearchInput } from '@/components/shared/search-input';
+import { confirmAction } from '@/components/shared/confirm-action';
 
 type UserForm = {
   name: string;
@@ -236,7 +237,7 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
   };
 
   const handleHardDeleteUser = async (user: ManagedUser) => {
-    if (!window.confirm(`Permanently delete "${user.name}"? This action cannot be undone.`)) return;
+    if (!(await confirmAction(`Are you sure you want to permanently delete "${user.name}"?`))) return;
 
     try {
       const response = await UserService.delete(user.id, true);
@@ -253,7 +254,14 @@ export function UserManagementPanel({ showLocalAction = false }: { showLocalActi
 
   const handleToggleActive = async (user: ManagedUser, isActive: boolean) => {
     const action = isActive ? 'activate' : 'deactivate';
-    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} "${user.name}"?`)) return;
+    if (!(await confirmAction(`Are you sure you want to ${action} "${user.name}"?`, {
+      type: 'warning',
+      title: isActive ? 'Activate User?' : 'Deactivate User?',
+      description: isActive 
+        ? "This will restore the user's access to the system."
+        : "This will temporarily revoke the user's access to the system.",
+      confirmText: isActive ? 'Activate' : 'Deactivate',
+    }))) return;
 
     try {
       const response = isActive

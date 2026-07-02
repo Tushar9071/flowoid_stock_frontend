@@ -5,7 +5,8 @@ import { Wallet } from 'lucide-react';
 import { SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { formatCurrency } from '@/lib/constants';
-import { useWorkerManagement, workerCode, prettyDate, paymentWorkerId } from '../worker-management-context';
+import { useWorkerManagement } from '../worker-management-context';
+import { workerCode, prettyDate, paymentWorkerId } from '../worker-management-utils';
 
 export default function PaymentsPage() {
   const {

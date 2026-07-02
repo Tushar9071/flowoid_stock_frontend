@@ -36,6 +36,8 @@ import { useAuth } from '@/lib/auth-context';
 import { PartyService } from '@/lib/services/party.service';
 import { CurrentOwnerService } from '@/lib/services/current-owner.service';
 import { SearchInput } from '@/components/shared/search-input';
+import { confirmAction } from '@/components/shared/confirm-action';
+
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { PremiumSelect } from '@/components/ui/PremiumSelect';
 import {
@@ -495,23 +497,22 @@ export function PartyManagementPage({
     }
   };
 
-  const toggleStatus = async (party: BackendParty) => {
+  const handleStatusChange = async (id: string, newStatus: string) => {
     if (!tenant) return;
-    if (!canUpdate) return toast.error('You do not have permission to update parties');
+    if (!canUpdate) throw new Error('You do not have permission to update parties');
 
-    const response = await PartyService.updateStatus(tenant.id, party.id, !party.isActive);
-    if (response.success) {
-      toast.success(response.data.isActive ? 'Party activated' : 'Party deactivated');
-      await loadParties();
-    } else {
-      toast.error(response.error?.message || 'Failed to update party status');
+    const isActive = newStatus.toUpperCase() === 'ACTIVE';
+    const response = await PartyService.updateStatus(tenant.id, id, isActive);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to update party status');
     }
+    await loadParties();
   };
 
   const deleteParty = async (party: BackendParty) => {
     if (!tenant) return;
     if (!canDelete) return toast.error('You do not have permission to delete parties');
-    if (!window.confirm(`Delete ${party.name}? This will soft delete the party.`)) return;
+    if (!(await confirmAction(`Are you sure you want to delete "${party.name}"?`))) return;
 
     const response = await PartyService.delete(tenant.id, party.id);
     if (response.success) {
@@ -723,6 +724,7 @@ export function PartyManagementPage({
               searchable={false}
               emptyIcon={tab === 'DEALER' ? <Building2 className="h-7 w-7" /> : <Truck className="h-7 w-7" />}
               emptyTitle={`No ${tab === 'DEALER' ? 'dealers' : 'suppliers'} found`}
+              onStatusChange={handleStatusChange}
               columns={[
                 {
                   field: 'party',
@@ -791,7 +793,6 @@ export function PartyManagementPage({
                   filterable: true,
                   filterType: 'boolean',
                   getValue: party => Boolean(party.isActive),
-                  render: party => <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusPill(party.isActive)}`}>{party.isActive ? 'Active' : 'Inactive'}</span>,
                 },
                 {
                   field: 'actions',

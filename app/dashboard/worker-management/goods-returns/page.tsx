@@ -5,7 +5,8 @@ import { Package } from 'lucide-react';
 import { SkeletonTable } from '@/components/skeleton/Skeletons';
 import { AdvancedDataTable } from '@/components/shared/DataTable';
 import { formatCurrency } from '@/lib/constants';
-import { useWorkerManagement, workerCode, designLabel, prettyDate, returnWorkerId } from '../worker-management-context';
+import { useWorkerManagement } from '../worker-management-context';
+import { workerCode, designLabel, prettyDate, returnWorkerId, parseAssignmentMetadata } from '../worker-management-utils';
 
 export default function GoodsReturnsPage() {
   const {
@@ -100,10 +101,21 @@ export default function GoodsReturnsPage() {
         },
         {
           field: 'goodPieces',
-          header: 'Good Qty',
+          header: 'Acc / Ret',
           sortable: true,
           getValue: (row: any) => row.piecesReturned || 0,
-          render: (row: any) => <div className="text-right font-semibold text-[#1a7a4a]">{row.piecesReturned || 0}</div>
+          render: (row: any) => {
+            const accepted = row.piecesReturned || 0;
+            const rejected = row.piecesRejected || 0;
+            const totalReturned = accepted + rejected;
+            return (
+              <div className="text-right whitespace-nowrap">
+                <span className="font-semibold text-green-600" title="Accepted">{accepted}</span>
+                <span className="text-slate-400 text-xs mx-1">/</span>
+                <span className="font-semibold text-blue-600" title="Total Returned">{totalReturned}</span>
+              </div>
+            );
+          }
         },
         {
           field: 'rejectedPieces',
@@ -116,9 +128,13 @@ export default function GoodsReturnsPage() {
           field: 'earned',
           header: 'Earned',
           sortable: true,
-          getValue: (row: any) => (row.piecesReturned || 0) * (row.assignment?.design?.workerRate || 0),
+          getValue: (row: any) => {
+            const rate = parseAssignmentMetadata(row.assignment?.notes).pieceRate;
+            return (row.piecesReturned || 0) * rate;
+          },
           render: (row: any) => {
-            const earned = (row.piecesReturned || 0) * (row.assignment?.design?.workerRate || 0);
+            const rate = parseAssignmentMetadata(row.assignment?.notes).pieceRate;
+            const earned = (row.piecesReturned || 0) * rate;
             return <div className="text-right font-semibold theme-text-primary">{formatCurrency(earned)}</div>;
           }
         },

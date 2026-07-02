@@ -18,6 +18,8 @@ import { createPortal } from "react-dom";
 import { PremiumSelect } from "@/components/ui/PremiumSelect";
 import { useViewMode } from "@/context/ViewModeContext";
 import { ViewToggle } from "@/components/ui/ViewToggle";
+import { SearchInput } from "@/components/shared/search-input";
+import { StatusToggle } from "@/components/shared/status-toggle";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 export type FilterType = "text" | "select" | "number" | "date" | "boolean";
@@ -53,6 +55,7 @@ export interface AdvancedDataTableProps<T> {
   // Optional Controlled Callbacks (if parent wants to handle sorting/pagination from API)
   // If not provided, the table does client-side pagination, sorting, and filtering
   onRowClick?: (row: T) => void;
+  onStatusChange?: (id: string, newStatus: string) => Promise<void>;
   className?: string;
   hideViewToggle?: boolean;
 }
@@ -68,6 +71,7 @@ export function AdvancedDataTable<T extends Record<string, any>>({
   emptySubtitle = "Try adjusting your filters or search query.",
   loading = false,
   onRowClick,
+  onStatusChange,
   className = "",
   hideViewToggle = false,
 }: AdvancedDataTableProps<T>) {
@@ -364,11 +368,13 @@ export function AdvancedDataTable<T extends Record<string, any>>({
                   >
                     {cIdx === 0 ? (
                       <div className="text-base font-bold theme-text-primary">
-                        {col.render
-                          ? col.render(row)
-                          : col.getValue
-                            ? col.getValue(row)
-                            : row[col.field as string]}
+                        {col.field === 'status' && onStatusChange && row.id !== undefined
+                          ? <StatusToggle status={String(col.getValue ? col.getValue(row) : row[col.field as string])} id={String(row.id)} onStatusChange={onStatusChange} />
+                          : col.render
+                            ? col.render(row)
+                            : col.getValue
+                              ? col.getValue(row)
+                              : row[col.field as string]}
                       </div>
                     ) : (
                       <>
@@ -376,11 +382,13 @@ export function AdvancedDataTable<T extends Record<string, any>>({
                           {col.header}
                         </span>
                         <div className="text-sm font-medium text-slate-700 text-right overflow-hidden break-words">
-                          {col.render
-                            ? col.render(row)
-                            : col.getValue
-                              ? col.getValue(row)
-                              : row[col.field as string]}
+                          {(col.field === 'status' || col.field === 'isActive') && onStatusChange && row.id !== undefined
+                            ? <StatusToggle status={String(col.getValue ? col.getValue(row) : row[col.field as string])} id={String(row.id)} onStatusChange={onStatusChange} />
+                            : col.render
+                              ? col.render(row)
+                              : col.getValue
+                                ? col.getValue(row)
+                                : row[col.field as string]}
                         </div>
                       </>
                     )}
@@ -451,7 +459,13 @@ export function AdvancedDataTable<T extends Record<string, any>>({
                       key={col.field as string}
                       className={`px-4 py-3 text-slate-700 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}
                     >
-                      {col.render ? col.render(row) : row[col.field as string]}
+                      {(col.field === 'status' || col.field === 'isActive') && onStatusChange && row.id !== undefined
+                        ? <StatusToggle status={String(col.getValue ? col.getValue(row) : row[col.field as string])} id={String(row.id)} onStatusChange={onStatusChange} />
+                        : col.render 
+                          ? col.render(row) 
+                          : col.getValue
+                            ? col.getValue(row)
+                            : row[col.field as string]}
                     </td>
                   ))}
                 </tr>
@@ -627,15 +641,18 @@ function HeaderFilter({
           >
             <div className="p-3 font-normal max-h-64 overflow-y-auto">
               {/* TEXT FILTER */}
-              {column.filterType === "text" && (
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder={`Search ${column.header}...`}
-                  value={draft || ""}
-                  onChange={(e) => setDraft(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F2A4A]"
-                />
+              {(!column.filterType || column.filterType === "text") && (
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder={`Search ${column.header}...`}
+                    value={draft || ""}
+                    onChange={(e) => setDraft(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F2A4A]"
+                  />
+                </div>
               )}
 
               {/* SELECT FILTER */}

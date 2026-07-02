@@ -152,6 +152,14 @@ export const RawMaterialService = {
     );
   },
 
+  async updateTypeStatus(_tenantId: string, materialTypeId: string, data: { status: string }) {
+    const response = asItemResponse<RawMaterialType>(
+      await api.patch(owner(`/raw-material-types/${materialTypeId}/status`), data),
+      'type'
+    );
+    return response.success ? { ...response, data: normalizeType(response.data) } : response;
+  },
+
   async listPurchases(_tenantId: string, query: RawMaterialPurchaseQuery = {}) {
     const response = asListResponse<RawMaterialPurchase>(
       await api.get(owner(`/raw-material-purchases${buildQuery(normalizePurchaseQuery(query) as any)}`)),

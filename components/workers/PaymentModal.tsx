@@ -82,6 +82,8 @@ export function PaymentModal({
   const summary = selectedWorker?.summary;
   const outstanding = moneyNumber(summary?.outstandingBalance);
   const advance = moneyNumber(summary?.advanceGiven);
+  const earned = moneyNumber(summary?.earned);
+  const paid = moneyNumber(summary?.paid);
   const amount = moneyNumber(form.amount);
 
   const selectedType = PAYMENT_TYPES.find(t => t.value === form.paymentType);
@@ -125,7 +127,24 @@ export function PaymentModal({
             <PremiumSelect
               value={form.workerId || ''}
               required
-              onChange={(e: any) => handleChange('workerId', e.target.value)}
+              onChange={(e: any) => {
+                const newWorkerId = e.target.value;
+                handleChange('workerId', newWorkerId);
+                const w = workers.find(x => x.id === newWorkerId);
+                if (w) {
+                  const outst = moneyNumber(w.summary?.outstandingBalance);
+                  const adv = moneyNumber(w.summary?.advanceGiven);
+                  
+                  let nextType = form.paymentType;
+                  if (nextType === 'EARNING' && outst <= 0) nextType = 'ADVANCE';
+                  if (nextType === 'ADVANCE_RECOVERY' && adv <= 0) nextType = outst > 0 ? 'EARNING' : 'ADVANCE';
+                  
+                  if (nextType !== form.paymentType) handleChange('paymentType', nextType);
+                  
+                  if (nextType === 'EARNING' && outst > 0) handleChange('amount', outst);
+                  if (nextType === 'ADVANCE_RECOVERY' && adv > 0) handleChange('amount', adv);
+                }
+              }}
               className={`h-10 w-full rounded-lg border ${fieldErrors.workerId ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
               data-invalid={!!fieldErrors.workerId}
             >
@@ -140,11 +159,28 @@ export function PaymentModal({
           {/* Worker balance context */}
           {selectedWorker && summary && (
             <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+              {form.paymentType === 'EARNING' && (
+                <>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Total Earned</p>
+                    <p className="text-lg font-bold text-slate-700">{formatCurrency(earned)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Total Paid</p>
+                    <p className="text-lg font-bold text-slate-700">{formatCurrency(paid)}</p>
+                  </div>
+                </>
+              )}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Outstanding</p>
-                <p className={`text-lg font-bold ${outstanding > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  {formatCurrency(outstanding)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-lg font-bold ${outstanding > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {formatCurrency(outstanding)}
+                  </p>
+                  {outstanding > 0 && form.paymentType === 'EARNING' && (
+                    <button type="button" onClick={() => handleChange('amount', outstanding)} className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold hover:bg-emerald-200">PAY FULL</button>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Advance Given</p>
@@ -161,24 +197,41 @@ export function PaymentModal({
               Payment Type <span className="text-red-500">*</span>
             </p>
             <div className="grid grid-cols-1 gap-2">
-              {PAYMENT_TYPES.map(type => (
-                <button
-                  key={type.value}
-                  type="button"
-                  onClick={() => handleChange('paymentType', type.value)}
-                  className={`flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
-                    form.paymentType === type.value
-                      ? type.color + ' border-opacity-100'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <TrendingUp className={`mt-0.5 h-4 w-4 shrink-0 ${form.paymentType === type.value ? '' : 'text-slate-400'}`} />
-                  <div>
-                    <p className="text-sm font-bold">{type.label}</p>
-                    <p className={`text-xs ${form.paymentType === type.value ? 'opacity-80' : 'text-slate-400'}`}>{type.desc}</p>
-                  </div>
-                </button>
-              ))}
+              {PAYMENT_TYPES.map(type => {
+                let isDisabled = false;
+                let disabledReason = '';
+                if (type.value === 'EARNING' && outstanding <= 0) {
+                  isDisabled = true;
+                  disabledReason = '(No outstanding balance)';
+                } else if (type.value === 'ADVANCE_RECOVERY' && advance <= 0) {
+                  isDisabled = true;
+                  disabledReason = '(No advance to recover)';
+                }
+
+                return (
+                  <button
+                    key={type.value}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => handleChange('paymentType', type.value)}
+                    className={`flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+                      form.paymentType === type.value
+                        ? type.color + ' border-opacity-100'
+                        : isDisabled
+                          ? 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <TrendingUp className={`mt-0.5 h-4 w-4 shrink-0 ${form.paymentType === type.value ? '' : 'text-slate-400'}`} />
+                    <div>
+                      <p className="text-sm font-bold">
+                        {type.label} {isDisabled && <span className="text-[10px] font-normal text-slate-400 ml-1">{disabledReason}</span>}
+                      </p>
+                      <p className={`text-xs ${form.paymentType === type.value ? 'opacity-80' : 'text-slate-400'}`}>{type.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -204,20 +257,23 @@ export function PaymentModal({
               {form.paymentType === 'EARNING' && amount > outstanding && outstanding > 0 && (
                 <p className="mt-1 text-[11px] text-amber-600">⚠ Exceeds outstanding balance</p>
               )}
+              {form.paymentType === 'ADVANCE_RECOVERY' && amount > advance && (
+                <p className="mt-1 text-[11px] font-semibold text-red-500">⚠ Cannot recover more than advance given ({formatCurrency(advance)})</p>
+              )}
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Payment Mode</span>
               <PremiumSelect
-                value={form.paymentMode || 'CASH'}
-                onChange={(e: any) => handleChange('paymentMode', e.target.value)}
-                className={`h-10 w-full rounded-lg border ${fieldErrors.paymentMode ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
-                data-invalid={!!fieldErrors.paymentMode}
+                value={form.paymentMethod || 'CASH'}
+                onChange={(e: any) => handleChange('paymentMethod', e.target.value)}
+                className={`h-10 w-full rounded-lg border ${fieldErrors.paymentMethod ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-500`}
+                data-invalid={!!fieldErrors.paymentMethod}
               >
                 {PAYMENT_MODES.map(m => (
                   <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
                 ))}
               </PremiumSelect>
-              {fieldErrors.paymentMode && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.paymentMode}</p>}
+              {fieldErrors.paymentMethod && <p className="mt-1 text-[11px] font-semibold text-red-500">{fieldErrors.paymentMethod}</p>}
             </label>
           </div>
 
@@ -254,7 +310,7 @@ export function PaymentModal({
               <Wallet className="h-4 w-4 shrink-0" />
               <p className="text-sm font-semibold">
                 {selectedType.label}: <span className="text-lg">{formatCurrency(amount)}</span>
-                {form.paymentMode ? ` via ${form.paymentMode.replace(/_/g, ' ')}` : ''}
+                {form.paymentMethod ? ` via ${form.paymentMethod.replace(/_/g, ' ')}` : ''}
               </p>
             </div>
           )}
@@ -267,7 +323,7 @@ export function PaymentModal({
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || (form.paymentType === 'ADVANCE_RECOVERY' && amount > advance)}
             className="theme-accent-btn rounded-lg px-5 py-2 text-sm font-semibold disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Record Payment'}

@@ -27,10 +27,9 @@ function InventoryModals() {
       ]
     : [
         { name: 'designId', label: 'Design', type: 'select', required: true, options: designOptions },
-        { name: 'type', label: 'Stock Type', type: 'select', required: true, options: [{ label: 'Unpackaged Pieces', value: 'UNPACKAGED' }, { label: 'Packaged Dozens', value: 'PACKAGED' }] },
         {
-          name: 'adjustment', label: 'Adjustment', type: 'number', required: true,
-          hint: selectedDesignStock ? `Current ${stockForm.type === 'PACKAGED' ? 'packaged' : 'unpackaged'} stock: ${currentTypeStock}. Add a negative number to reduce stock.` : '',
+          name: 'adjustment', label: 'Adjustment (Packaged Dozens)', type: 'number', required: true,
+          hint: 'Add a negative number to reduce stock. Only packaged dozens can be manually adjusted.',
         },
         { name: 'notes', label: 'Notes', type: 'textarea', required: true },
       ];
@@ -118,9 +117,7 @@ function InventoryLayoutInner({ children }: { children: React.ReactNode }) {
         <Plus className="h-4 w-4" /> Create Packaging
       </button>
     );
-  } else if (pathname.startsWith('/dashboard/inventory/alerts')) {
-    title = 'Low Stock Alerts';
-    subtitle = 'Items below minimum stock threshold';
+
   } else if (pathname.startsWith('/dashboard/inventory/supplementary')) {
     title = 'Supplementary Stock';
     subtitle = 'Additional stock items and supplementary inventory';

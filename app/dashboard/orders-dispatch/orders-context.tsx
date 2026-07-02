@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency } from '@/lib/constants';
+import { confirmAction } from '@/components/shared/confirm-action';
 import {
   BackendRecord,
   DesignService,
@@ -162,6 +163,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
   const [formError, setFormError] = useState<any>(null);
   const [dispatchSummary, setDispatchSummary] = useState<BackendRecord | null>(null);
   const [selectedDesignAvailability, setSelectedDesignAvailability] = useState<number | null>(null);
+  const [prevDesignId, setPrevDesignId] = useState<string | null>(null);
 
   const canCreate = hasPermission('sales_orders.create') || hasPermission('orders.create');
   const canUpdate = hasPermission('orders.update') || hasPermission('sales_orders.update');
@@ -170,22 +172,30 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (form.designId && tenant?.id) {
-      const existing = stock.find(s => String(s.designId) === String(form.designId) || String(s.design?.id) === String(form.designId));
-      if (existing) {
-        setSelectedDesignAvailability(Number(existing.availableDozens ?? existing.packagedDozens ?? 0));
-      } else {
-        InventoryService.getStockAvailability(tenant.id, form.designId)
-          .then(res => {
-            if (res.success && res.data) {
-              setSelectedDesignAvailability(Number(res.data.availableDozens ?? res.data.packagedDozens ?? 0));
-            } else setSelectedDesignAvailability(0);
-          })
-          .catch(() => setSelectedDesignAvailability(0));
+      InventoryService.getStockAvailability(tenant.id, form.designId)
+        .then(res => {
+          if (res.success && res.data) {
+            setSelectedDesignAvailability(Number(res.data.availableDozens ?? 0));
+          } else setSelectedDesignAvailability(0);
+        })
+        .catch(() => setSelectedDesignAvailability(0));
+
+      // Auto-populate pricePerDozen from design sellingPrice if the design changed (converting piece rate to dozen rate: sellingPrice * 12)
+      if (form.designId !== prevDesignId) {
+        setPrevDesignId(form.designId);
+        const selectedDesign = designs.find(d => String(d.id) === String(form.designId));
+        if (selectedDesign) {
+          setForm(current => ({
+            ...current,
+            pricePerDozen: Number(selectedDesign.sellingPrice || 0) * 12
+          }));
+        }
       }
     } else {
       setSelectedDesignAvailability(null);
+      setPrevDesignId(null);
     }
-  }, [form.designId, tenant?.id, stock]);
+  }, [form.designId, tenant?.id, stock, designs, prevDesignId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -230,10 +240,24 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setPage(1); }, [search]);
 
-  const designOptions = designs.map(design => ({
-    label: `${design.designCode || design.code || ''} ${design.name || ''}`.trim() || String(design.id),
-    value: String(design.id),
-  }));
+  const designOptions = designs.map(design => {
+    const inv = stock.find(s => String(s.designId) === String(design.id) || String(s.design?.id) === String(design.id));
+    let avail = inv ? (inv.availableDozens ?? 0) : 0;
+    
+    // Virtually deduct DRAFT pending quantities in frontend to keep dropdown in sync with live API availability
+    const draftQty = orders
+      .filter(o => String(o.status || o.orderStatus || '').toUpperCase() === 'DRAFT')
+      .flatMap(o => Array.isArray(o.items) ? o.items : Array.isArray(o.orderItems) ? o.orderItems : [])
+      .filter((item: any) => String(item.designId) === String(design.id))
+      .reduce((sum, item: any) => sum + Number(item.quantityDozens || item.quantity || 0), 0);
+      
+    avail = Math.max(0, avail - draftQty);
+
+    return {
+      label: `${design.designCode || design.code || ''} ${design.name || ''} (${avail} doz avail)`.trim() || String(design.id),
+      value: String(design.id),
+    };
+  });
 
   const dealerOptions = dealers.map(dealer => ({ label: dealer.name || dealer.code || 'Dealer', value: String(dealer.id) }));
 
@@ -250,7 +274,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
 
   const openCreateOrder = () => {
     setSelectedOrder(null); setSelectedItem(null); setFormError(null); setModalMode('create');
-    setForm({ dealerId: dealers[0]?.id || '', designId: designs[0]?.id || '', quantityDozens: 1, pricePerDozen: 960, isCreditOrder: true, discountAmount: 0, notes: '' });
+    setForm({ dealerId: dealers[0]?.id || '', designId: designs[0]?.id || '', quantityDozens: 1, pricePerDozen: '', isCreditOrder: true, discountAmount: 0, notes: '' });
   };
 
   const openEditOrder = (order: BackendRecord) => {
@@ -265,7 +289,11 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
 
   const openEditItem = (order: BackendRecord, item: BackendRecord) => {
     setSelectedOrder(order); setSelectedItem(item); setFormError(null); setModalMode('editItem');
-    setForm({ quantityDozens: item.quantityDozens || item.quantity || 1, pricePerDozen: item.pricePerDozen || item.unitPrice || '', notes: item.notes || '' });
+    setForm({
+      quantityDozens: item.quantityDozens || item.quantity || 1,
+      pricePerDozen: item.pricePerDozen || item.rate || item.unitPrice || '',
+      notes: item.notes || ''
+    });
   };
 
   const openDispatch = (order: BackendRecord) => {
@@ -356,7 +384,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteItem = async (order: BackendRecord, item: BackendRecord) => {
-    if (!order.id || !item.id || !window.confirm('Delete this order item?')) return;
+    if (!order.id || !item.id || !(await confirmAction('Are you sure you want to delete this order item?'))) return;
     const currentTenant = tenant;
     if (!currentTenant?.id) return toast.error('Tenant not found');
     setSaving(true);

@@ -70,8 +70,27 @@ export default function RegisterPage() {
     return true;
   };
 
-  const goToSecurityStep = () => {
+  const goToSecurityStep = async () => {
     if (validateDetails()) {
+      setIsLoading(true);
+      try {
+        // Attempt a dummy registration to check if owner already exists
+        // Since we can't touch backend, this will throw OWNER_ALREADY_EXISTS if an owner is present.
+        const response = await AuthService.register({
+          name: formData.name.trim(),
+          email: formData.email.trim() || undefined,
+          phone: normalizePhoneForApi(formData.phone),
+          password: "DummyPassword123!@#",
+        });
+
+        if (!response.success && (response.error?.code === 'OWNER_ALREADY_EXISTS' || response.error?.message?.includes('already'))) {
+          setGlobalError("An active owner account is already registered. Only one owner is allowed.");
+          shakeForm();
+          return;
+        }
+      } finally {
+        setIsLoading(false);
+      }
       setStep("security");
       setErrors({});
       setGlobalError("");

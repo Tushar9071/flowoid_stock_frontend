@@ -1,4 +1,5 @@
 'use client';
+import { prettyDate, workerCode, workerId, moneyNumber, assignmentWorkerId, returnWorkerId, paymentWorkerId, workerEarned, workerPaid, workerAdvance, workerOutstanding, designLabel, ledgerEntries, ledgerTotals, toIsoDate, dateInput, parseAssignmentMetadata, assignmentFinancials, computeAssignmentStatus } from './worker-management-utils';
 
 import React, { useCallback, useEffect, useMemo, useState, Suspense, createContext, useContext } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -10,8 +11,9 @@ import { PremiumSelect } from '@/components/ui/PremiumSelect';
 import { AssignmentModal } from '@/components/workers/AssignmentModal';
 import { GoodsReturnModal } from '@/components/workers/GoodsReturnModal';
 import { PaymentModal } from '@/components/workers/PaymentModal';
-import { formatCurrency } from '@/lib/constants';
+import { DropAssignmentModal } from '@/components/workers/DropAssignmentModal';
 import { useAuth } from '@/lib/auth-context';
+import { confirmAction } from '@/components/shared/confirm-action';
 
 import {
   AssignmentService,
@@ -23,103 +25,11 @@ import {
 import { RawMaterialService } from '@/lib/services/raw-material.service';
 import { BackendTenant } from '@/lib/types';
 import { CurrentOwnerService } from '@/lib/services/current-owner.service';
+import { formatCurrency } from '@/lib/constants';
 
 type Tab = 'workers' | 'assignments' | 'finished-goods' | 'payments';
-type ModalMode = 'worker' | 'assignment' | 'assignment-update' | 'assignment-close' | 'return' | 'payment' | 'ledger' | null;
+type ModalMode = 'worker' | 'assignment' | 'assignment-update' | 'assignment-close' | 'assignment-drop' | 'return' | 'payment' | 'ledger' | null;
 
-export function prettyDate(value?: string | null) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(value));
-}
-
-export function workerCode(worker: BackendRecord) {
-  return worker.code || worker.workerCode || worker.id?.slice(0, 8) || '-';
-}
-
-function workerId(worker: BackendRecord) {
-  return worker.id || worker.workerId;
-}
-
-function moneyNumber(value: unknown) {
-  const parsed = Number(value || 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function assignmentWorkerId(assignment: BackendRecord) {
-  return assignment.workerId || assignment.worker?.id;
-}
-
-export function returnWorkerId(item: BackendRecord) {
-  return item.workerId || item.worker?.id || item.assignment?.worker?.id || item.assignment?.workerId;
-}
-
-export function paymentWorkerId(payment: BackendRecord) {
-  return payment.workerId || payment.worker?.id;
-}
-
-export function workerEarned(worker: BackendRecord, assignments: BackendRecord[], goodsReturns: BackendRecord[]) {
-  const direct = moneyNumber(worker.summary?.totalEarned || worker.totalEarned || worker.totalEarnings);
-  if (direct) return direct;
-  const id = workerId(worker);
-  const fromAssignments = assignments
-    .filter(assignment => assignmentWorkerId(assignment) === id)
-    .reduce((sum, assignment) => sum + moneyNumber(assignment.totalEarned), 0);
-  if (fromAssignments) return fromAssignments;
-  return goodsReturns
-    .filter(item => returnWorkerId(item) === id)
-    .reduce((sum, item) => sum + moneyNumber(item.earningAmount || item.workerEarning || item.amount), 0);
-}
-
-export function workerPaid(worker: BackendRecord, payments: BackendRecord[]) {
-  const direct = moneyNumber(worker.summary?.totalPaid || worker.totalPaid);
-  if (direct) return direct;
-  const id = workerId(worker);
-  return payments
-    .filter(payment => paymentWorkerId(payment) === id)
-    .reduce((sum, payment) => sum + moneyNumber(payment.amount), 0);
-}
-
-export function workerOutstanding(worker: BackendRecord, assignments: BackendRecord[], goodsReturns: BackendRecord[], payments: BackendRecord[]) {
-  const direct = moneyNumber(worker.summary?.outstandingBalance || worker.outstandingBalance || worker.balance || worker.currentBalance);
-  if (direct) return direct;
-
-  const opening = moneyNumber(worker.openingBalance);
-  const signedOpening = worker.openingBalanceType === 'RECEIVABLE' ? -opening : opening;
-  return signedOpening + workerEarned(worker, assignments, goodsReturns) - workerPaid(worker, payments);
-}
-
-export function designLabel(record: BackendRecord) {
-  return record.design?.designCode || record.design?.code || record.designCode || record.designId || '-';
-}
-
-function ledgerEntries(ledger: BackendRecord | BackendRecord[] | null): BackendRecord[] {
-  if (Array.isArray(ledger)) return ledger;
-  if (!ledger) return [];
-  const nested = ledger.entries || ledger.ledger || ledger.data || ledger.items;
-  if (Array.isArray(nested)) return nested;
-  return [];
-}
-
-function ledgerTotals(ledger: BackendRecord | BackendRecord[] | null) {
-  const entries = ledgerEntries(ledger);
-  const earned = entries.reduce((sum, entry) => sum + moneyNumber(entry.credit || entry.creditAmount), 0);
-  const paid = entries.reduce((sum, entry) => sum + moneyNumber(entry.debit || entry.debitAmount), 0);
-  const balance = entries.length ? moneyNumber(entries[entries.length - 1].runningBalance || entries[entries.length - 1].balance) : 0;
-  return {
-    earned: moneyNumber(!Array.isArray(ledger) && (ledger?.summary?.totalEarned || ledger?.totalEarned)) || earned,
-    paid: moneyNumber(!Array.isArray(ledger) && (ledger?.summary?.totalPaid || ledger?.totalPaid)) || paid,
-    balance: moneyNumber(!Array.isArray(ledger) && (ledger?.summary?.outstandingBalance || ledger?.summary?.balance || ledger?.balance)) || balance,
-  };
-}
-
-function toIsoDate(value?: string) {
-  if (!value) return undefined;
-  return new Date(`${value}T00:00:00.000Z`).toISOString();
-}
-
-function dateInput(value?: string | null) {
-  return value ? new Date(value).toISOString().slice(0, 10) : '';
-}
 
 const WorkerManagementContext = createContext<any>(null);
 
@@ -160,6 +70,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
   const [returnForm, setReturnForm] = useState<Record<string, any>>({});
   const [paymentForm, setPaymentForm] = useState<Record<string, any>>({});
   const [closeForm, setCloseForm] = useState<Record<string, any>>({});
+  const [dropForm, setDropForm] = useState<Record<string, any>>({});
   const [formError, setFormError] = useState<any>(null);
 
   const canCreate = hasPermission('workers.create');
@@ -200,7 +111,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
         setAssignments(loadedAssignments);
         const extractedReturns = loadedAssignments.flatMap((a: any) => 
           (a.returns || []).map((r: any) => ({ ...r, assignment: a }))
-        );
+        ).sort((a: any, b: any) => new Date(b.returnDate || b.createdAt).getTime() - new Date(a.returnDate || a.createdAt).getTime());
         setGoodsReturns(extractedReturns);
       }
       if (paymentsRes.success) setPayments(responseItems(paymentsRes.data));
@@ -265,7 +176,8 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     { name: 'workerId', label: 'Worker', type: 'select', required: true, options: workers.map(worker => ({ label: worker.name || workerCode(worker), value: worker.id })) },
     { name: 'amount', label: 'Amount', type: 'number', required: true },
     { name: 'paymentType', label: 'Payment Type', type: 'select', required: true, options: ['EARNING_SETTLEMENT', 'ADVANCE', 'ADVANCE_RECOVERY'].map(type => ({ label: type.replace(/_/g, ' '), value: type })) },
-    { name: 'paymentMode', label: 'Payment Mode' },
+    { name: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['CASH', 'BANK_TRANSFER', 'UPI', 'CHEQUE'].map(method => ({ label: method.replace(/_/g, ' '), value: method })) },
+    { name: 'referenceNumber', label: 'Reference No. (Assignment ID to link payment)', type: 'text' },
     { name: 'paidAt', label: 'Paid At', type: 'date' },
     { name: 'notes', label: 'Notes', type: 'textarea' },
   ];
@@ -317,24 +229,43 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     setSelectedAssignment(assignment || null);
     setFormError(null);
     setModalMode(assignment ? 'assignment-update' : 'assignment');
-    setAssignmentForm(assignment ? {
-      expectedReturnDate: dateInput(assignment.expectedReturnDate),
-      notes: assignment.notes || '',
-    } : {
-      workerId: prefilledWorkerId || workers[0]?.id || '',
-      designId: designs[0]?.id || '',
-      rawMaterialTypeId: rawMaterials[0]?.id || '',
-      rawMaterialQty: '',
-      issuedAt: new Date().toISOString().slice(0, 10),
-      expectedReturnDate: '',
-      notes: '',
-    });
+    
+    if (assignment) {
+      const meta = parseAssignmentMetadata(assignment.notes);
+      setAssignmentForm({
+        expectedReturnDate: dateInput(assignment.expectedReturnDate),
+        notes: meta.text,
+        dueDate: meta.dueDate,
+        priority: meta.priority,
+        estimatedAmount: meta.estimatedAmount,
+        finalAmount: meta.finalAmount,
+        pieceRate: meta.pieceRate,
+      });
+    } else {
+      setAssignmentForm({
+        workerId: prefilledWorkerId || workersWithSummary[0]?.id || '',
+        designId: designs[0]?.id || '',
+        expectedPieces: '',
+        materials: [],
+        issuedAt: new Date().toISOString().slice(0, 10),
+        expectedReturnDate: '',
+        notes: '',
+        dueDate: '',
+        priority: 'Normal',
+        estimatedAmount: 0,
+        finalAmount: 0,
+        pieceRate: 0,
+      });
+    }
   };
 
   const openReturnForm = (assignment: BackendRecord) => {
     setSelectedAssignment(assignment);
     setFormError(null);
     setModalMode('return');
+    
+    // Multiple returns are now allowed per assignment, so we no longer block based on returnedAlready.
+
     setReturnForm({
       piecesReturned: '',
       rejectedPieces: 0,
@@ -344,17 +275,28 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     });
   };
 
-  const openPaymentForm = (worker?: BackendRecord) => {
-    setSelectedWorker(worker || null);
+  const openPaymentForm = (worker?: BackendRecord, assignment?: BackendRecord) => {
+    const initialWorker = worker || workersWithSummary[0];
+    const targetWorker = workersWithSummary.find(w => w.id === initialWorker?.id) || initialWorker;
+    const initialOutstanding = targetWorker ? moneyNumber(targetWorker.summary?.outstandingBalance) : 0;
+    
+    let defaultType = 'EARNING';
+    if (initialOutstanding <= 0) {
+      defaultType = 'ADVANCE';
+    }
+
+    setSelectedWorker(targetWorker || null);
+    setSelectedAssignment(assignment || null);
     setFormError(null);
     setModalMode('payment');
     setPaymentForm({
-      workerId: worker?.id || workers[0]?.id || '',
-      amount: '',
-      paymentType: 'EARNING_SETTLEMENT',
-      paymentMode: 'CASH',
+      workerId: targetWorker?.id || '',
+      amount: initialOutstanding > 0 ? initialOutstanding : '',
+      paymentType: defaultType,
+      paymentMethod: 'CASH',
       paidAt: new Date().toISOString().slice(0, 10),
-      notes: '',
+      referenceNumber: assignment?.id || '',
+      notes: assignment ? `Payment for assignment ${assignment.id.slice(0,8)}` : '',
     });
   };
 
@@ -363,6 +305,22 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     setFormError(null);
     setModalMode('assignment-close');
     setCloseForm({ notes: '' });
+  };
+
+  const openDropForm = (assignment: BackendRecord) => {
+    setSelectedAssignment(assignment);
+    setFormError(null);
+    setModalMode('assignment-drop');
+    setDropForm({
+      piecesReturned: '',
+      piecesRejected: 0,
+      returnDate: new Date().toISOString().slice(0, 10),
+      cancelReason: '',
+      materials: assignment.items?.map((item: any) => ({
+        rawMaterialId: item.rawMaterialId,
+        quantityReturned: ''
+      })) || [],
+    });
   };
 
   const saveWorker = async (event: React.FormEvent) => {
@@ -396,20 +354,30 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
 
     setSaving(true);
     try {
+      const payloadNotes = JSON.stringify({
+        estimatedAmount: assignmentForm.estimatedAmount,
+        finalAmount: assignmentForm.finalAmount,
+        pieceRate: assignmentForm.pieceRate,
+        dueDate: assignmentForm.dueDate,
+        priority: assignmentForm.priority,
+        text: assignmentForm.notes
+      });
+
       const response = selectedAssignment?.id
         ? await AssignmentService.update(currentTenant.id, selectedAssignment.id, {
             expectedReturnDate: toIsoDate(assignmentForm.expectedReturnDate) || undefined,
-            notes: assignmentForm.notes || undefined,
+            notes: payloadNotes,
           })
         : await AssignmentService.create(currentTenant.id, {
             workerId: assignmentForm.workerId,
             designId: assignmentForm.designId,
+            expectedPieces: Number(assignmentForm.expectedPieces),
             assignmentDate: toIsoDate(assignmentForm.issuedAt) || new Date().toISOString(),
-            notes: assignmentForm.notes || undefined,
-            items: assignmentForm.rawMaterialTypeId && assignmentForm.rawMaterialQty ? [{
-               rawMaterialId: assignmentForm.rawMaterialTypeId,
-               quantityIssued: Number(assignmentForm.rawMaterialQty)
-            }] : []
+            notes: payloadNotes,
+            items: assignmentForm.materials?.filter((m: any) => m.rawMaterialId && Number(m.quantityIssued) > 0).map((m: any) => ({
+               rawMaterialId: m.rawMaterialId,
+               quantityIssued: Number(m.quantityIssued)
+            })) || []
           });
       if (!response.success) {
         setFormError(response.error);
@@ -470,6 +438,41 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     }
   };
 
+  const dropAssignment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const currentTenant = tenant;
+    if (!currentTenant?.id || !selectedAssignment?.id) return toast.error('Tenant or assignment not found');
+
+    setSaving(true);
+    try {
+      const payload = {
+        piecesReturned: Number(dropForm.piecesReturned || 0),
+        piecesRejected: Number(dropForm.piecesRejected || 0),
+        returnDate: toIsoDate(dropForm.returnDate) || new Date().toISOString(),
+        cancelReason: dropForm.cancelReason || undefined,
+        materials: dropForm.materials
+          .filter((m: any) => Number(m.quantityReturned) > 0)
+          .map((m: any) => ({
+            rawMaterialId: m.rawMaterialId,
+            quantityReturned: Number(m.quantityReturned)
+          }))
+      };
+      
+      const response = await AssignmentService.dropAssignment(currentTenant.id, selectedAssignment.id, payload);
+      if (!response.success) {
+        setFormError(response.error);
+        return;
+      }
+      toast.success('Assignment dropped and materials returned to stock');
+      closeModal();
+      await loadData();
+    } catch (error: any) {
+      setFormError(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveReturn = async (event: React.FormEvent) => {
     event.preventDefault();
     const currentTenant = tenant;
@@ -477,9 +480,13 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
 
     setSaving(true);
     try {
+      const piecesNow = Number(returnForm.piecesReturned || 0);
+      const rejectedNow = Number(returnForm.rejectedPieces || 0);
+      const acceptedNow = Math.max(0, piecesNow - rejectedNow);
+
       const response = await AssignmentService.recordReturn(currentTenant.id, selectedAssignment.id, {
-        piecesReturned: Number(returnForm.goodPieces || returnForm.piecesReturned || 0),
-        piecesRejected: Number(returnForm.rejectedPieces || 0),
+        piecesReturned: acceptedNow,
+        piecesRejected: rejectedNow,
         returnDate: toIsoDate(returnForm.returnedAt) || new Date().toISOString(),
         notes: returnForm.notes || returnForm.rejectionNotes || undefined,
       });
@@ -508,7 +515,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
         workerId: paymentForm.workerId,
         amount: Number(paymentForm.amount || 0),
         paymentType: paymentForm.paymentType,
-        paymentMode: paymentForm.paymentMode,
+        paymentMethod: paymentForm.paymentMethod || undefined,
         paymentDate: toIsoDate(paymentForm.paidAt) || new Date().toISOString(),
         referenceNumber: paymentForm.referenceNumber || undefined,
         notes: paymentForm.notes || undefined,
@@ -561,7 +568,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
   const deleteWorker = async (worker: BackendRecord) => {
     const currentTenant = tenant;
     if (!currentTenant?.id || !worker.id) return toast.error('Tenant or worker not found');
-    if (!window.confirm(`Delete ${worker.name || workerCode(worker)}?`)) return;
+    if (!(await confirmAction(`Are you sure you want to delete "${worker.name || workerCode(worker)}"?`))) return;
 
     const response = await WorkerService.delete(currentTenant.id, worker.id);
     if (response.success) {
@@ -570,6 +577,17 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     } else {
       toast.error(response.error?.message || 'Failed to delete worker');
     }
+  };
+
+  const updateWorkerStatus = async (id: string, newStatus: string) => {
+    const currentTenant = tenant;
+    if (!currentTenant?.id) throw new Error('Tenant not found');
+
+    const response = await WorkerService.updateStatus(currentTenant.id, id, { status: newStatus });
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to update worker status');
+    }
+    await loadData();
   };
 
   const filteredWorkers = useMemo(() => {
@@ -585,33 +603,58 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
 
   const filteredAssignments = useMemo(() => {
     const term = search.toLowerCase();
-    if (!term) return assignments;
-    return assignments.filter(a => 
+    const sorted = [...assignments].sort((a, b) => new Date(b.assignmentDate || b.createdAt).getTime() - new Date(a.assignmentDate || a.createdAt).getTime());
+    if (!term) return sorted;
+    return sorted.filter(a => 
+      String(a.assignmentNo || '').toLowerCase().includes(term) ||
       String(a.worker?.name || '').toLowerCase().includes(term) ||
       String(designLabel(a)).toLowerCase().includes(term) ||
       String(a.status || '').toLowerCase().includes(term)
-    );
+    ).sort((a, b) => new Date(b.assignmentDate || b.createdAt).getTime() - new Date(a.assignmentDate || a.createdAt).getTime());
   }, [assignments, search]);
   const paginatedAssignments = useMemo(() => filteredAssignments.slice((page - 1) * itemsPerPage, page * itemsPerPage), [filteredAssignments, page]);
 
+  const workersWithSummary = useMemo(() => {
+    return workers.map(w => {
+      const earned = workerEarned(w, assignments);
+      const paid = workerPaid(w, payments);
+      const outstanding = workerOutstanding(w, assignments, payments);
+      const advanceGiven = workerAdvance(w, payments);
+      return {
+        ...w,
+        summary: {
+          ...w.summary,
+          earned,
+          paid,
+          outstandingBalance: outstanding,
+          advanceGiven
+        }
+      } as BackendRecord;
+    });
+  }, [workers, assignments, goodsReturns, payments]);
+
   const filteredReturns = useMemo(() => {
     const term = search.toLowerCase();
-    if (!term) return goodsReturns;
-    return goodsReturns.filter(r => 
+    const sorted = [...goodsReturns].sort((a, b) => new Date(b.returnDate || b.createdAt).getTime() - new Date(a.returnDate || a.createdAt).getTime());
+    if (!term) return sorted;
+    return sorted.filter(r => 
       String(r.returnNo || '').toLowerCase().includes(term) ||
       String(r.worker?.name || r.assignment?.worker?.name || '').toLowerCase().includes(term) ||
       String(designLabel(r.assignment || r)).toLowerCase().includes(term)
-    );
+    ).sort((a, b) => new Date(b.returnDate || b.createdAt).getTime() - new Date(a.returnDate || a.createdAt).getTime());
   }, [goodsReturns, search]);
   const paginatedReturns = useMemo(() => filteredReturns.slice((page - 1) * itemsPerPage, page * itemsPerPage), [filteredReturns, page]);
 
   const filteredPayments = useMemo(() => {
     const term = search.toLowerCase();
-    if (!term) return payments;
-    return payments.filter(p => 
+    const sorted = [...payments].sort((a, b) => new Date(b.paymentDate || b.createdAt).getTime() - new Date(a.paymentDate || a.createdAt).getTime());
+    if (!term) return sorted;
+    return sorted.filter(p => 
       String(p.paymentNo || '').toLowerCase().includes(term) ||
-      String(p.worker?.name || '').toLowerCase().includes(term)
-    );
+      String(p.worker?.name || '').toLowerCase().includes(term) ||
+      String(p.paymentType || '').toLowerCase().includes(term) ||
+      String(p.paymentMethod || p.paymentMode || '').toLowerCase().includes(term)
+    ).sort((a, b) => new Date(b.paymentDate || b.createdAt).getTime() - new Date(a.paymentDate || a.createdAt).getTime());
   }, [payments, search]);
   const paginatedPayments = useMemo(() => filteredPayments.slice((page - 1) * itemsPerPage, page * itemsPerPage), [filteredPayments, page]);
 
@@ -651,7 +694,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
     loading, workers, assignments, goodsReturns, payments, designs, rawMaterials,
     canCreate, canUpdate, canDelete, canReadAssignment, canCreateAssignment, canUpdateAssignment, canCreatePayment,
     filteredWorkers, paginatedWorkers, filteredAssignments, paginatedAssignments, filteredReturns, paginatedReturns, filteredPayments, paginatedPayments,
-    openWorkerForm, openAssignmentForm, openReturnForm, openPaymentForm, openCloseForm, markInProgress, viewLedger, deleteWorker,
+    openWorkerForm, openAssignmentForm, openReturnForm, openPaymentForm, openCloseForm, openDropForm, markInProgress, viewLedger, deleteWorker, updateWorkerStatus
   };
 
   return (
@@ -675,7 +718,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
         <AssignmentModal
           mode="create"
           form={assignmentForm}
-          workers={workers}
+          workers={workersWithSummary}
           designs={designs}
           rawMaterials={rawMaterials}
           saving={saving}
@@ -689,7 +732,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
         <AssignmentModal
           mode="update"
           form={assignmentForm}
-          workers={workers}
+          workers={workersWithSummary}
           designs={designs}
           rawMaterials={rawMaterials}
           selectedAssignment={selectedAssignment}
@@ -728,7 +771,7 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
       {modalMode === 'payment' && Object.keys(paymentForm).length > 0 && (
         <PaymentModal
           form={paymentForm}
-          workers={workers}
+          workers={workersWithSummary}
           saving={saving}
           apiError={formError}
           onChange={(name, value) => setPaymentForm(form => ({ ...form, [name]: value }))}
@@ -738,6 +781,18 @@ function WorkerManagementProviderInner({ children }: { children: React.ReactNode
       )}
       {modalMode === 'ledger' && (
         <LedgerModal worker={selectedWorker} ledger={workerLedger} onClose={closeModal} />
+      )}
+      {modalMode === 'assignment-drop' && selectedAssignment && Object.keys(dropForm).length > 0 && (
+        <DropAssignmentModal
+          assignment={selectedAssignment}
+          form={dropForm}
+          saving={saving}
+          apiError={formError}
+          rawMaterials={rawMaterials}
+          onChange={(name, value) => setDropForm(form => ({ ...form, [name]: value }))}
+          onClose={closeModal}
+          onSubmit={dropAssignment}
+        />
       )}
     </WorkerManagementContext.Provider>
   );
@@ -937,72 +992,222 @@ function EmptyState({ text, tenant }: { text: string; tenant?: BackendTenant | n
 
 function LedgerModal({
   worker,
-  ledger,
+  ledger, // keep for compatibility if needed, but we rely on context now
   onClose,
 }: {
   worker: BackendRecord | null;
   ledger: BackendRecord | BackendRecord[] | null;
   onClose: () => void;
 }) {
-  const entries = ledgerEntries(ledger);
-  const totals = ledgerTotals(ledger);
-  // Worker detail summary from GET /workers/:id — preferred over computed totals
-  const summary = worker?.summary;
-  const isLoading = ledger === null;
+  const { assignments, payments } = useWorkerManagement();
+  const [activeTab, setActiveTab] = useState<'ledger' | 'assignments' | 'payments'>('ledger');
+
+  const workerAssignments = useMemo(() => {
+    if (!worker) return [];
+    return assignments
+      .filter((a: any) => assignmentWorkerId(a) === worker.id)
+      .sort((a: any, b: any) => new Date(b.assignmentDate || b.createdAt).getTime() - new Date(a.assignmentDate || a.createdAt).getTime());
+  }, [assignments, worker]);
+
+  const workerPaymentsList = useMemo(() => {
+    if (!worker) return [];
+    return payments
+      .filter((p: any) => paymentWorkerId(p) === worker.id)
+      .sort((a: any, b: any) => new Date(b.paymentDate || b.createdAt).getTime() - new Date(a.paymentDate || a.createdAt).getTime());
+  }, [payments, worker]);
+
+  // Aggregate Metrics
+  const totalAssignments = workerAssignments.length;
+  const metrics = useMemo(() => {
+    let est = 0, fin = 0;
+    workerAssignments.forEach((a: any) => {
+      const f = assignmentFinancials(a, payments);
+      est += f.estimated;
+      fin += f.final;
+    });
+    const paid = worker ? workerPaid(worker, payments) : 0;
+    const pending = worker ? workerOutstanding(worker, workerAssignments, payments) : 0;
+    return { estimated: est, final: fin, paid, pending };
+  }, [workerAssignments, payments, worker]);
+
+  const unifiedLedger = useMemo(() => {
+    let runningBalance = worker?.openingBalanceType === 'RECEIVABLE' ? -moneyNumber(worker?.openingBalance) : moneyNumber(worker?.openingBalance);
+    
+    const assignmentItems = workerAssignments.map((a: any) => {
+      const f = assignmentFinancials(a, payments);
+      return {
+        id: a.id,
+        date: new Date(a.assignmentDate).getTime(),
+        type: 'EARNING',
+        method: '-',
+        description: `Assignment: ${designLabel(a)}`,
+        credit: f.final,
+        debit: 0,
+      };
+    });
+
+    const paymentItems = workerPaymentsList.map((p: any) => {
+      const amount = Number(p.amount || 0);
+      let desc = p.paymentType || 'Payment';
+      if (p.notes) desc += ` (${p.notes})`;
+      if (p.referenceNumber) desc += ` [Ref: ${p.referenceNumber.slice(0,8)}]`;
+      
+      return {
+        id: p.id,
+        date: new Date(p.paymentDate).getTime(),
+        type: p.paymentType || 'PAYMENT',
+        method: p.paymentMethod || p.paymentMode || '-',
+        description: desc,
+        credit: 0,
+        debit: amount,
+      };
+    });
+
+    const combined = [...assignmentItems, ...paymentItems].sort((a, b) => a.date - b.date);
+    
+    return combined.map(item => {
+      runningBalance += item.credit - item.debit;
+      return { ...item, runningBalance };
+    }).reverse();
+  }, [workerAssignments, workerPaymentsList, worker, payments]);
 
   return (
     <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center sm:p-6">
-      <div className="theme-modal-panel w-full max-w-3xl overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-200 p-4">
+      <div className="theme-modal-panel w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between border-b border-slate-200 p-4 shrink-0">
           <div>
-            <h2 className="text-xl font-bold theme-text-primary">Worker Ledger</h2>
-            <p className="text-sm text-slate-500">{worker?.name || 'Worker'} — {worker?.city || worker?.phone || 'balance & ledger entries'}</p>
+            <h2 className="text-xl font-bold theme-text-primary">Worker History</h2>
+            <p className="text-sm text-slate-500">{worker?.name || 'Worker'} — {worker?.city || worker?.phone || 'assignments & payments'}</p>
           </div>
           <button type="button" onClick={onClose} className="theme-secondary-btn rounded-lg px-3 py-2 text-sm font-semibold">
             Close
           </button>
         </div>
-        {/* Summary cards: prefer GET /workers/:id summary, fall back to computed ledger totals */}
-        <div className="grid gap-4 p-4 md:grid-cols-5">
-          <Metric label="Opening Balance" value={formatCurrency(Math.abs(moneyNumber(worker?.openingBalance)))} />
-          <Metric label="Total Earned" value={formatCurrency(moneyNumber(summary?.totalEarned) || Math.abs(totals.earned))} />
-          <Metric label="Total Paid" value={formatCurrency(Math.abs(moneyNumber(summary?.totalPaid) || totals.paid))} valueClass="text-blue-600" />
-          <Metric label="Advance Given" value={formatCurrency(Math.abs(moneyNumber(summary?.advanceGiven)))} />
-          <Metric label="Outstanding" value={formatCurrency(Math.abs(moneyNumber(summary?.outstandingBalance) || totals.balance))} valueClass="text-red-600" />
+        
+        {/* Summary metrics */}
+        <div className="grid gap-4 p-4 md:grid-cols-5 shrink-0 bg-slate-50/50 border-b border-slate-200">
+          <Metric label="Total Assignments" value={totalAssignments.toString()} />
+          <Metric label="Total Estimated" value={formatCurrency(metrics.estimated)} />
+          <Metric label="Total Earnings" value={formatCurrency(metrics.final)} valueClass="text-indigo-600" />
+          <Metric label="Total Paid" value={formatCurrency(metrics.paid)} valueClass="text-emerald-600" />
+          <Metric label="Total Pending" value={formatCurrency(metrics.pending)} valueClass="text-red-600" />
         </div>
-        <div className="max-h-[55vh] overflow-auto border-t border-slate-200">
-          {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-500">Loading ledger entries…</div>
-          ) : entries.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-500">No ledger entries found for this worker.</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="theme-table-header">
-                <tr>
-                  {['Date', 'Type', 'Debit', 'Credit', 'Balance', 'Notes'].map(header => (
-                    <th key={header} className="px-4 py-3 text-left">{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {entries.map((entry: BackendRecord, index: number) => (
-                  <tr key={entry.id || index}>
-                    {/* API ledger date field: date */}
-                    <td className="px-4 py-3">{prettyDate(entry.date || entry.entryDate || entry.createdAt)}</td>
-                    {/* API ledger type field: type */}
-                    <td className="px-4 py-3 font-semibold">{entry.type || entry.entryType || '-'}</td>
-                    {/* API ledger debit field: debit */}
-                    <td className="px-4 py-3 text-red-600">{formatCurrency(Number(entry.debit || entry.debitAmount || 0))}</td>
-                    {/* API ledger credit field: credit */}
-                    <td className="px-4 py-3 text-green-700">{formatCurrency(Number(entry.credit || entry.creditAmount || 0))}</td>
-                    {/* API ledger balance field: runningBalance */}
-                    <td className="px-4 py-3 font-semibold">{formatCurrency(Number(entry.runningBalance || entry.balance || 0))}</td>
-                    {/* API ledger description field: description */}
-                    <td className="px-4 py-3 text-slate-500">{entry.description || entry.notes || '-'}</td>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200 shrink-0 px-4">
+          <button
+            className={`px-4 py-3 text-sm font-bold border-b-2 ${activeTab === 'ledger' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            onClick={() => setActiveTab('ledger')}
+          >
+            Unified Ledger
+          </button>
+          <button
+            className={`px-4 py-3 text-sm font-bold border-b-2 ${activeTab === 'assignments' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            onClick={() => setActiveTab('assignments')}
+          >
+            Assignment History
+          </button>
+          <button
+            className={`px-4 py-3 text-sm font-bold border-b-2 ${activeTab === 'payments' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            onClick={() => setActiveTab('payments')}
+          >
+            Recent Payments
+          </button>
+        </div>
+
+        <div className="overflow-auto flex-1">
+          {activeTab === 'ledger' && (
+            unifiedLedger.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">No ledger entries found for this worker.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="theme-table-header sticky top-0 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Description</th>
+                    <th className="px-4 py-3 text-left">Method</th>
+                    <th className="px-4 py-3 text-right">Earned (Cr)</th>
+                    <th className="px-4 py-3 text-right">Paid (Dr)</th>
+                    <th className="px-4 py-3 text-right">Balance</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {unifiedLedger.map((entry: any) => (
+                    <tr key={entry.id}>
+                      <td className="px-4 py-3 whitespace-nowrap">{prettyDate(new Date(entry.date).toISOString())}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-700">{entry.description}</td>
+                      <td className="px-4 py-3 text-slate-500">{entry.method}</td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600">{entry.credit > 0 ? formatCurrency(entry.credit) : '-'}</td>
+                      <td className="px-4 py-3 text-right font-bold text-red-500">{entry.debit > 0 ? formatCurrency(entry.debit) : '-'}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${entry.runningBalance > 0 ? 'text-indigo-600' : entry.runningBalance < 0 ? 'text-red-600' : 'text-slate-500'}`}>
+                        {formatCurrency(entry.runningBalance)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          )}
+
+          {activeTab === 'assignments' && (
+            workerAssignments.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">No assignments found for this worker.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="theme-table-header sticky top-0 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Design</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-right">Estimated</th>
+                    <th className="px-4 py-3 text-right">Earnings</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {workerAssignments.map((a: any) => {
+                    const f = assignmentFinancials(a, payments);
+                    return (
+                      <tr key={a.id}>
+                        <td className="px-4 py-3 whitespace-nowrap">{prettyDate(a.assignmentDate)}</td>
+                        <td className="px-4 py-3 font-semibold">{designLabel(a)}</td>
+                        <td className="px-4 py-3"><TextPill text={computeAssignmentStatus(a)} /></td>
+                        <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(f.estimated)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatCurrency(f.final)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
+          )}
+
+          {activeTab === 'payments' && (
+            workerPaymentsList.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">No recent payments found for this worker.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="theme-table-header sticky top-0 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Type</th>
+                    <th className="px-4 py-3 text-left">Method</th>
+                    <th className="px-4 py-3 text-right">Amount</th>
+                    <th className="px-4 py-3 text-left">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {workerPaymentsList.sort((a: any, b: any) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()).map((entry: any) => (
+                    <tr key={entry.id}>
+                      <td className="px-4 py-3 whitespace-nowrap">{prettyDate(entry.paymentDate)}</td>
+                      <td className="px-4 py-3 font-semibold">{entry.paymentType || '-'}</td>
+                      <td className="px-4 py-3">{entry.paymentMethod || entry.paymentMode || '-'}</td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatCurrency(Number(entry.amount || 0))}</td>
+                      <td className="px-4 py-3 text-slate-500">{entry.notes || (entry.referenceNumber ? `Ref: ${entry.referenceNumber.slice(0,8)}` : '-')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
           )}
         </div>
       </div>

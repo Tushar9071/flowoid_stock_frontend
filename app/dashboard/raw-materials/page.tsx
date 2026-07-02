@@ -26,7 +26,22 @@ export default function RawMaterialsStockPage() {
             onChange={event => setSearch(event.target.value)}
           />
         </div>
-        <div className="flex flex-nowrap overflow-x-auto whitespace-nowrap gap-2 pb-1 hide-scrollbar">
+        <div className="flex flex-nowrap overflow-x-auto whitespace-nowrap gap-2 pb-1 hide-scrollbar items-center">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginRight: '8px', borderRight: '1px solid #E5E7EB', paddingRight: '16px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Status</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '18px', height: '12px', background: '#059669', transform: 'rotate(-3deg)', clipPath: 'polygon(4px 0%, 100% 0%, 100% 100%, 4px 100%, 0% 50%)' }} />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1E3A8A' }}>Adequate</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '18px', height: '12px', background: '#D97706', transform: 'rotate(-3deg)', clipPath: 'polygon(4px 0%, 100% 0%, 100% 100%, 4px 100%, 0% 50%)' }} />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1E3A8A' }}>Low Stock</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '18px', height: '12px', background: '#DC2626', transform: 'rotate(-3deg)', clipPath: 'polygon(4px 0%, 100% 0%, 100% 100%, 4px 100%, 0% 50%)' }} />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1E3A8A' }}>Out of Stock</span>
+            </div>
+          </div>
           <select value={stockFilter} onChange={e => setStockFilter(e.target.value as any)} className="h-10 rounded-lg text-sm font-semibold border-slate-200 bg-white">
             <option value="ALL">All Materials</option>
             <option value="LOW_STOCK">Low Stock</option>

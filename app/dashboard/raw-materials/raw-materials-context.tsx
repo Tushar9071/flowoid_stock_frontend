@@ -4,6 +4,7 @@ import React, { createContext, FormEvent, useCallback, useContext, useEffect, us
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@/lib/constants';
+import { confirmAction } from '@/components/shared/confirm-action';
 import { useAuth } from '@/lib/auth-context';
 import { PartyService } from '@/lib/services/party.service';
 import { RawMaterialService } from '@/lib/services/raw-material.service';
@@ -218,6 +219,7 @@ type RawMaterialsContextValue = {
   openTypeModal: (material?: RawMaterialType) => Promise<any>;
   saveType: (event: FormEvent) => Promise<any>;
   deleteType: (material: RawMaterialType) => Promise<any>;
+  updateTypeStatus: (id: string, newStatus: string) => Promise<any>;
   openPurchaseModal: (purchase?: RawMaterialPurchase) => Promise<any>;
   savePurchase: (event: FormEvent) => Promise<any>;
   deletePurchase: (purchase: RawMaterialPurchase) => Promise<any>;
@@ -288,15 +290,57 @@ export function RawMaterialsProvider({
   }, []);
 
   const loadReferenceData = useCallback(async (tenantId: string) => {
-    const [typesRes, suppliersRes, stockRes] = await Promise.all([
+    const [typesRes, suppliersRes, stockRes, purchasesRes, movementsRes] = await Promise.all([
       RawMaterialService.listTypes(tenantId, { page: 1, limit: 100, isActive: true }),
       PartyService.dropdown(tenantId, { type: 'SUPPLIER', isActive: true, limit: 100 }),
       RawMaterialService.stock(tenantId),
+      RawMaterialService.listPurchases(tenantId, { limit: 100, status: 'FINAL' } as any),
+      RawMaterialService.listIssuances(tenantId, { limit: 100 }),
     ]);
 
     if (typesRes.success) setTypes(typesRes.data.items);
     if (suppliersRes.success) setSuppliers(suppliersRes.data.items);
-    if (stockRes.success) setStock(stockRes.data || []);
+    
+    if (stockRes.success) {
+      const purchasesList = purchasesRes.success ? purchasesRes.data.items : [];
+      const movementsList = movementsRes.success ? movementsRes.data.items : [];
+      
+      const enrichedStock = (stockRes.data || []).map(item => {
+        const materialId = item.materialTypeId || (item as any).materialId || (item as any).id;
+        
+        // 1. Purchased: explicit FINAL purchases + positive manual adjustments (like initial stock)
+        const purchaseSum = purchasesList
+          .filter((p: any) => (p.materialTypeId || p.materialId) === materialId && p.status === 'FINAL')
+          .reduce((sum: number, p: any) => sum + Number(p.quantity || 0), 0);
+          
+        const initialStockSum = movementsList
+          .filter((m: any) => (m.materialTypeId || m.materialId) === materialId)
+          .filter((m: any) => (m.movementType === 'MANUAL_ADJUSTMENT' || m.notes === 'INITIAL_STOCK') && Number(m.quantity || 0) > 0)
+          .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
+          
+        const totalPurchased = purchaseSum + initialStockSum;
+        
+        // 2. Issued: Actual issuances + negative manual adjustments - returned from worker
+        // We explicitly EXCLUDE 'PURCHASE' movements (which are cancellations if negative, or duplicates if positive)
+        const totalIssued = movementsList
+          .filter((m: any) => (m.materialTypeId || m.materialId) === materialId)
+          .filter((m: any) => m.movementType === 'ISSUED_TO_WORKER' || ((m.movementType === 'MANUAL_ADJUSTMENT' || (!m.movementType && m.assignmentId)) && Number(m.quantity || 0) < 0))
+          .reduce((sum: number, m: any) => sum + Math.abs(Number(m.quantity || 0)), 0)
+          - movementsList
+          .filter((m: any) => (m.materialTypeId || m.materialId) === materialId)
+          .filter((m: any) => m.movementType === 'RETURNED_FROM_WORKER')
+          .reduce((sum: number, m: any) => sum + Number(m.quantity || 0), 0);
+          
+        return {
+          ...item,
+          totalPurchased: String(totalPurchased),
+          totalIssued: String(Math.max(0, totalIssued)), // prevent negative issued
+          currentStock: String(totalPurchased - Math.max(0, totalIssued))
+        };
+      });
+      
+      setStock(enrichedStock);
+    }
   }, []);
 
   const getDateRange = (filter: string) => {
@@ -344,7 +388,12 @@ export function RawMaterialsProvider({
           ...getDateRange(purchaseDateFilter),
         } as any);
         if (response.success) {
-          setPurchases(response.data.items);
+          let items = response.data.items;
+          if (purchaseFilter === 'ALL') {
+            // Hide cancelled purchases from the default 'ALL' view so they disappear when deleted
+            items = items.filter((p: RawMaterialPurchase) => p.status !== 'CANCELLED');
+          }
+          setPurchases(items);
           setPagination({ page: response.data.pagination.page, totalPages: response.data.pagination.totalPages, totalItems: response.data.pagination.totalItems });
         } else toast.error(response.error?.message || 'Failed to load purchases');
       }
@@ -456,10 +505,21 @@ export function RawMaterialsProvider({
     const currentTenant = tenant || await loadTenant();
     if (!currentTenant) return;
     if (!canDelete) return toast.error('You do not have permission to delete material types');
-    if (!window.confirm(`Delete ${material.name}? This will soft delete the material type.`)) return;
+    if (!(await confirmAction(`Are you sure you want to delete "${material.name}"?`))) return;
     const response = await RawMaterialService.deleteType(currentTenant.id, material.id);
     if (response.success) { toast.success('Material type deleted'); await loadData(); }
     else toast.error(response.error?.message || 'Failed to delete material type');
+  };
+
+  const updateTypeStatus = async (id: string, newStatus: string) => {
+    const currentTenant = tenant || await loadTenant();
+    if (!currentTenant) throw new Error('Tenant not found');
+
+    const response = await RawMaterialService.updateTypeStatus(currentTenant.id, id, { status: newStatus });
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to update material status');
+    }
+    await loadData();
   };
 
   const openPurchaseModal = async (purchase?: RawMaterialPurchase) => {
@@ -501,8 +561,21 @@ export function RawMaterialsProvider({
         : await RawMaterialService.createPurchase(currentTenant.id, {
           ...commonPayload, materialTypeId: purchaseForm.materialTypeId, supplierId: purchaseForm.supplierId,
         } as CreateRawMaterialPurchasePayload);
+        
       if (response.success) {
-        toast.success(selectedPurchase ? 'Purchase updated' : 'Purchase created');
+        // If the user selected a status other than DRAFT, handle it immediately
+        let finalStatusMessage = '';
+        if (purchaseForm.status === 'FINAL') {
+          const finRes = await RawMaterialService.finalisePurchase(currentTenant.id, response.data.id);
+          if (!finRes.success) toast.error(finRes.error?.message || 'Saved draft, but failed to mark as Stock Received');
+          else finalStatusMessage = ' and marked as Stock Received';
+        } else if (purchaseForm.status === 'CANCELLED') {
+          const delRes = await RawMaterialService.deletePurchase(currentTenant.id, response.data.id);
+          if (!delRes.success) toast.error(delRes.error?.message || 'Saved draft, but failed to cancel');
+          else finalStatusMessage = ' and cancelled';
+        }
+
+        toast.success((selectedPurchase ? 'Purchase updated' : 'Purchase created') + finalStatusMessage);
         setPurchaseModalMode(null);
         setSelectedPurchase(null);
         await loadData();
@@ -522,7 +595,12 @@ export function RawMaterialsProvider({
     if (!currentTenant) return;
     if (!canUpdate) return toast.error('You do not have permission to cancel purchases');
     if (purchase.status === 'CANCELLED') return toast.error('Purchase is already cancelled');
-    if (!window.confirm(`Cancel purchase ${purchase.invoiceNumber || shortId(purchase.id)}? This can affect stock.`)) return;
+    if (!(await confirmAction(`Are you sure you want to cancel purchase "${purchase.invoiceNumber || shortId(purchase.id)}"?`, {
+      type: 'warning',
+      title: 'Cancel Purchase?',
+      description: 'This can affect stock if it was already processed.',
+      confirmText: 'Cancel Purchase'
+    }))) return;
     const response = await RawMaterialService.deletePurchase(currentTenant.id, purchase.id);
     if (response.success) { toast.success('Purchase cancelled'); await loadData(); }
     else toast.error(response.error?.message || 'Failed to delete purchase');
@@ -533,7 +611,12 @@ export function RawMaterialsProvider({
     if (!currentTenant) return;
     if (!canApprove) return toast.error('You do not have permission to mark purchases as stock received');
     if (purchase.status !== 'DRAFT') return toast.error('Only DRAFT purchases can be marked as stock received');
-    if (!window.confirm(`Mark purchase ${purchase.invoiceNumber || shortId(purchase.id)} as Stock Received? Stock and supplier due amount will be updated.`)) return;
+    if (!(await confirmAction(`Are you sure you want to mark purchase "${purchase.invoiceNumber || shortId(purchase.id)}" as Stock Received?`, {
+      type: 'info',
+      title: 'Mark as Received?',
+      description: 'Stock and supplier due amount will be updated.',
+      confirmText: 'Mark Received'
+    }))) return;
     const response = await RawMaterialService.finalisePurchase(currentTenant.id, purchase.id);
     if (response.success) { toast.success('Purchase marked as Stock Received'); await loadData(); }
     else toast.error(response.error?.message || 'Failed to update purchase status');
@@ -549,7 +632,7 @@ export function RawMaterialsProvider({
       filteredStock,
       setSearch, setStockFilter, setMaterialFilter, setPurchaseFilter, setPurchaseDateFilter, setUsageFilter, setUsageDateFilter, setPage,
       setTypeForm, setPurchaseForm,
-      openTypeModal, saveType, deleteType,
+      openTypeModal, saveType, deleteType, updateTypeStatus,
       openPurchaseModal, savePurchase, deletePurchase, finalisePurchase,
       setTypeModalMode, setPurchaseModalMode,
       loadData,

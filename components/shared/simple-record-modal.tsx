@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { parseValidationErrors } from '@/lib/utils';
 import { PremiumSelect } from '@/components/ui/PremiumSelect';
+import toast from 'react-hot-toast';
 
 export type SimpleField = {
   name: string;
@@ -156,7 +157,21 @@ export function SimpleRecordModal({
                   type="file"
                   multiple
                   accept="image/*"
-                  onChange={event => handleChange(field.name, event.target.files ? Array.from(event.target.files) : [])}
+                  onChange={event => {
+                    if (event.target.files) {
+                      const files = Array.from(event.target.files);
+                      const oversizedFiles = files.filter(f => f.size > 5 * 1024 * 1024);
+                      if (oversizedFiles.length > 0) {
+                        toast.error('File size must be less than 5MB');
+                        event.target.value = '';
+                        handleChange(field.name, []);
+                        return;
+                      }
+                      handleChange(field.name, files);
+                    } else {
+                      handleChange(field.name, []);
+                    }
+                  }}
                   className={`block w-full rounded-lg border ${fieldErrors[field.name] ? 'border-red-500 bg-red-50/30' : 'border-slate-200'} bg-white text-sm file:mr-3 file:h-10 file:border-0 file:bg-slate-100 file:px-3 file:text-sm file:font-bold file:text-slate-600`}
                   data-invalid={!!fieldErrors[field.name]}
                 />
