@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/api';
+import { DEFAULT_BACKEND_URL, getApiBaseUrl } from '@/lib/api';
 import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -11,9 +11,9 @@ type RouteParams = {
 
 export async function GET(request: NextRequest, context: RouteParams) {
   const { path = [] } = await context.params;
-  
-  const apiBase = getApiBaseUrl();
-  const backendBaseUrl = apiBase ? apiBase.replace(/\/api\/?$/, '') : 'http://localhost:8000';
+  const headerBackendUrl = request.headers.get('x-backend-url');
+  const apiBase = getApiBaseUrl(headerBackendUrl);
+  const backendBaseUrl = apiBase ? apiBase.replace(/\/api\/?$/, '') : DEFAULT_BACKEND_URL;
   const targetUrl = new URL(`/uploads/${path.join('/')}`, backendBaseUrl);
   
   try {
