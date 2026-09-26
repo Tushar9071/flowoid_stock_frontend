@@ -19,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ACCESS_TOKEN_STORAGE_KEY } from '@/lib/api-client';
+import { getSocketUrl } from '@/lib/api';
 
 function formatUptime(seconds: number) {
   const days = Math.floor(seconds / 86400);
@@ -57,8 +58,7 @@ export default function MonitoringPage() {
     // Initial fetch via REST
     fetchMetrics();
 
-    // Use URL strictly from environment variables to prevent exposing sensitive endpoints in source code.
-    const socketUrl = process.env.NEXT_PUBLIC_MONITORING_SOCKET_URL;
+    const socketUrl = getSocketUrl();
     
     if (!socketUrl) {
       // If no socket URL is provided in .env, gracefully fallback to HTTP polling immediately
